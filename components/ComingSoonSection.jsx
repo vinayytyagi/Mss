@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 
 const ComingSoonSection = () => {
   const [isMounted, setIsMounted] = useState(false);
@@ -48,7 +49,7 @@ const ComingSoonSection = () => {
   ];
 
   return (
-    <section className="relative h-screen w-full flex items-center justify-center bg-gradient-to-br from-pink-50 via-white to-pink-100 overflow-hidden font-sans selection:bg-pink-300 selection:text-white">
+    <section className="relative min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-pink-50 via-white to-pink-100 overflow-hidden font-sans selection:bg-pink-300 selection:text-white pb-12 pt-8 sm:py-0">
       {/* Decorative Blob Elements */}
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-[pulse_6s_infinite]"></div>
       <div className="absolute top-[20%] right-[-10%] w-96 h-96 bg-rose-200 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-[pulse_8s_infinite]"></div>
@@ -68,6 +69,18 @@ const ComingSoonSection = () => {
           isMounted ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"
         }`}
       >
+        {/* Logo */}
+        <div className="mb-6 z-20 flex justify-center">
+          <Image 
+            src="/mst.jpg" 
+            alt="My Shaadi Store Logo" 
+            width={100} 
+            height={100} 
+            className="rounded-full border-2 border-white shadow-md object-cover"
+            priority
+          />
+        </div>
+
         {/* Launching Soon Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/70 backdrop-blur-md border border-pink-200 shadow-sm mb-4 md:mb-6 transform hover:scale-105 transition-transform duration-300">
           <span className="relative flex h-2.5 w-2.5">
@@ -115,7 +128,7 @@ const ComingSoonSection = () => {
           ) : (
             <form 
               onSubmit={handleSubmit} 
-              className="w-full bg-white/80 backdrop-blur-2xl p-1.5 rounded-full shadow-[0_8px_30px_rgb(236,72,153,0.1)] border border-pink-100 flex flex-col sm:flex-row items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-pink-100 focus-within:border-pink-300"
+              className="w-full bg-white/80 backdrop-blur-2xl p-2 sm:p-1.5 rounded-2xl sm:rounded-full shadow-[0_8px_30px_rgb(236,72,153,0.1)] border border-pink-100 flex flex-col sm:flex-row items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-pink-100 focus-within:border-pink-300"
             >
               <input
                 type="email"
