@@ -79,7 +79,7 @@ const ComingSoonSection = () => {
             className="rounded-full border-2 border-white shadow-md object-cover"
             priority
           />
-        </div>
+        </div> 
 
         {/* Launching Soon Badge */} 
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/70 backdrop-blur-md border border-pink-200 shadow-sm mb-4 md:mb-6 transform hover:scale-105 transition-transform duration-300">
