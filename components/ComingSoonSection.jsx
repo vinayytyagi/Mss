@@ -93,8 +93,8 @@ const ComingSoonSection = () => {
         </div>
 
         {/* Hero Title & Subtitle */}
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-gray-900 mb-3 md:mb-4 tracking-tight drop-shadow-sm">
-          My Shaadi <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-rose-400 to-pink-500 animate-gradient-x">Store</span>
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold mb-3 md:mb-4 tracking-tight drop-shadow-sm text-transparent bg-clip-text bg-gradient-to-r from-[#4f1659] via-[#4f1659] to-[#c22e5a] py-2">
+          My Shaadi <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#c22e5a] via-[#c22e5a] to-[#ed6c11]">Store</span>
         </h1>
         <h2 className="text-xl md:text-2xl font-medium text-gray-700 mb-3 md:mb-4">
           Your Complete Shaadi Solution
