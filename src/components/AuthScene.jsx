@@ -13,7 +13,7 @@ export default function AuthScene({
       {/* Ambience Background */}
       <div 
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/login_bg.png')" }}
+        style={{ backgroundImage: "url('/login_bg.webp')" }}
       />
       <div className="absolute inset-0 bg-linear-to-br from-slate-900/65 via-slate-900/45 to-[#ff4f86]/20" />
 

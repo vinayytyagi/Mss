@@ -17,12 +17,12 @@ export default function HeroSection({ heroSlideshow = null }) {
   };
 
   return (
-    <div className="relative mx-auto w-full h-[100vh] overflow-x-hidden px-4 pb-8 pt-2 sm:px-20 sm:pt-6">
+    <div className="relative mx-auto w-full min-h-[calc(100vh-88px)] overflow-x-hidden px-4 pb-10 pt-4 sm:min-h-[calc(100vh-92px)] sm:px-8 sm:pt-0 lg:px-20">
       {/* Pink vertical strip on the far left edge */}
-      <div className="absolute left-0 top-[10%] z-0 h-[100px] w-2.5 rounded-r-2xl bg-[#ff4f86] sm:h-[120px] sm:w-3.5 xl:h-[135px] xl:w-4" />
+      <div className="absolute left-0 top-[5%] z-0 h-[100px] w-2.5 rounded-r-2xl bg-[#ff4f86] sm:h-[120px] sm:w-3.5 xl:h-[135px] xl:w-4" />
 
       {/* Top right striped circle decoration — clipped so it never causes horizontal scroll */}
-      <div className="pointer-events-none absolute -right-[20%] top-[-120px] z-0 h-[240px] w-[240px] overflow-hidden opacity-35 sm:-right-[8%] sm:top-[-80px] sm:h-[280px] sm:w-[280px] -lg:right-10 lg:top-[-160px] lg:h-[360px] lg:w-[360px]">
+      <div className="pointer-events-none absolute -right-[20%] top-[-120px] z-0 h-[200px] w-[240px] overflow-hidden opacity-35 sm:-right-[8%] sm:top-[-80px] sm:h-[280px] sm:w-[280px] lg:right-10 lg:top-[-160px] lg:h-[360px] lg:w-[360px]">
         <svg viewBox="0 0 100 100" className="w-full h-full text-[#ff4e83]">
           <pattern
             id="diagonalHatch"
@@ -46,9 +46,9 @@ export default function HeroSection({ heroSlideshow = null }) {
 
       <div className="relative z-10 mt-0 flex w-full max-w-full flex-col items-center gap-8 lg:mt-12 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
         {/* Left Content */}
-        <div className="w-full max-w-xl flex-1 pt-2 lg:max-w-xl lg:pl-4 lg:pt-4 xl:max-w-2xl xl:pl-6">
-          <h1 className="text-2xl sm:text-4xl font-extrabold text-[#49516f] tracking-tight leading-[1.05]">
-            <span className="text-[#65738E] font-medium flex items-center gap-3 mb-3 text-[1.8rem] sm:text-[2.5rem] lg:text-[2.8rem]">
+        <div className="w-full max-w-xl flex-1 pt-12 lg:max-w-xl lg:pl-4 lg:pt-0 xl:max-w-2xl xl:pl-6">
+          <h1 className="text-xl sm:text-4xl font-extrabold text-[#49516f] tracking-tight leading-[1.05]">
+            <span className="text-[#65738E] font-medium flex items-center gap-3 mb-3 text-[1.4rem] sm:text-[2.5rem] lg:text-[2.8rem]">
               When your
               <span className="text-[#ff4f86] flex items-center justify-center">
                 <svg
@@ -63,32 +63,32 @@ export default function HeroSection({ heroSlideshow = null }) {
             Dream Wedding come true
           </h1>
 
-          <p className="mt-8 text-[1.05rem] sm:text-[1.15rem] text-slate-500 max-w-[420px] leading-[1.7] font-normal italic">
-            &quot; Once in a while, right in the middle of an ordinary life,
-            love gives us a fairy tale. &quot;
+          <p className="mt-8 text-[0.85rem] sm:text-[1.15rem] text-slate-500 max-w-[420px] leading-[1.7] font-normal italic">
+            &quot;Once in a while, right in the middle of an ordinary life,
+            love gives us a fairy tale.&quot;
           </p>
 
           {/* Search Box */}
           <form
             onSubmit={handleSearch}
-            className="mt-6 flex items-center bg-white rounded-2xl shadow-[0_20px_50px_rgba(16,24,40,0.06)] w-full max-w-[550px] p-2 transition-shadow focus-within:shadow-[0_25px_60px_rgba(255,79,134,0.12)]"
+            className="mt-4 flex items-center bg-white rounded-2xl shadow-[0_20px_50px_rgba(16,24,40,0.06)] w-full max-w-[550px] p-0 px-2 sm:p-2 transition-shadow focus-within:shadow-[0_25px_60px_rgba(255,79,134,0.12)]"
           >
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Find Photographer, Catering, etc"
-              className="flex-1 bg-transparent px-5 py-4 outline-none text-slate-700 placeholder:text-slate-400 font-normal text-[1.05rem]"
+              className="flex-1 bg-transparent px-2 py-2 outline-none text-slate-700 placeholder:text-slate-400 font-normal text-[0.95rem]"
             />
             {/* <div className="p-2 text-[#ff4f86] opacity-70 hidden sm:flex items-center justify-center border-l border-slate-100 ml-2 pl-4">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
             </div> */}
             <button
               type="submit"
-              className="bg-[#ff4f86] text-white p-4.5 rounded-[14px] hover:bg-[#ff3d79] transition-all active:translate-y-0 ml-2 cursor-pointer flex items-center justify-center w-14 h-14"
+              className="bg-[#ff4f86] text-white p-2 sm:p-4.5 rounded-[14px] hover:bg-[#ff3d79] transition-all active:translate-y-0 ml-2 cursor-pointer flex items-center justify-center w-10 h-10 sm:w-14 sm:h-14"
             >
               <svg
-                className="w-6 h-6"
+                className="w-4 h-4 sm:w-6 sm:h-6"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -104,11 +104,11 @@ export default function HeroSection({ heroSlideshow = null }) {
           </form>
 
           {/* 4 Cards Grid */}
-          <div className="mt-6 grid grid-cols-2 gap-2">
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
             {/* Card 1 */}
             <Link
               href="/shopping?category=honeymoon"
-              className="flex items-center gap-5 p-4 transition-all cursor-pointer group"
+              className="flex items-center gap-3 p-2.5 transition-all cursor-pointer group sm:gap-5 sm:p-4"
             >
               <div className="flex items-center justify-center w-14 h-14 bg-white rounded-[18px] text-[#ff4f86] group-hover:bg-[#ff4f86] group-hover:text-white transition-colors duration-300">
                 <svg
@@ -125,14 +125,14 @@ export default function HeroSection({ heroSlideshow = null }) {
                   ></path>
                 </svg>
               </div>
-              <span className="font-semibold text-[#3b435b] text-[1.1rem]">
+              <span className="font-semibold text-[#3b435b] text-sm sm:text-[1.1rem]">
                 Honeymoon
               </span>
             </Link>
             {/* Card 2 */}
             <Link
               href="/shopping?category=catering"
-              className="flex items-center gap-5 p-4 transition-all cursor-pointer group"
+              className="flex items-center gap-3 p-2.5 transition-all cursor-pointer group sm:gap-5 sm:p-4"
             >
               <div className="flex items-center justify-center w-14 h-14 bg-white rounded-[18px] text-[#ff4f86] group-hover:bg-[#ff4f86] group-hover:text-white transition-colors duration-300">
                 <svg
@@ -149,14 +149,14 @@ export default function HeroSection({ heroSlideshow = null }) {
                   ></path>
                 </svg>
               </div>
-              <span className="font-semibold text-[#3b435b] text-[1.1rem]">
+              <span className="font-semibold text-[#3b435b] text-sm sm:text-[1.1rem]">
                 Catering
               </span>
             </Link>
             {/* Card 3 */}
             <Link
               href="/shopping?category=decor"
-              className="flex items-center gap-5 p-4 transition-all cursor-pointer group"
+              className="flex items-center gap-3 p-2.5 transition-all cursor-pointer group sm:gap-5 sm:p-4"
             >
               <div className="flex items-center justify-center w-14 h-14 bg-white rounded-[18px] text-[#ff4f86] group-hover:bg-[#ff4f86] group-hover:text-white transition-colors duration-300">
                 <svg
@@ -173,14 +173,14 @@ export default function HeroSection({ heroSlideshow = null }) {
                   ></path>
                 </svg>
               </div>
-              <span className="font-semibold text-[#3b435b] text-[1.1rem]">
+              <span className="font-semibold text-[#3b435b] text-sm sm:text-[1.1rem]">
                 Decor
               </span>
             </Link>
             {/* Card 4 */}
             <Link
               href="/shopping?category=venues"
-              className="flex items-center gap-5 p-4 transition-all cursor-pointer group"
+              className="flex items-center gap-3 p-2.5 transition-all cursor-pointer group sm:gap-5 sm:p-4"
             >
               <div className="flex items-center justify-center w-14 h-14 bg-white rounded-[18px] text-[#ff4f86] group-hover:bg-[#ff4f86] group-hover:text-white transition-colors duration-300">
                 <svg
@@ -197,7 +197,7 @@ export default function HeroSection({ heroSlideshow = null }) {
                   ></path>
                 </svg>
               </div>
-              <span className="font-semibold text-[#3b435b] text-[1.1rem]">
+              <span className="font-semibold text-[#3b435b] text-sm sm:text-[1.1rem]">
                 Venues
               </span>
             </Link>
@@ -212,7 +212,7 @@ export default function HeroSection({ heroSlideshow = null }) {
             transitionMs={heroSlideshow?.transition_ms}
             autoplay={heroSlideshow?.autoplay}
             indicatorColors={heroSlideshow?.indicator_colors}
-            className="aspect-[3/4] max-h-[min(68vh,520px)] w-full max-w-[min(100%,340px)] overflow-hidden sm:max-w-[min(100%,380px)] lg:max-w-full lg:-mt-4 xl:max-h-[min(75vh,520px)]"
+            className="aspect-3/4 max-h-[min(68vh,520px)] w-full max-w-[min(100%,340px)] overflow-hidden sm:max-w-[min(100%,380px)] lg:max-w-full lg:-mt-4 xl:max-h-[min(75vh,520px)]"
             sizes="(max-width: 1024px) 100vw, 55vw"
             maskStyle={{
               maskImage:

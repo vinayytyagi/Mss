@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Check, Flower2, Landmark } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 const serif = "font-[family-name:var(--font-playfair),ui-serif,Georgia,serif]";
 
@@ -65,12 +66,12 @@ export default function HomeWeddingShowcase({ journeyHref = "/how-it-works" }) {
 
       <div className="relative z-10 mx-auto max-w-7xl">
         <p
-          className={`text-center text-3xl font-semibold tracking-tight text-[#2d2d44] sm:text-[2.35rem] ${serif}`}
+          className={`text-center text-2xl font-semibold tracking-tight text-[#2d2d44] sm:text-3xl lg:text-[2.35rem]`}
         >
           MyShaadiStore
         </p>
         <h2
-          className={`mx-auto mt-4 max-w-4xl text-center text-2xl font-semibold leading-snug tracking-tight text-[#2d2d44] sm:text-3xl md:text-[2.125rem] md:leading-tight ${serif}`}
+          className={`mx-auto mt-4 max-w-4xl text-center text-xl font-semibold leading-snug tracking-tight text-[#2d2d44] sm:text-2xl md:text-[2.125rem] md:leading-tight`}
         >
           Shop Everything for Your Dream Wedding —{" "}
           <span className="font-semibold text-[#ff4f86]">All in One Place</span>
@@ -136,10 +137,11 @@ export default function HomeWeddingShowcase({ journeyHref = "/how-it-works" }) {
         <div className="relative z-20 mt-14 flex justify-center lg:mt-16">
           <Link
             href={journeyHref}
-            className="showcase-journey-cta inline-flex items-center gap-2 rounded-full bg-linear-to-r from-[#ff6ba8] via-[#ff4f86] to-[#e91e90] px-10 py-3.5 text-base font-semibold text-white shadow-[0_14px_34px_rgba(233,30,144,0.35)] transition hover:brightness-[1.05] sm:px-14 sm:py-4 sm:text-lg"
+            className="showcase-journey-cta inline-flex items-center gap-2 rounded-full bg-linear-to-r from-[#ff6ba8] via-[#ff4f86] to-[#e91e90] px-6 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(233,30,144,0.35)] transition hover:brightness-[1.05] sm:px-8 sm:py-3.5 sm:text-base lg:px-10 lg:py-4 lg:text-lg"
           >
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
             Begin Your Wedding Journey
-            <span className="text-xl font-light leading-none sm:text-2xl" aria-hidden>
+            <span className="text-lg font-light leading-none sm:text-xl lg:text-2xl" aria-hidden>
               ›
             </span>
           </Link>

@@ -54,7 +54,7 @@ export default function ShoppingCatalog({
             <div className="h-full w-full rounded-b-[120px] rounded-t-[24px] bg-[#f4d8de]/40 p-2">
               <div className="relative h-full w-full">
                 <Image
-                  src="/shopping_header.png"
+                  src="/shopping_header.webp"
                   alt="Bride and groom in traditional wedding attire"
                   fill
                   className="object-contain object-bottom-right"

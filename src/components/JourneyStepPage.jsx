@@ -2,7 +2,7 @@
 
 import BudgetBadge from "@/components/BudgetBadge";
 import BasketButton from "@/components/BasketButton";
-import CartActionButtons from "@/components/CartActionButtons";
+import { Plus, Minus, Heart, ShoppingCart } from "lucide-react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,11 +15,14 @@ import {
   MapPin,
   SlidersHorizontal,
   Tags,
+  Star,
 } from "lucide-react";
 import { useAuthUser } from "@/lib/authCookies";
 import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { addToCart, useCartState, updateCartQuantity, removeFromCart } from "@/lib/cartStore";
 
 function categoryUrlSegment(c) {
   if (!c) return "";
@@ -59,11 +62,13 @@ function formatInrBudget(value) {
 
 function StarRating({ value = 4 }) {
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
       {[0, 1, 2, 3, 4].map((index) => (
-        <span
+        <Star
           key={index}
-          className={`h-2.5 w-2.5 rounded-full ${index < value ? "bg-[#ffbb28]" : "bg-slate-200"}`}
+          className={`h-3.5 w-3.5 ${
+            index < value ? "fill-[#ffbb28] text-[#ffbb28]" : "fill-slate-200 text-slate-200"
+          }`}
         />
       ))}
     </div>
@@ -281,6 +286,7 @@ export default function JourneyStepPage({
 }) {
   const router = useRouter();
   const authUser = useAuthUser();
+  const cartState = useCartState();
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(search);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
@@ -721,56 +727,115 @@ export default function JourneyStepPage({
 
                 return (
                   <article key={item.item_id} className="group flex h-full min-w-0 flex-col">
-                    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] bg-white p-3 shadow-[0_0px_5px_5px_rgba(15,23,42,0.08)] transition duration-300 group-hover:-translate-y-1">
-                      <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden rounded-[24px] bg-slate-100">
+                    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(255,79,134,0.2)]">
+                      <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden rounded-[24px] bg-gradient-to-br from-slate-100 to-slate-50">
                         <div
-                          className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-105"
+                          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
                           style={{ backgroundImage: image ? `url("${image}")` : "none" }}
                           aria-label={item.name}
                           role="img"
                         />
-                        <span className="absolute bottom-3 left-3 rounded-full bg-[#ffbb28] px-3 py-1 text-xs font-semibold text-slate-700">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                        <span className="absolute bottom-3 left-3 rounded-full bg-[#ffbb28]/95 px-3 py-1.5 text-xs font-bold text-slate-800 backdrop-blur-sm">
                           {label}
                         </span>
+                        <button
+                          type="button"
+                          className="absolute top-3 right-3 rounded-full bg-white/90 p-2 text-slate-400 backdrop-blur-sm transition-all duration-300 hover:bg-[#fff1f6] hover:text-[#ff4f86] opacity-0 group-hover:opacity-100"
+                          aria-label="Add to wishlist"
+                        >
+                          <Heart className="h-4 w-4" />
+                        </button>
                       </div>
 
                       <div className="mt-4 flex min-h-0 flex-1 flex-col space-y-3 px-1 pb-1">
-                        <StarRating value={item.is_discount_active ? 4 : 3} />
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <h3 className="text-lg font-bold leading-snug text-slate-700 sm:text-xl">{item.name}</h3>
-                            <div className="shrink-0">
-                              <CartActionButtons
-                                item={{
-                                  ...item,
-                                  image,
-                                  category_label: selectedCategory?.name || step.title,
-                                  subcategory_label: subForItem?.name || "",
-                                  journey_title: step.title,
-                                  source: "journey",
-                                }}
-                                quotationLabel="Select"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-slate-400">
+                        <div className="flex items-center justify-between">
+                          <StarRating value={item.is_discount_active ? 5 : 4} />
+                          {item.is_discount_active && (
+                            <span className="rounded-full bg-[#fff1f6] px-2.5 py-1 text-xs font-bold text-[#ff4f86]">
+                              {item.discount_percentage}% OFF
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="min-w-0 space-y-2">
+                          <h3 className="text-lg font-bold leading-snug text-slate-700 line-clamp-2 sm:text-xl">
+                            {item.name}
+                          </h3>
+                          <div className="flex items-center gap-2 text-xs text-slate-400">
                             <MapPin className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{item.location_city || "Bekasi, Jawa Barat"}</span>
+                            <span className="truncate">{item.location_city || "Available for service"}</span>
                           </div>
                         </div>
 
-                        <div className="mt-auto flex items-end justify-between gap-3 pt-1">
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Starting from</div>
-                            <div className="text-lg font-black text-slate-700">
-                              {formatCurrency(item.final_price || item.price)}
+                        <div className="mt-auto space-y-3">
+                          <div className="flex items-end justify-between">
+                            <div>
+                              <div className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400">Starting from</div>
+                              <div className="text-xl font-black text-[#ff4f86]">
+                                ₹{formatCurrency(item.final_price || item.price)}
+                              </div>
                             </div>
                           </div>
-                          {item.is_discount_active ? (
-                            <span className="shrink-0 rounded-full bg-[#fff1f6] px-3 py-1 text-xs font-bold text-[#ff4f86]">
-                              {item.discount_percentage}% off
-                            </span>
-                          ) : null}
+                          
+                          {(() => {
+                            const inCart = cartState.quotation.find((c) => c.item_id === item.item_id);
+                            if (inCart) {
+                              return (
+                                <div className="flex h-[46px] items-center justify-between gap-2 overflow-hidden rounded-2xl bg-linear-to-r from-[#ff4f86] to-[#ff6ba8] p-1 shadow-[0_8px_20px_rgba(255,79,134,0.3)] transition-all duration-300">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (inCart.quantity > 1) {
+                                        updateCartQuantity("quotation", item.item_id, inCart.quantity - 1);
+                                      } else {
+                                        removeFromCart("quotation", item.item_id);
+                                        toast.error("Removed from basket");
+                                      }
+                                    }}
+                                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-white transition-all hover:bg-white/30 active:scale-90"
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </button>
+                                  <span className="min-w-[1.5rem] text-center text-base font-black text-white">
+                                    {inCart.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateCartQuantity("quotation", item.item_id, inCart.quantity + 1);
+                                    }}
+                                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-white transition-all hover:bg-white/30 active:scale-90"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              );
+                            }
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  addToCart('quotation', {
+                                    ...item,
+                                    image,
+                                    category_label: selectedCategory?.name || step.title,
+                                    subcategory_label: subForItem?.name || "",
+                                    journey_title: step.title,
+                                    source: "journey",
+                                  }, 1);
+                                  toast.success("Added to basket! 🎉");
+                                }}
+                                className="group/btn relative w-full overflow-hidden rounded-2xl bg-linear-to-r from-[#ff4f86] to-[#ff6ba8] px-4 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(255,79,134,0.3)] transition-all duration-300 hover:shadow-[0_12px_28px_rgba(255,79,134,0.45)] active:scale-[0.98]"
+                              >
+                                <span className="relative z-10 flex items-center justify-center gap-2">
+                                  <Plus className="h-4 w-4" />
+                                  Add to Basket
+                                </span>
+                                <div className="absolute inset-0 bg-linear-to-r from-[#ff6ba8] to-[#ff4f86] opacity-0 transition-opacity duration-300 group-hover/btn:opacity-100" />
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>

@@ -1,28 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { clearAuthCookies, useAuthUser } from "@/lib/authCookies";
 import BasketButton from "@/components/BasketButton";
 import { clearAllCarts } from "@/lib/cartStore";
 import LogoutConfirmModal from "@/components/LogoutConfirmModal";
-import { User, Package, Truck, LogOut, Menu, X } from "lucide-react";
+import { User, Package, Truck, LogOut, Menu, X, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
-
-function HeartIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-      <path
-        d="M12 20.25s-6.75-4.35-9-8.25C1.1 8.8 2.9 5.25 6.75 5.25c2.05 0 3.24 1.1 4.02 2.2.5.7 1.46.7 1.96 0 .78-1.1 1.97-2.2 4.02-2.2 3.85 0 5.65 3.55 3.75 6.75-2.25 3.9-9 8.25-9 8.25Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function ChevronDown() {
   return (
@@ -73,12 +60,12 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
   return (
     <>
       <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/70 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-20">
+      <div className="mx-auto flex w-full items-center justify-between gap-3 px-3 py-3 sm:px-6 lg:px-20">
         <Link href="/" className="flex cursor-pointer items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ff4f86] text-white">
-            <HeartIcon />
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ff4f86] text-white sm:h-10 sm:w-10">
+            <Image src="/logo.webp" alt="MyShaadiStore logo" width={20} height={20} className="h-5 w-5" />
           </span>
-          <span className="text-2xl font-semibold tracking-tight text-slate-700">MyShaadiStore</span>
+          <span className="text-lg font-semibold tracking-tight text-slate-700 sm:text-xl lg:text-2xl">MyShaadiStore</span>
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-600 lg:flex">
@@ -151,10 +138,11 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:block">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="hidden lg:block">
             <BasketButton />
           </div>
+          <div className="hidden lg:block">
           {user ? (
             <div className="group relative">
               <button className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:border-[#ff4f86] hover:text-[#ff4f86]">
@@ -206,6 +194,24 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
               </Link>
             </>
           )}
+          </div>
+
+          <div className="flex items-center gap-2 lg:hidden">
+            <Link
+              href="/cart"
+              aria-label="Open cart"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition hover:bg-slate-50"
+            >
+              <ShoppingBag className="h-5 w-5" />
+            </Link>
+            <Link
+              href={user ? "/profile" : "/login"}
+              aria-label={user ? "Open profile" : "Open login"}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition hover:bg-slate-50"
+            >
+              <User className="h-5 w-5" />
+            </Link>
+          </div>
           <button
             type="button"
             className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700 lg:hidden"
@@ -224,7 +230,7 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
             aria-label="Close menu backdrop"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <div className="absolute right-0 top-0 h-full w-[88%] max-w-sm bg-white p-5 shadow-2xl">
+          <div className="absolute right-0 top-0 h-full w-[88%] max-w-sm bg-white/95 backdrop-blur p-5 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <span className="text-lg font-semibold text-slate-800">Menu</span>
               <button
@@ -275,6 +281,36 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
               <Link href="/orders/track" className="block rounded-lg px-3 py-2 hover:bg-slate-50" onClick={() => setIsMobileMenuOpen(false)}>
                 Track Order
               </Link>
+              {user ? (
+                <button
+                  type="button"
+                  className="block w-full rounded-lg px-3 py-2 text-left text-red-500 hover:bg-red-50"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setLogoutModalPathname(pathname);
+                    setShowLogoutModal(true);
+                  }}
+                >
+                  Logout
+                </button>
+              ) : (
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <Link
+                    href="/login"
+                    className="flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="flex w-full items-center justify-center rounded-xl bg-[#ff4f86] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-[#ff3d79]"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              )}
               <div className="border-t border-slate-100 pt-3">
                 <BasketButton />
               </div>

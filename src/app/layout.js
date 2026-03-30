@@ -23,8 +23,27 @@ const playfair = Playfair_Display({
 });
 
 export const metadata = {
-  title: "MyShaadiStore",
+  title: {
+    default: "MyShaadiStore",
+    template: "%s | MyShaadiStore",
+  },
   description: "Wedding planning journey powered by admin-managed steps",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
+  openGraph: {
+    title: "MyShaadiStore",
+    description: "Wedding planning journey powered by admin-managed steps",
+    images: [{ url: "/icon.svg" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "MyShaadiStore",
+    description: "Wedding planning journey powered by admin-managed steps",
+    images: ["/icon.svg"],
+  },
 };
 
 export default async function RootLayout({ children }) {
@@ -51,7 +70,7 @@ export default async function RootLayout({ children }) {
           <SiteHeader steps={steps} initialUser={initialUser} />
           <AppToaster />
           {children}
-          <SiteFooter steps={steps} />
+          {/* <SiteFooter steps={steps} /> */}
           <SiteFooterMaroon steps={steps} />
           <a
             href="https://wa.me/919568559915?text=Hi%20MyShaadiStore"

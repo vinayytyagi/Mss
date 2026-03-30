@@ -114,6 +114,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
 
     try {
       if (!getAuthUser()) {
+        setSubmitState({ loading: false, error: "", success: "" });
         toast.info("Please login to submit quotation.");
         router.push(`/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
         return;
@@ -122,6 +123,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
       if (!quotationForm.phone.trim()) throw new Error("Phone number is required for quotation.");
       const normalizedPhone = normalizePhoneInput(quotationForm.phone);
       if (!PHONE_REGEX.test(normalizedPhone)) throw new Error("Please enter a valid 10-digit mobile number.");
+      if (!quotationForm.email.trim()) throw new Error("Email is required so we can send you the quotation.");
       validateEmailIfProvided(quotationForm.email.trim());
       if (carts.quotation.length === 0) throw new Error("Add items to quotation basket first.");
 
@@ -138,12 +140,23 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
       const idempotencyKey = makeIdempotencyKey("quotation-requests", payload);
       const response = await submitQuotationRequest(payload, { idempotencyKey });
       clearCart("quotation");
+      setQuotationForm({
+        name: "",
+        phone: "",
+        email: "",
+        note: "",
+      });
+      const successMessage = response.message || "Quotation sent successfully.";
       setSubmitState({
         loading: false,
         error: "",
-        success: response.message || "Quotation request submitted successfully.",
+        success: successMessage,
       });
-      toast.success(response.message || "Quotation request submitted successfully.");
+      if (response.emailStatus === undefined || response.emailStatus === "sent") {
+        toast.success(successMessage);
+      } else {
+        toast.warning(successMessage);
+      }
     } catch (error) {
       toast.error(error.message || "Failed to submit quotation request.");
       setSubmitState({
@@ -314,9 +327,10 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
             />
             <input
               type="email"
-              placeholder="Email address"
+              placeholder="Email address (required)"
               value={quotationForm.email}
               onChange={(e) => setQuotationForm((current) => ({ ...current, email: e.target.value }))}
+              required
               className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
             />
             <textarea

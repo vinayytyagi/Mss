@@ -3,6 +3,19 @@ import { Sparkles, ArrowRight } from "lucide-react";
 import React from "react";
 
 export default function WeddingJourney() {
+  const milestones = [
+    "Engagement Confirmed",
+    "Wedding Date Finalized",
+    "Select Wedding Destination",
+    "Plan Wedding Decor & Theme",
+    "Photography & Videography",
+    "Makeup & Bridal Styling",
+    "Send Wedding Invitations",
+    "Plan Wedding Functions",
+    "Honeymoon Planning",
+    "Pre-Wedding Shoots",
+  ];
+
   return (
     <section className="pt-20 pb-10 bg-[#fdeaee] flex flex-col items-center justify-center -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
       {/* Headings */}
@@ -10,9 +23,9 @@ export default function WeddingJourney() {
         <p className="text-[#C68752] font-semibold tracking-[0.15em] uppercase text-sm mb-3">
           Your Path
         </p>
-        <h2 className="text-4xl sm:text-5xl font-serif font-extrabold text-[#696666] mb-4">
+        <h2 className="text-4xl sm:text-5xl font-extrabold text-[#696666] mb-4">
           Your{" "}
-          <span className="text-[#d45b7b] font-serif font-normal tracking-wide">
+          <span className="text-[#d45b7b] font-normal tracking-wide">
             Wedding
           Journey
           </span>{" "}
@@ -22,8 +35,22 @@ export default function WeddingJourney() {
         </p>
       </div>
 
-      {/* Timeline */}
-      <div className="relative w-full max-w-4xl flex justify-center mb-10">
+      {/* Mobile timeline */}
+      <div className="mx-auto mb-10 w-full max-w-xl md:hidden">
+        <div className="space-y-3 rounded-3xl bg-white/70 p-4 shadow-sm">
+          {milestones.map((item, index) => (
+            <div key={item} className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#ff4f86] text-xs font-bold text-white">
+                {index + 1}
+              </span>
+              <p className="text-sm font-medium text-[#5f6780]">{item}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop timeline */}
+      <div className="relative mb-10 hidden w-full max-w-4xl justify-center md:flex">
         {/* Main Vertical Center Line */}
         <div className="absolute top-0 bottom-16 left-1/2 -translate-x-1/2 w-0.5 bg-linear-to-b from-[#ff8fb1] via-[#ffafc7] to-transparent z-0" />
 
@@ -157,12 +184,12 @@ export default function WeddingJourney() {
 
       {/* Action Button */}
       <Link
-        href="/journey"
-        className="px-10 py-5 bg-linear-to-r from-[#e7477b] to-[#fb6c98] text-white rounded-full font-medium text-lg shadow-[0_20px_40px_rgba(255,79,134,0.35)] hover:shadow-[0_25px_50px_rgba(255,79,134,0.45)] hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-4"
+        href="/how-it-works"
+        className="px-6 py-3 bg-linear-to-r from-[#e7477b] to-[#fb6c98] text-white rounded-full font-medium text-sm shadow-[0_20px_40px_rgba(255,79,134,0.35)] hover:shadow-[0_25px_50px_rgba(255,79,134,0.45)] hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-3 sm:px-8 sm:py-4 sm:text-base lg:px-10 lg:py-5 lg:text-lg"
       >
-        <Sparkles className="h-6 w-6 text-white" />
+        <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
         <span className="text-white">Start Planning Your Wedding</span>
-        <ArrowRight className="h-6 w-6 text-white" />
+        <ArrowRight className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
       </Link>
     </section>
   );

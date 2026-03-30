@@ -88,15 +88,14 @@ export default function SiteFooterMaroon({ steps = [] }) {
           <div className="lg:col-span-4">
             <div className="flex flex-col items-start gap-5">
               <div
-                className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-white/25 shadow-[0_12px_40px_rgba(0,0,0,0.25)]"
-                style={{ backgroundColor: MAROON_SOFT }}
+                className="relative h-20 w-20"
               >
                 <Image
-                  src="https://images.unsplash.com/photo-1583939003579-730e3918a45a?auto=format&fit=crop&w=200&h=200&q=80"
+                  src="/logo.webp"
                   alt="MyShaadiStore"
                   width={200}
                   height={200}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full"
                 />
               </div>
               <div>
