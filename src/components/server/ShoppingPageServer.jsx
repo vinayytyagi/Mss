@@ -17,6 +17,9 @@ function resolveShoppingStep(steps = []) {
 
 export default async function ShoppingPageServer({ searchParams }) {
   const resolvedSearchParams = await searchParams;
+  const search = (resolvedSearchParams?.search || "").trim();
+  const categoryId = (resolvedSearchParams?.category || "").trim();
+  const subcategoryId = (resolvedSearchParams?.subcategory || "").trim();
 
   try {
     const steps = await fetchJourneySteps();
@@ -26,7 +29,16 @@ export default async function ShoppingPageServer({ searchParams }) {
     }
     const [categories, itemsRes] = await Promise.all([
       fetchStepCategories(shoppingStep.slug),
-      fetchItems({ journeyStepId: shoppingStep.step_id, limit: 100 }),
+      fetchItems(
+        {
+          journeyStepId: shoppingStep.step_id,
+          ...(categoryId ? { categoryId } : {}),
+          ...(subcategoryId ? { subcategoryId } : {}),
+          ...(search ? { search } : {}),
+          limit: 500,
+        },
+        { cacheMode: "no-store" },
+      ),
     ]);
 
     return (
@@ -36,6 +48,7 @@ export default async function ShoppingPageServer({ searchParams }) {
         items={itemsRes.items || []}
         selectedCategoryId={resolvedSearchParams?.category || ""}
         selectedSubcategoryId={resolvedSearchParams?.subcategory || ""}
+        search={search}
       />
     );
   } catch {

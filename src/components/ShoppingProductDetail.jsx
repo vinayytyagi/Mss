@@ -1,27 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Home, RotateCcw, Star, Truck } from "lucide-react";
+import { Home, RotateCcw, Truck } from "lucide-react";
 import BasketButton from "@/components/BasketButton";
 import CartActionButtons from "@/components/CartActionButtons";
 import ShoppingProductCard from "@/components/ShoppingProductCard";
-import ShoppingProductDetailControls from "@/components/ShoppingProductDetailControls";
-import { formatPriceDetailed, getItemImage } from "@/lib/shopUi";
-
-function RatingSummaryRow() {
-  return (
-    <div className="flex flex-wrap items-center gap-3 text-sm">
-      <span className="flex items-center gap-0.5" aria-hidden>
-        {[0, 1, 2, 3].map((i) => (
-          <Star key={i} className="h-5 w-5 fill-amber-400 text-amber-400" strokeWidth={0} />
-        ))}
-        <Star className="h-5 w-5 text-slate-300" fill="none" strokeWidth={1.6} />
-      </span>
-      <span className="text-slate-400">(150 Reviews)</span>
-      <span className="hidden h-4 w-px bg-slate-300 sm:block" aria-hidden />
-      <span className="text-base font-medium text-emerald-600">In Stock</span>
-    </div>
-  );
-}
+import { getItemImage } from "@/lib/shopUi";
+import ProductReviews from "@/components/ProductReviews";
+import ShoppingProductPurchasePanel from "@/components/ShoppingProductPurchasePanel";
 
 export default function ShoppingProductDetail({ item, categories, relatedItems = [] }) {
   const category = categories.find((entry) => entry.category_id === item.category_id) || null;
@@ -99,30 +84,13 @@ export default function ShoppingProductDetail({ item, categories, relatedItems =
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{item.name}</h1>
 
             <div className="mt-4">
-              <RatingSummaryRow />
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-baseline gap-3">
-              <p className="text-3xl font-semibold text-slate-900 sm:text-[2rem]">
-                {formatPriceDetailed(item.final_price || item.price)}
-              </p>
-              {item.is_discount_active ? (
-                <>
-                  <span className="text-xl font-medium text-slate-400 line-through">
-                    {formatPriceDetailed(item.price)}
-                  </span>
-                  <span className="rounded-md bg-[#fff1f6] px-2.5 py-0.5 text-sm font-semibold text-[#ff4f86]">
-                    {item.discount_percentage}% off
-                  </span>
-                </>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="text-base font-medium text-emerald-600">In Stock</span>
+              </div>
             </div>
 
             <p className="mt-6 text-base leading-7 text-slate-600 text-justify">{description}</p>
-
-            <div className="my-8 h-px w-full bg-slate-200" />
-
-            <ShoppingProductDetailControls cartItem={cartItem} />
+            <ShoppingProductPurchasePanel item={item} cartItem={cartItem} />
 
             <div className="mt-10 rounded-lg border border-slate-200 bg-white px-5 py-5">
               <div className="flex gap-4">
@@ -181,6 +149,8 @@ export default function ShoppingProductDetail({ item, categories, relatedItems =
 
           </div>
         </section>
+
+        <ProductReviews itemId={item.item_id} />
 
         <section className="mt-16 border-t border-slate-100 pt-12">
           <div className="mb-8 flex items-center gap-3">

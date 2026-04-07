@@ -4,11 +4,13 @@ import { ChevronLeft, ChevronRight, ChevronsDown } from "lucide-react";
 import BasketButton from "@/components/BasketButton";
 import ShoppingProductCard from "@/components/ShoppingProductCard";
 import { isProductItem } from "@/lib/shopUi";
+import ShoppingSearchBar from "@/components/ShoppingSearchBar";
 
-function buildQuery(categoryId, subcategoryId) {
+function buildQuery(categoryId, subcategoryId, search) {
   const qs = new URLSearchParams();
   if (categoryId) qs.set("category", categoryId);
   if (subcategoryId) qs.set("subcategory", subcategoryId);
+  if (search && String(search).trim()) qs.set("search", String(search).trim());
   const query = qs.toString();
   return query ? `?${query}` : "";
 }
@@ -19,6 +21,7 @@ export default function ShoppingCatalog({
   items,
   selectedCategoryId = "",
   selectedSubcategoryId = "",
+  search = "",
 }) {
   const productItems = items.filter(isProductItem);
   const topCategories = categories.filter((category) => !category.parent_category_id);
@@ -30,11 +33,7 @@ export default function ShoppingCatalog({
   const selectedSubcategory =
     visibleSubcategories.find((category) => category.category_id === selectedSubcategoryId) || null;
 
-  const filteredItems = productItems.filter((item) => {
-    if (selectedCategory && item.category_id !== selectedCategory.category_id) return false;
-    if (selectedSubcategory && item.subcategory_id !== selectedSubcategory.category_id) return false;
-    return true;
-  });
+  const filteredItems = productItems;
 
   const showcaseCategories = topCategories.slice(0, 6);
   const filterSubcategories = visibleSubcategories.length
@@ -50,6 +49,16 @@ export default function ShoppingCatalog({
             <br />
             Your Dream Wedding
           </h1>
+          <div className="mt-6 flex w-full justify-center">
+            <div className="w-full max-w-2xl">
+              <ShoppingSearchBar
+                initialValue={search}
+                category={selectedCategoryId}
+                subcategory={selectedSubcategoryId}
+                placeholder="Search bridal wear, decor, catering…"
+              />
+            </div>
+          </div>
           <div className="pointer-events-none absolute right-2 top-0 hidden h-[210px] w-[220px] md:block lg:h-[260px] lg:w-[300px]">
             <div className="h-full w-full rounded-b-[120px] rounded-t-[24px] bg-[#f4d8de]/40 p-2">
               <div className="relative h-full w-full">
@@ -76,10 +85,13 @@ export default function ShoppingCatalog({
                 productItems.find((item) => item.category_id === category.category_id)?.images?.[0] ||
                 productItems.find((item) => item.category_id === category.category_id)?.image ||
                 "";
+              const categoryHref = isActive
+                ? `/shopping${buildQuery("", "", search)}`
+                : `/shopping${buildQuery(category.category_id, "", search)}`;
               return (
                 <Link
                   key={category.category_id}
-                  href={`/shopping${buildQuery(category.category_id, "")}`}
+                  href={categoryHref}
                   className={`flex min-w-[165px] flex-1 cursor-pointer flex-col items-center justify-between rounded-[22px] border px-3 py-4 transition-transform duration-200 ease-out ${
                     isActive
                       ? "z-10 scale-110 border-[#88072f] bg-[#88072f] text-white shadow-md"
@@ -118,8 +130,8 @@ export default function ShoppingCatalog({
           <Link
             href={
               selectedCategory
-                ? `/shopping${buildQuery(selectedCategory.category_id, "")}`
-                : "/shopping"
+                ? `/shopping${buildQuery(selectedCategory.category_id, "", search)}`
+                : `/shopping${buildQuery("", "", search)}`
             }
             className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-lg ${
               !selectedSubcategory ? "bg-[#f5de32] text-slate-900" : "text-[#a44f6b]"
@@ -128,17 +140,25 @@ export default function ShoppingCatalog({
             All
           </Link>
           {visibleSubcategories.map((sub) => (
+            (() => {
+              const isSubActive = selectedSubcategory?.category_id === sub.category_id;
+              const href = isSubActive
+                ? `/shopping${buildQuery(selectedCategory?.category_id || "", "", search)}`
+                : `/shopping${buildQuery(selectedCategory?.category_id || "", sub.category_id, search)}`;
+              return (
             <Link
               key={sub.category_id}
-              href={`/shopping${buildQuery(selectedCategory?.category_id || "", sub.category_id)}`}
+              href={href}
               className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-lg ${
-                selectedSubcategory?.category_id === sub.category_id
+                isSubActive
                   ? "bg-[#f5de32] text-slate-900"
                   : "text-[#a44f6b]"
               }`}
             >
               {sub.name}
             </Link>
+              );
+            })()
           ))}
           <button
             type="button"
@@ -166,7 +186,11 @@ export default function ShoppingCatalog({
                       className="h-3.5 w-3.5 rounded border border-[#d7afbe] accent-[#ff4f86]"
                     />
                     <Link
-                      href={`/shopping${buildQuery(selectedCategory?.category_id || "", sub.category_id)}`}
+                      href={
+                        selectedSubcategory?.category_id === sub.category_id
+                          ? `/shopping${buildQuery(selectedCategory?.category_id || "", "", search)}`
+                          : `/shopping${buildQuery(selectedCategory?.category_id || "", sub.category_id, search)}`
+                      }
                       className={`${
                         selectedSubcategory?.category_id === sub.category_id ? "font-semibold text-[#7b1535]" : ""
                       }`}

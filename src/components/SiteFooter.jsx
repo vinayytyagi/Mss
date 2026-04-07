@@ -101,6 +101,9 @@ export default function SiteFooter({ steps = [] }) {
                   <FooterLink href="/">Home</FooterLink>
                 </li>
                 <li>
+                  <FooterLink href="/about-us">About us</FooterLink>
+                </li>
+                <li>
                   <FooterLink href="/how-it-works">
                     <span className="inline-flex items-center gap-2">
                       <HelpCircle className="h-4 w-4 text-slate-400" />
@@ -131,7 +134,7 @@ export default function SiteFooter({ steps = [] }) {
               </p>
               <ul className="mt-4 space-y-3">
                 <li>
-                  <FooterLink href="/orders/track">
+                  <FooterLink href="/orders/track-order">
                     <span className="inline-flex items-center gap-2">
                       <Truck className="h-4 w-4 text-slate-400" />
                       Track order

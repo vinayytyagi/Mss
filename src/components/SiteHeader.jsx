@@ -131,8 +131,8 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
             How it works
           </Link>
           <Link
-            href="/orders/track"
-            className={pathname === "/orders/track" ? activeNavLinkClass : navLinkClass}
+            href="/orders/track-order"
+            className={pathname === "/orders/track-order" ? activeNavLinkClass : navLinkClass}
           >
             Track Order
           </Link>
@@ -161,7 +161,7 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
                   <Package className="h-4 w-4" />
                   My Orders
                 </Link>
-                <Link href="/orders/track" className={`flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${pathname === '/orders/track' ? 'bg-[#fff1f6] text-[#ff4f86]' : 'text-slate-600 hover:bg-slate-50'}`}>
+                <Link href="/orders/track-order" className={`flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${pathname === '/orders/track-order' ? 'bg-[#fff1f6] text-[#ff4f86]' : 'text-slate-600 hover:bg-slate-50'}`}>
                   <Truck className="h-4 w-4" />
                   Track Order
                 </Link>
@@ -223,7 +223,7 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
         </div>
       </div>
       {isMobileMenuOpen ? (
-        <div className="fixed inset-0 z-60 lg:hidden">
+        <div className="fixed inset-0 z-1000 lg:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-slate-900/45"
@@ -278,7 +278,7 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
               <Link href="/how-it-works" className="block rounded-lg px-3 py-2 hover:bg-slate-50" onClick={() => setIsMobileMenuOpen(false)}>
                 How it works
               </Link>
-              <Link href="/orders/track" className="block rounded-lg px-3 py-2 hover:bg-slate-50" onClick={() => setIsMobileMenuOpen(false)}>
+              <Link href="/orders/track-order" className="block rounded-lg px-3 py-2 hover:bg-slate-50" onClick={() => setIsMobileMenuOpen(false)}>
                 Track Order
               </Link>
               {user ? (

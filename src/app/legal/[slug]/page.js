@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { notFound, redirect } from "next/navigation";
 
 const DOCS = {
-  privacy: {
+  "privacy-policy": {
     title: "Privacy Policy",
     badge: "Your Privacy",
     tagline:
@@ -61,7 +62,7 @@ const DOCS = {
       },
     ],
   },
-  terms: {
+  "terms-of-service": {
     title: "Terms of Service",
     badge: "Agreement",
     tagline:
@@ -122,7 +123,7 @@ const DOCS = {
       },
     ],
   },
-  refund: {
+  "refund-policy": {
     title: "Refund Policy",
     badge: "Cancellations & Refunds",
     tagline:
@@ -199,28 +200,38 @@ function renderPolicySection({ heading, paragraphs = [], callout }) {
 }
 
 export function generateStaticParams() {
-  return [{ slug: "privacy" }, { slug: "terms" }, { slug: "refund" }];
+  return [
+    { slug: "privacy-policy" },
+    { slug: "terms-of-service" },
+    { slug: "refund-policy" },
+  ];
 }
 
 export default async function LegalPage({ params }) {
   const { slug } = await params;
+
+  if (slug === "privacy") redirect("/legal/privacy-policy");
+  if (slug === "terms") redirect("/legal/terms-of-service");
+  if (slug === "refund") redirect("/legal/refund-policy");
+
   const doc = DOCS[slug];
   if (!doc) {
     notFound();
   }
 
   const legalLinks = [
-    { slug: "privacy", label: "Privacy Policy" },
-    { slug: "terms", label: "Terms of Service" },
-    { slug: "refund", label: "Refund Policy" },
+    { slug: "privacy-policy", label: "Privacy Policy" },
+    { slug: "terms-of-service", label: "Terms of Service" },
+    { slug: "refund-policy", label: "Refund Policy" },
   ];
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="w-full lg:max-w-2xl">
-          <Link href="/" className="text-sm font-semibold text-[#ff4f86] hover:underline">
-            ← Back to home
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#ff4f86] hover:underline">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to home
           </Link>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">

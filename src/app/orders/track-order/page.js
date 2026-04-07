@@ -5,8 +5,6 @@ export const metadata = {
   description: "Track your MyShaadiStore order using your order number and phone number",
 };
 
-export default function TrackPage() {
-  return (
-    <TrackOrderPageServer />
-  );
+export default function TrackOrderPage() {
+  return <TrackOrderPageServer />;
 }

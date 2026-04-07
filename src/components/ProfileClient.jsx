@@ -17,6 +17,7 @@ import {
   Plus,
   UserRound,
   X,
+  ArrowRight,
 } from "lucide-react";
 
 /* ── Icons ─────────────────────────────────────────── */
@@ -428,7 +429,10 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                 Recent Orders ({orders.length})
               </h2>
               <Link href="/orders" className="text-sm font-semibold text-[#ff4f86] transition hover:text-[#ff3d79]">
-                View All →
+                <span className="inline-flex items-center gap-2">
+                  View All
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </span>
               </Link>
             </div>
 

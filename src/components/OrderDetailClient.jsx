@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getAuthToken, useAuthUser } from "@/lib/authCookies";
 import { cancelMyOrder, requestMyOrderRefund, trackOrder } from "@/lib/api";
+import { ArrowRight } from "lucide-react";
 
 /* ── Helpers ────────────────────────────────────────── */
 function formatDate(dateStr) {
@@ -352,7 +353,10 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                     rel="noopener noreferrer"
                     className="mt-2 block w-full rounded-xl bg-linear-to-r from-[#ff4f86] to-[#ff8fb1] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:shadow-[0_16px_40px_rgba(255,79,134,0.35)]"
                   >
-                    Track on Courier Site →
+                    <span className="inline-flex items-center justify-center gap-2">
+                      Track on Courier Site
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </span>
                   </a>
                 )}
               </div>

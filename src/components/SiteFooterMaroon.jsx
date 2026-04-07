@@ -128,7 +128,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
               <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-white">Company</h3>
               <ul className="mt-5 space-y-3">
                 <li>
-                  <MaroonNavLink href="/how-it-works">About</MaroonNavLink>
+                  <MaroonNavLink href="/about-us">About us</MaroonNavLink>
                 </li>
                 <li>
                   <a
@@ -138,16 +138,6 @@ export default function SiteFooterMaroon({ steps = [] }) {
                     className="block text-sm font-normal text-white/90 transition hover:text-white hover:underline decoration-white/40 underline-offset-4"
                   >
                     Careers
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href={whatsappLink("Hi MyShaadiStore — Press inquiry")}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-sm font-normal text-white/90 transition hover:text-white hover:underline decoration-white/40 underline-offset-4"
-                  >
-                    Press
                   </a>
                 </li>
                 <li>
@@ -185,13 +175,13 @@ export default function SiteFooterMaroon({ steps = [] }) {
               <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-white">Legal</h3>
               <ul className="mt-5 space-y-3">
                 <li>
-                  <MaroonNavLink href="/legal/privacy">Privacy Policy</MaroonNavLink>
+                  <MaroonNavLink href="/legal/privacy-policy">Privacy Policy</MaroonNavLink>
                 </li>
                 <li>
-                  <MaroonNavLink href="/legal/terms">Terms of Service</MaroonNavLink>
+                  <MaroonNavLink href="/legal/terms-of-service">Terms of Service</MaroonNavLink>
                 </li>
                 <li>
-                  <MaroonNavLink href="/legal/refund">Refund Policy</MaroonNavLink>
+                  <MaroonNavLink href="/legal/refund-policy">Refund Policy</MaroonNavLink>
                 </li>
               </ul>
             </div>

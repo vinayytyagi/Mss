@@ -142,7 +142,7 @@ export default function MyOrdersClient({ initialOrders = [], initialError = "", 
           <p className="mt-1 text-sm text-slate-400">{orders.length} order{orders.length !== 1 ? "s" : ""}</p>
         </div>
         <Link
-          href="/orders/track"
+          href="/orders/track-order"
           className="flex items-center gap-2 rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-[#ff4f86] hover:text-[#ff4f86]"
         >
           <TruckIcon />

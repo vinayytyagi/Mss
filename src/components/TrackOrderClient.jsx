@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { trackOrder } from "@/lib/api";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 
 /* ── Icons ─────────────────────────────────────────── */
 function SearchIcon() {
@@ -311,7 +312,10 @@ export default function TrackOrderClient({ initialOrders = [], initialPhone = ""
                   rel="noopener noreferrer"
                   className="mt-4 block w-full rounded-xl bg-linear-to-r from-[#ff4f86] to-[#ff8fb1] px-4 py-3 text-center text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:shadow-[0_16px_40px_rgba(255,79,134,0.35)]"
                 >
-                  Track on Courier Website →
+                  <span className="inline-flex items-center justify-center gap-2">
+                    Track on Courier Website
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </span>
                 </a>
               )}
               {result.tracking_summary && (
@@ -358,7 +362,10 @@ export default function TrackOrderClient({ initialOrders = [], initialPhone = ""
       {/* Back to orders link */}
       <div className="mt-8 text-center">
         <Link href="/orders" className="text-sm font-semibold text-slate-400 transition hover:text-[#ff4f86]">
-          ← Back to My Orders
+          <span className="inline-flex items-center justify-center gap-2">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to My Orders
+          </span>
         </Link>
       </div>
     </main>

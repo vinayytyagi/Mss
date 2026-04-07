@@ -16,6 +16,8 @@ import {
   SlidersHorizontal,
   Tags,
   Star,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useAuthUser } from "@/lib/authCookies";
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -160,7 +162,12 @@ function BudgetModal({
                 <p
                   className={`mt-1 text-sm font-semibold ${planPreview.delta > 0 ? "text-amber-700" : "text-emerald-700"}`}
                 >
-                  {planPreview.delta > 0 ? "↑" : "↓"} {formatCurrency(Math.abs(planPreview.delta))} from your saved plan
+                  {planPreview.delta > 0 ? (
+                    <ArrowUp className="mr-1 inline-block h-4 w-4 align-[-2px]" aria-hidden="true" />
+                  ) : (
+                    <ArrowDown className="mr-1 inline-block h-4 w-4 align-[-2px]" aria-hidden="true" />
+                  )}
+                  {formatCurrency(Math.abs(planPreview.delta))} from your saved plan
                 </p>
               ) : (
                 <p className="mt-1 text-xs text-slate-500">Matches your saved plan total</p>

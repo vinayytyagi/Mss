@@ -51,6 +51,10 @@ function updateCartState(updater) {
 function normalizeCartItem(item, quantity = 1) {
   return {
     item_id: item.item_id,
+    variant_id: item.variant_id || "",
+    variant_size: item.variant_size || item.size || "",
+    variant_color: item.variant_color || item.color || "",
+    variant_material: item.variant_material || item.material || "",
     name: item.name || "Untitled item",
     slug: item.slug || "",
     image: item.image || item.images?.[0] || "",
@@ -122,11 +126,14 @@ export function addToCart(cartType, item, quantity = 1) {
   if (!item?.item_id || !["quotation", "shopping"].includes(cartType)) return;
   updateCartState((current) => {
     const list = [...current[cartType]];
-    const existingIndex = list.findIndex((entry) => entry.item_id === item.item_id);
+    const normalized = normalizeCartItem(item, 1);
+    const existingIndex = list.findIndex(
+      (entry) => entry.item_id === normalized.item_id && String(entry.variant_id || "") === String(normalized.variant_id || ""),
+    );
     if (existingIndex >= 0) {
       list[existingIndex] = {
         ...list[existingIndex],
-        ...normalizeCartItem(item, 1),
+        ...normalized,
         quantity: (Number(list[existingIndex].quantity) || 0) + Math.max(1, Number(quantity) || 1),
       };
     } else {
@@ -136,22 +143,26 @@ export function addToCart(cartType, item, quantity = 1) {
   });
 }
 
-export function updateCartQuantity(cartType, itemId, quantity) {
+export function updateCartQuantity(cartType, itemId, quantity, variantId = "") {
   if (!["quotation", "shopping"].includes(cartType)) return;
   const nextQuantity = Math.max(1, Number(quantity) || 1);
   updateCartState((current) => ({
     ...current,
     [cartType]: current[cartType].map((item) =>
-      item.item_id === itemId ? { ...item, quantity: nextQuantity } : item
+      item.item_id === itemId && String(item.variant_id || "") === String(variantId || "")
+        ? { ...item, quantity: nextQuantity }
+        : item
     ),
   }));
 }
 
-export function removeFromCart(cartType, itemId) {
+export function removeFromCart(cartType, itemId, variantId = "") {
   if (!["quotation", "shopping"].includes(cartType)) return;
   updateCartState((current) => ({
     ...current,
-    [cartType]: current[cartType].filter((item) => item.item_id !== itemId),
+    [cartType]: current[cartType].filter(
+      (item) => !(item.item_id === itemId && String(item.variant_id || "") === String(variantId || "")),
+    ),
   }));
 }
 

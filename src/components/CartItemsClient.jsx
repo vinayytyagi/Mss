@@ -24,6 +24,13 @@ function CartRow({ item, cartType, onRemove, onQuantityChange }) {
             <p className="mt-1 text-sm text-slate-500">
               {item.subcategory_label || item.category_label || item.journey_title || item.item_type}
             </p>
+            {cartType === "shopping" && (item.variant_size || item.variant_color || item.variant_material) ? (
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                {[item.variant_size ? `Size: ${item.variant_size}` : null, item.variant_color ? `Color: ${item.variant_color}` : null, item.variant_material ? `Material: ${item.variant_material}` : null]
+                  .filter(Boolean)
+                  .join(" • ")}
+              </p>
+            ) : null}
             {item.journey_title ? <p className="mt-1 text-xs font-medium text-[#ff4f86]">{item.journey_title}</p> : null}
           </div>
 
@@ -39,7 +46,9 @@ function CartRow({ item, cartType, onRemove, onQuantityChange }) {
           <div className="flex items-center overflow-hidden rounded-2xl border border-slate-200">
             <button
               type="button"
-              onClick={() => onQuantityChange(item.item_id, Math.max(1, (Number(item.quantity) || 1) - 1))}
+              onClick={() =>
+                onQuantityChange(item.item_id, Math.max(1, (Number(item.quantity) || 1) - 1), item.variant_id || "")
+              }
               className="cursor-pointer px-3 py-2 text-slate-600"
               aria-label="Decrease quantity"
             >
@@ -48,7 +57,7 @@ function CartRow({ item, cartType, onRemove, onQuantityChange }) {
             <div className="min-w-12 px-3 text-center text-sm font-semibold text-slate-700">{item.quantity}</div>
             <button
               type="button"
-              onClick={() => onQuantityChange(item.item_id, (Number(item.quantity) || 1) + 1)}
+              onClick={() => onQuantityChange(item.item_id, (Number(item.quantity) || 1) + 1, item.variant_id || "")}
               className="cursor-pointer px-3 py-2 text-slate-600"
               aria-label="Increase quantity"
             >
@@ -58,7 +67,7 @@ function CartRow({ item, cartType, onRemove, onQuantityChange }) {
 
           <button
             type="button"
-            onClick={() => onRemove(item.item_id)}
+            onClick={() => onRemove(item.item_id, item.variant_id || "")}
             className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600"
           >
             <Trash2 className="h-4 w-4" />
@@ -106,8 +115,8 @@ export default function CartItemsClient({ activeCart = "shopping" }) {
                   key={`quotation-${item.item_id}`}
                   item={item}
                   cartType="quotation"
-                  onRemove={(itemId) => removeFromCart("quotation", itemId)}
-                  onQuantityChange={(itemId, quantity) => updateCartQuantity("quotation", itemId, quantity)}
+                  onRemove={(itemId, variantId) => removeFromCart("quotation", itemId, variantId)}
+                  onQuantityChange={(itemId, quantity, variantId) => updateCartQuantity("quotation", itemId, quantity, variantId)}
                 />
               ))}
             </div>
@@ -139,11 +148,11 @@ export default function CartItemsClient({ activeCart = "shopping" }) {
             <div className="space-y-4">
               {carts.shopping.map((item) => (
                 <CartRow
-                  key={`shopping-${item.item_id}`}
+                  key={`shopping-${item.item_id}-${item.variant_id || "base"}`}
                   item={item}
                   cartType="shopping"
-                  onRemove={(itemId) => removeFromCart("shopping", itemId)}
-                  onQuantityChange={(itemId, quantity) => updateCartQuantity("shopping", itemId, quantity)}
+                  onRemove={(itemId, variantId) => removeFromCart("shopping", itemId, variantId)}
+                  onQuantityChange={(itemId, quantity, variantId) => updateCartQuantity("shopping", itemId, quantity, variantId)}
                 />
               ))}
             </div>
