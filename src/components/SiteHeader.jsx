@@ -62,8 +62,8 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
       <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/70 bg-white/95 backdrop-blur">
       <div className="mx-auto flex w-full items-center justify-between gap-3 px-3 py-3 sm:px-6 lg:px-20">
         <Link href="/" className="flex cursor-pointer items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ff4f86] text-white sm:h-10 sm:w-10">
-            <Image src="/logo.webp" alt="MyShaadiStore logo" width={20} height={20} className="h-5 w-5" />
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white ring-1 ring-[#ff4f86]/20 sm:h-10 sm:w-10">
+            <Image src="/Circular_logo.png" alt="MyShaadiStore logo" width={32} height={32} className="h-7 w-7 object-contain" />
           </span>
           <span className="text-lg font-semibold tracking-tight text-slate-700 sm:text-xl lg:text-2xl">MyShaadiStore</span>
         </Link>

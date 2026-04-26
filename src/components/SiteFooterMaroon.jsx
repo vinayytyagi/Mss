@@ -91,7 +91,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
                 className="relative h-20 w-20"
               >
                 <Image
-                  src="/logo.webp"
+                  src="/Circular_logo.png"
                   alt="MyShaadiStore"
                   width={200}
                   height={200}
@@ -191,7 +191,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
         <div className="mt-14 border-t border-white/35 pt-8">
           <div className="flex flex-col items-center justify-between gap-4 text-xs text-white/80 sm:flex-row sm:text-sm">
             <p>© {new Date().getFullYear()} MyShaadiStore.com. All rights reserved.</p>
-            <p className="text-white/90">Made with love for love ❤</p>
+            <p className="text-white/90">Made with love for celebrations</p>
           </div>
         </div>
       </div>

@@ -23,10 +23,14 @@ export default function AuthScene({
             <div className="hidden lg:block">
               <div className="mx-auto w-full max-w-md">
                 <div className="mb-6 flex h-28 w-28 items-center justify-center rounded-full border-4 border-white/70 bg-white/95 text-[#ff4f86] shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
-                  <span className="text-4xl">❤</span>
+                  <img
+                    src="/Circular_logo.png"
+                    alt="MyShaadiStore"
+                    className="h-20 w-20 object-contain"
+                  />
                 </div>
-                <h2 className="text-6xl font-semibold tracking-tight text-white">MyShaadiStore</h2>
-                <p className="mt-4 text-3xl font-medium text-white/95">Sign in to plan your dream wedding</p>
+                <h2 className="text-5xl font-semibold tracking-tight text-white">MyShaadiStore</h2>
+                <p className="mt-4 text-2xl font-medium text-white/95">Plan your dream wedding</p>
                 <div className="mt-5 h-1 w-40 rounded-full bg-[#ff4f86]" />
               </div>
             </div>
@@ -59,6 +63,11 @@ export default function AuthScene({
                   <h1 className="text-3xl font-semibold leading-tight tracking-tight text-slate-800 sm:text-4xl">
                     {title || "Plan Your Dream Wedding"}
                   </h1>
+                  {subtitle ? (
+                    <p className="mt-2 text-sm font-medium text-slate-500 sm:text-base">
+                      {subtitle}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="relative space-y-6">{children}</div>
               </div>
@@ -70,6 +79,11 @@ export default function AuthScene({
               <h1 className="text-3xl font-semibold leading-tight tracking-tight text-slate-800 sm:text-4xl">
                 {title || "Plan Your Dream Wedding"}
               </h1>
+              {subtitle ? (
+                <p className="mt-2 text-sm font-medium text-slate-500 sm:text-base">
+                  {subtitle}
+                </p>
+              ) : null}
             </div>
             <div className="relative space-y-6">{children}</div>
             <div className="mt-10 text-center">

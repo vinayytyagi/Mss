@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 
@@ -21,13 +21,8 @@ export default function ShoppingSearchBar({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [value, setValue] = useState(initialValue);
-
-  useEffect(() => {
-    // keep in sync when navigation changes query params
-    const next = (searchParams?.get("search") || "").trim();
-    setValue(next);
-  }, [searchParams]);
+  const queryValue = useMemo(() => (searchParams?.get("search") || "").trim(), [searchParams]);
+  const [value, setValue] = useState(initialValue || queryValue);
 
   function submit(e) {
     e?.preventDefault?.();
@@ -49,7 +44,7 @@ export default function ShoppingSearchBar({
           onChange={(e) => {
             const next = e.target.value;
             setValue(next);
-            if (next.trim() === "" && (searchParams?.get("search") || "").trim() !== "") {
+            if (next.trim() === "" && queryValue !== "") {
               router.replace(
                 buildShoppingHref({
                   category,

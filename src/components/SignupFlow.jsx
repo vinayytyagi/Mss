@@ -11,7 +11,7 @@ import { isValidIndianPhone, normalizeIndianPhone, validatePasswordStrength } fr
 import { makeIdempotencyKey } from "@/lib/idempotencyKey";
 import { toast } from "sonner";
 
-const ONBOARDING_STEPS = ["Engagement", "Wedding Date", "Venue", "Guests", "Budget"];
+const ONBOARDING_STEPS = ["Engagement", "Wedding Date", "Venue", "Groom/Bride", "Function Days", "Guests", "Budget"];
 const MAX_BUDGET_PER_STEP = 10000000;
 
 function UserIcon() {
@@ -76,6 +76,8 @@ export default function SignupFlow({ initialSteps = [] }) {
     wedding_date: "",
     wedding_month: "",
     venue_location: "",
+    groom_or_bride: "",
+    function_days: "",
     guests_count: "",
   });
   const [budgetAllocations, setBudgetAllocations] = useState(
@@ -111,8 +113,10 @@ export default function SignupFlow({ initialSteps = [] }) {
       engagement: 0,
       weddingDate: 1,
       venue: 2,
-      guests: 3,
-      budget: 4,
+      groomBride: 3,
+      functionDays: 4,
+      guests: 5,
+      budget: 6,
     };
     return map[phase] ?? 0;
   }, [phase]);
@@ -270,6 +274,38 @@ export default function SignupFlow({ initialSteps = [] }) {
     }
   }
 
+  async function saveGroomBrideProgress() {
+    setLoading(true);
+    try {
+      const payload = {
+        verification_token: verificationToken,
+        groom_or_bride: form.groom_or_bride,
+      };
+      const idempotencyKey = makeIdempotencyKey("auth/progressive-save:groom-bride", payload);
+      await progressiveSave(payload, { idempotencyKey });
+    } catch (e2) {
+      console.warn("Failed to save groom/bride:", e2.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveFunctionDaysProgress() {
+    setLoading(true);
+    try {
+      const payload = {
+        verification_token: verificationToken,
+        function_days: Number(form.function_days) || 0,
+      };
+      const idempotencyKey = makeIdempotencyKey("auth/progressive-save:function-days", payload);
+      await progressiveSave(payload, { idempotencyKey });
+    } catch (e2) {
+      console.warn("Failed to save function days:", e2.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function saveBudgetProgress() {
     setLoading(true);
     try {
@@ -317,6 +353,8 @@ export default function SignupFlow({ initialSteps = [] }) {
           max_budget: Number(item.max_budget) || MAX_BUDGET_PER_STEP,
         })),
         venue_location: form.venue_location || null,
+        groom_or_bride: form.groom_or_bride || null,
+        function_days: Number(form.function_days) || 0,
         guests_count: Number(form.guests_count) || 0,
       });
 
@@ -351,6 +389,8 @@ export default function SignupFlow({ initialSteps = [] }) {
     engagement: "Are you engaged?",
     weddingDate: "When is your big day?",
     venue: "Where is your venue location?",
+    groomBride: "Are you the groom or bride?",
+    functionDays: "How many days is your function?",
     guests: "How many guests?",
     budget: "What's your estimated budget?",
   };
@@ -359,6 +399,8 @@ export default function SignupFlow({ initialSteps = [] }) {
     engagement: "Let's know where you are in your journey",
     weddingDate: "Choose the timing that fits your current planning stage",
     venue: "Venue location will help personalize recommendations",
+    groomBride: "This helps personalize your wedding journey",
+    functionDays: "Number of function days helps with planning and suggestions",
     guests: "Guest count helps refine your planning needs",
     budget: "Set budget journey-step wise and total will be auto-calculated",
   };
@@ -655,11 +697,97 @@ export default function SignupFlow({ initialSteps = [] }) {
                     return;
                   }
                   await saveVenueProgress();
-                  setPhase("guests");
+                  setPhase("groomBride");
                 }}
                 className={`flex-1 cursor-pointer ${PRIMARY_BTN_CLASS}`}
               >
                 Continue
+              </button>
+            </div>
+          </>
+        ) : null}
+
+        {phase === "groomBride" ? (
+          <>
+            {[
+              ["groom", "Groom", "I'm the groom"],
+              ["bride", "Bride", "I'm the bride"],
+            ].map(([value, title, text]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, groom_or_bride: value }))}
+                className={`w-full cursor-pointer rounded-xl border px-4 py-4 text-left transition ${
+                  form.groom_or_bride === value
+                    ? "border-[#ff8ab0] bg-white shadow-[0_10px_24px_rgba(255,79,134,0.08)]"
+                    : "border-slate-200 bg-white/70"
+                }`}
+              >
+                <div className="text-base font-semibold text-slate-700">{title}</div>
+                <div className="mt-1 text-sm text-slate-500">{text}</div>
+              </button>
+            ))}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPhase("venue")}
+                className={`flex-1 cursor-pointer ${SECONDARY_BTN_CLASS}`}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={async () => {
+                  if (!form.groom_or_bride) {
+                    toast.error("Please select groom or bride.");
+                    return;
+                  }
+                  await saveGroomBrideProgress();
+                  setPhase("functionDays");
+                }}
+                className={`flex-1 cursor-pointer ${PRIMARY_BTN_CLASS}`}
+              >
+                {loading ? "Saving..." : "Continue"}
+              </button>
+            </div>
+          </>
+        ) : null}
+
+        {phase === "functionDays" ? (
+          <>
+            <input
+              type="number"
+              min="1"
+              placeholder="e.g. 2"
+              value={form.function_days}
+              onChange={(e) => setForm((f) => ({ ...f, function_days: e.target.value }))}
+              className={INPUT_CLASS}
+            />
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPhase("groomBride")}
+                className={`flex-1 cursor-pointer ${SECONDARY_BTN_CLASS}`}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={async () => {
+                  const days = Number(form.function_days);
+                  if (!days || days <= 0) {
+                    toast.error("Please enter number of function days.");
+                    return;
+                  }
+                  await saveFunctionDaysProgress();
+                  setPhase("guests");
+                }}
+                className={`flex-1 cursor-pointer ${PRIMARY_BTN_CLASS}`}
+              >
+                {loading ? "Saving..." : "Continue"}
               </button>
             </div>
           </>
