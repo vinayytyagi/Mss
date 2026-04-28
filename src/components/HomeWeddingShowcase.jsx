@@ -92,7 +92,7 @@ export default function HomeWeddingShowcase({ journeyHref = "/how-it-works" }) {
             {cards.map((card) => (
               <article
                 key={card.title}
-                className="relative z-10 rounded-[1.5rem] bg-white p-6 shadow-[0_10px_40px_rgba(45,45,68,0.07),0_2px_12px_rgba(45,45,68,0.04)] sm:p-7"
+                className="relative z-10 rounded-3xl bg-white p-6 shadow-[0_10px_40px_rgba(45,45,68,0.07),0_2px_12px_rgba(45,45,68,0.04)] sm:p-7"
               >
                 <div className="flex items-center gap-3">
                   <span

@@ -123,7 +123,7 @@ export default function TrackOrderClient({ initialOrders = [], initialPhone = ""
               value={orderNumber}
               onChange={(e) => setOrderNumber(e.target.value)}
               placeholder="e.g. MSS-123456-ABCD"
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring-2 focus:ring-[#ff4f86]/20"
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
             />
           </div>
           <div>
@@ -134,7 +134,7 @@ export default function TrackOrderClient({ initialOrders = [], initialPhone = ""
               onChange={(e) => setPhone(e.target.value)}
               placeholder="e.g. 9876543210"
               maxLength={10}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring-2 focus:ring-[#ff4f86]/20"
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
             />
           </div>
         </div>

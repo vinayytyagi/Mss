@@ -30,7 +30,7 @@ export default function AuthScene({
                   />
                 </div>
                 <h2 className="text-5xl font-semibold tracking-tight text-white">MyShaadiStore</h2>
-                <p className="mt-4 text-2xl font-medium text-white/95">Plan your dream wedding</p>
+                <p className="mt-4 text-2xl font-medium text-white/95">Plan Your Dream Wedding</p>
                 <div className="mt-5 h-1 w-40 rounded-full bg-[#ff4f86]" />
               </div>
             </div>

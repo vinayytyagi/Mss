@@ -330,7 +330,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring-2 focus:ring-[#ff4f86]/20"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
                   />
                 </div>
                 <div>
@@ -339,7 +339,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                     type="email"
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring-2 focus:ring-[#ff4f86]/20"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
                   />
                 </div>
                 <div>
@@ -497,7 +497,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                       type="date"
                       value={editWeddingDate?.split("T")[0] || ""}
                       onChange={(e) => setEditWeddingDate(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring-2 focus:ring-[#ff4f86]/20"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
                     />
                   </div>
                   <div>
@@ -506,7 +506,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                       type="number"
                       value={editGuestsCount}
                       onChange={(e) => setEditGuestsCount(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring-2 focus:ring-[#ff4f86]/20"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
                     />
                   </div>
                   <div className="sm:col-span-2">
@@ -515,7 +515,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                       type="text"
                       value={editVenueLocation}
                       onChange={(e) => setEditVenueLocation(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring-2 focus:ring-[#ff4f86]/20"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
                       placeholder="e.g. Mumbai, Maharashtra"
                     />
                   </div>

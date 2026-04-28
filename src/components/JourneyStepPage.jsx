@@ -714,12 +714,12 @@ export default function JourneyStepPage({
         {/* Left Phase Control — top-aligned so row height follows content only */}
         <a
           href={activeIndex > 0 ? `/journey/${steps[activeIndex - 1].slug}` : "#"}
-          className={`sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white shadow-xl ring-1 ring-slate-100 transition-all hover:bg-slate-50 hover:shadow-2xl active:scale-90 md:flex ${
+          className={`group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white shadow-xl ring-1 ring-slate-100 transition-all hover:bg-[#fff1f6] hover:shadow-2xl active:scale-90 md:flex ${
             activeIndex === 0 ? "pointer-events-none opacity-10" : "cursor-pointer"
           }`}
           aria-label="Previous Phase"
         >
-          <ChevronLeft className="h-6 w-6 text-slate-500" />
+          <ChevronLeft className="h-6 w-6 text-[#ff4f86] transition-colors group-hover:text-[#ff3d79]" />
         </a>
 
         <div className="min-w-0 flex-1">
@@ -780,7 +780,7 @@ export default function JourneyStepPage({
                             <div>
                               <div className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400">Starting from</div>
                               <div className="text-xl font-black text-[#ff4f86]">
-                                ₹{formatCurrency(item.final_price || item.price)}
+                                {formatCurrency(item.final_price || item.price)}
                               </div>
                             </div>
                           </div>
@@ -878,13 +878,12 @@ export default function JourneyStepPage({
 
         <a
           href={activeIndex < steps.length - 1 ? `/journey/${steps[activeIndex + 1].slug}` : "#"}
-          className={`sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white shadow-xl ring-1 ring-slate-100 transition-all hover:bg-slate-50 hover:shadow-2xl active:scale-90 md:flex ${
+          className={`group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 bg-[#ff4f86] items-center justify-center rounded-xl ring-1 ring-slate-100 transition-all hover:bg-[#ff1f86] hover:shadow-2xl active:scale-90 md:flex ${
             activeIndex === steps.length - 1 ? "pointer-events-none opacity-10" : "cursor-pointer"
           }`}
           aria-label="Next Phase"
         >
-          <ChevronRight className="h-6 w-6 text-slate-500" />
-        </a>
+          <ChevronRight className="h-6 w-6 text-[#fff] transition-colors" />        </a>
       </div>
 
       <div>
