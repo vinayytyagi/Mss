@@ -3,6 +3,164 @@ import JourneyStepPage from "@/components/JourneyStepPage";
 import { fetchItems, fetchJourneyStep, fetchJourneySteps, fetchStepCategories } from "@/lib/api";
 import { getAuthUserServer } from "@/lib/authCookiesServer";
 
+const SPECIAL_STEP_KINDS = {
+  VENUE: "venue",
+  DECOR: "decor",
+  CATERING: "catering",
+};
+
+function getStepKindFromSlug(stepSlug = "") {
+  const s = String(stepSlug || "").trim().toLowerCase();
+  if (!s) return null;
+  if (["venues", "venue"].includes(s)) return SPECIAL_STEP_KINDS.VENUE;
+  if (["decor", "decors", "decoration", "decorations"].includes(s)) return SPECIAL_STEP_KINDS.DECOR;
+  if (["catering", "caterings", "caterer", "caterers"].includes(s)) return SPECIAL_STEP_KINDS.CATERING;
+  return null;
+}
+
+/** Prefer stable admin keys (ivenue / idecor / icatering), then slug. */
+function resolveStepKind(step) {
+  const key = String(step?.step_key || "").trim().toLowerCase();
+  if (key === "ivenue") return SPECIAL_STEP_KINDS.VENUE;
+  if (key === "idecor") return SPECIAL_STEP_KINDS.DECOR;
+  if (key === "icatering") return SPECIAL_STEP_KINDS.CATERING;
+  return getStepKindFromSlug(step?.slug);
+}
+
+function normLocPart(s) {
+  return String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function parseCityStateFromLabel(label) {
+  const parts = String(label || "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const city = parts[0] ? normLocPart(parts[0]) : "";
+  const state = parts.length > 1 ? normLocPart(parts.slice(1).join(", ")) : "";
+  return { city, state };
+}
+
+function getItemCityState(item) {
+  const cRaw = item?.location_city;
+  const sRaw = item?.location_state;
+  const cDirect = normLocPart(cRaw);
+  const sDirect = normLocPart(sRaw);
+  if (cDirect && sDirect) return { city: cDirect, state: sDirect };
+  if (sDirect && !cDirect) return { city: "", state: sDirect };
+  if (cDirect && !sDirect) {
+    const parsed = parseCityStateFromLabel(cRaw);
+    if (parsed.city || parsed.state) return parsed;
+    return { city: cDirect, state: "" };
+  }
+  const loc = normLocPart(item?.location || "");
+  if (loc) return parseCityStateFromLabel(loc);
+  return { city: "", state: "" };
+}
+
+/** Match signup city/state to item location_city + location_state (or legacy "City, State" in location_city). Items with no geo stay visible. */
+function filterItemsBySignupLocationStrict(items, venueLocationLabel) {
+  if (!Array.isArray(items) || items.length === 0) return items || [];
+  const user = parseCityStateFromLabel(venueLocationLabel);
+  if (!user.city && !user.state) return items;
+
+  const matched = items.filter((item) => {
+    const il = getItemCityState(item);
+    if (!il.city && !il.state) return true;
+    if (user.state && il.state && user.state !== il.state) return false;
+    if (user.city && il.city && user.city !== il.city) return false;
+    if (user.city && !user.state && il.city && user.city !== il.city) return false;
+    if (user.state && !user.city && il.state && user.state !== il.state) return false;
+    return true;
+  });
+  return matched.length > 0 ? matched : items;
+}
+
+function parseGuestCapacity(item) {
+  const raw = item?.capacity ?? item?.max_guests ?? item?.guest_capacity ?? item?.maxGuests;
+  if (raw == null || raw === "") return null;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) return { min: 0, max: raw };
+
+  const s = String(raw).trim().toLowerCase().replace(/\s+/g, " ");
+  const range = s.match(/(\d+)\s*[-–to]+\s*(\d+)/i);
+  if (range) {
+    const a = Number(range[1]);
+    const b = Number(range[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      return { min: Math.min(a, b), max: Math.max(a, b) };
+    }
+  }
+  const digits = s.match(/\d+/g);
+  if (digits && digits.length >= 2) {
+    const nums = digits.map(Number).filter((n) => n > 0);
+    if (nums.length >= 2) return { min: Math.min(...nums), max: Math.max(...nums) };
+  }
+  const n = Number(String(raw).replace(/[^\d.]/g, ""));
+  if (Number.isFinite(n) && n > 0) return { min: 0, max: n };
+  return null;
+}
+
+function filterItemsByVenueGuestCount(items, guestCount) {
+  if (!Array.isArray(items) || items.length === 0) return items;
+  const G = Number(guestCount);
+  if (!Number.isFinite(G) || G <= 0) return items;
+
+  const matched = items.filter((item) => {
+    const cap = parseGuestCapacity(item);
+    if (!cap) return true;
+    if (G > cap.max) return false;
+    if (cap.min > 0 && G < cap.min) return false;
+    return true;
+  });
+  return matched.length > 0 ? matched : items;
+}
+
+function decodeVenueLocParam(raw) {
+  if (raw === undefined || raw === null) return "";
+  const s0 = Array.isArray(raw) ? raw[0] : raw;
+  const s = String(s0 || "").trim();
+  if (!s) return "";
+  try {
+    return decodeURIComponent(s).trim();
+  } catch {
+    return s;
+  }
+}
+
+function parsePositiveGuestQuery(raw) {
+  if (raw === undefined || raw === null) return null;
+  const t = String(Array.isArray(raw) ? raw[0] : raw).trim();
+  if (!t) return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.round(n);
+}
+
+function parseNonNegIntQuery(raw) {
+  if (raw === undefined || raw === null) return null;
+  const t = String(raw).trim();
+  if (t === "") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n);
+}
+
+function filterItemsByPriceRange(items, pmin, pmax) {
+  if (!Array.isArray(items) || items.length === 0) return items || [];
+  const lo = pmin != null && Number.isFinite(pmin) ? pmin : null;
+  const hi = pmax != null && Number.isFinite(pmax) ? pmax : null;
+  if (lo == null && hi == null) return items;
+  return items.filter((it) => {
+    const p = Number(it?.final_price ?? it?.price) || 0;
+    if (lo != null && p < lo) return false;
+    if (hi != null && p > hi) return false;
+    return true;
+  });
+}
+
 function getStepBudgetCap(user, stepId, defaultBudget) {
   const allocations = Array.isArray(user?.onboarding?.budget_allocations)
     ? user.onboarding.budget_allocations
@@ -51,6 +209,8 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
 
+  const user = await getAuthUserServer();
+
   let step;
   try {
     step = await fetchJourneyStep(slug);
@@ -61,6 +221,17 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
   const categoryParam = resolvedSearchParams?.category || "";
   const subcategoryParam = resolvedSearchParams?.subcategory || resolvedSearchParams?.subcategory_id || "";
   const search = (resolvedSearchParams?.search || "").trim();
+
+  const matchLocRaw = String(resolvedSearchParams?.matchLoc ?? "").trim().toLowerCase();
+  const matchGuestsRaw = String(resolvedSearchParams?.matchGuests ?? "").trim().toLowerCase();
+  const skipSignupLocationFilter = ["0", "off", "false"].includes(matchLocRaw);
+  const skipSignupGuestFilter = ["0", "off", "false"].includes(matchGuestsRaw);
+
+  /** Single product price cap in URL (?pmax). Step budget is the default when this is absent (until user customizes). */
+  const productPriceMaxFromUrl = parseNonNegIntQuery(resolvedSearchParams?.pmax ?? resolvedSearchParams?.priceMax);
+
+  const guestCountFromUrl = parsePositiveGuestQuery(resolvedSearchParams?.guestCount);
+  const venueLocFromUrl = decodeVenueLocParam(resolvedSearchParams?.venueLoc);
 
   const budgetRaw = resolvedSearchParams?.budget;
   const budgetTrimmed =
@@ -85,7 +256,6 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
       }
     }
   } else {
-    const user = await getAuthUserServer();
     const budgetCap = getStepBudgetCap(user, step.step_id, step.default_budget);
     appliedBudgetCap = budgetCap > 0 ? budgetCap : null;
   }
@@ -97,17 +267,56 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
 
   const sel = resolveJourneyCategorySelection(categories, categoryParam, subcategoryParam);
 
+  /** Step budget is for plan / UI only — item price band comes only from Product price (?pmin / ?pmax). */
   const itemsRes = await fetchItems(
     {
       journeyStepId: step.step_id,
       ...(sel.selectedCategorySlug ? { categorySlug: sel.selectedCategorySlug } : {}),
       ...(sel.selectedSubcategorySlug ? { subcategorySlug: sel.selectedSubcategorySlug } : {}),
       ...(search ? { search } : {}),
-      ...(appliedBudgetCap != null ? { maxFinalPrice: appliedBudgetCap } : {}),
       limit: 500,
     },
     { cacheMode: "no-store" },
   );
+
+  const stepKind = resolveStepKind(step);
+  const profileVenueLocation = user?.onboarding?.venue_location;
+  const profileGuestsCount = user?.onboarding?.guests_count;
+
+  const effectiveVenueLocation =
+    String(venueLocFromUrl || "").trim() || String(profileVenueLocation || "").trim();
+  const effectiveGuestCount = guestCountFromUrl ?? (Number(profileGuestsCount) > 0 ? Number(profileGuestsCount) : 0);
+
+  const locStep =
+    stepKind === SPECIAL_STEP_KINDS.VENUE ||
+    stepKind === SPECIAL_STEP_KINDS.DECOR ||
+    stepKind === SPECIAL_STEP_KINDS.CATERING;
+  const canOfferSignupLocFilter =
+    locStep && (!!String(effectiveVenueLocation || "").trim() || !!user);
+  const canOfferSignupGuestFilter = stepKind === SPECIAL_STEP_KINDS.VENUE && (!!user || guestCountFromUrl != null);
+
+  const applySignupLocationFilter =
+    locStep && !!String(effectiveVenueLocation || "").trim() && !skipSignupLocationFilter;
+  const applySignupGuestFilter =
+    stepKind === SPECIAL_STEP_KINDS.VENUE &&
+    !skipSignupGuestFilter &&
+    Number.isFinite(effectiveGuestCount) &&
+    effectiveGuestCount > 0;
+
+  let items = itemsRes.items || [];
+  if (applySignupLocationFilter) {
+    items = filterItemsBySignupLocationStrict(items, effectiveVenueLocation);
+  }
+  if (applySignupGuestFilter) {
+    items = filterItemsByVenueGuestCount(items, effectiveGuestCount);
+  }
+  const productPriceCap =
+    productPriceMaxFromUrl != null
+      ? productPriceMaxFromUrl
+      : !capOff && appliedBudgetCap != null
+        ? appliedBudgetCap
+        : null;
+  items = filterItemsByPriceRange(items, null, productPriceCap);
 
   return (
     <main>
@@ -115,7 +324,7 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
         steps={steps}
         step={step}
         categories={categories}
-        items={itemsRes.items || []}
+        items={items}
         selectedCategoryId={sel.effectiveCategoryId}
         selectedSubcategoryId={sel.effectiveSubcategoryId}
         selectedCategorySlug={sel.selectedCategorySlug}
@@ -124,6 +333,16 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
         appliedBudgetCap={appliedBudgetCap}
         budgetQueryValue={budgetQueryValue}
         capOffActive={capOff}
+        showSignupLocFilter={canOfferSignupLocFilter}
+        showSignupGuestFilter={canOfferSignupGuestFilter}
+        matchLocOff={skipSignupLocationFilter}
+        matchGuestsOff={skipSignupGuestFilter}
+        productPriceCap={productPriceCap}
+        productPriceMaxForUrl={productPriceMaxFromUrl == null ? undefined : productPriceMaxFromUrl}
+        guestCountForUrl={guestCountFromUrl == null ? undefined : guestCountFromUrl}
+        venueLocForUrl={venueLocFromUrl ? venueLocFromUrl : undefined}
+        effectiveGuestCount={effectiveGuestCount}
+        effectiveVenueLocation={effectiveVenueLocation}
       />
     </main>
   );

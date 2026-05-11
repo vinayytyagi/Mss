@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useAuthUser, getAuthToken, saveAuthCookies } from "@/lib/authCookies";
 import { updateMyProfile } from "@/lib/api";
 import ImageUpload from "@/components/ImageUpload";
+import CityStateDropdown from "@/components/CityStateDropdown";
 import { formatLakhs } from "@/lib/utils";
 import {
   Check,
@@ -260,12 +261,39 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
         <div className="absolute -left-10 bottom-0 h-32 w-32 rounded-full bg-[#ff8fb1]/10 blur-3xl" />
         <div className="relative flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           {/* Avatar */}
-          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-linear-to-br from-[#ff4f86] to-[#ff8fb1] text-2xl font-extrabold text-white shadow-[0_20px_50px_rgba(255,79,134,0.3)]">
-            {profile?.image_url ? (
-              <Image src={profile.image_url} alt={profile.name} width={80} height={80} className="h-full w-full object-cover" />
-            ) : (
-              getInitials(profile?.name)
-            )}
+          <div className="relative shrink-0">
+            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-linear-to-br from-[#ff4f86] to-[#ff8fb1] text-2xl font-extrabold text-white shadow-[0_20px_50px_rgba(255,79,134,0.3)]">
+              {profile?.image_url ? (
+                <Image
+                  src={profile.image_url}
+                  alt={profile.name || "Profile"}
+                  width={160}
+                  height={160}
+                  sizes="80px"
+                  quality={95}
+                  className="h-full w-full object-cover"
+                  unoptimized={typeof profile.image_url === "string" && profile.image_url.startsWith("data:")}
+                />
+              ) : (
+                getInitials(profile?.name)
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("profile");
+                setEditingBasic(true);
+                requestAnimationFrame(() => {
+                  document.getElementById("profile-photo-upload")?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                });
+              }}
+              className="absolute -bottom-1 -right-1 rounded-full border-2 border-white bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#ff4f86] shadow-md transition hover:bg-[#fff5f9]"
+            >
+              {profile?.image_url ? "Edit" : "Photo"}
+            </button>
           </div>
           <div className="text-center sm:text-left">
             <h1 className="text-2xl font-extrabold tracking-tight text-slate-700">
@@ -352,12 +380,15 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   />
                   <p className="mt-1 text-xs text-slate-400">Phone number cannot be changed</p>
                 </div>
-                <div className="pt-2">
-                  <ImageUpload 
+                <div id="profile-photo-upload" className="pt-2">
+                  <ImageUpload
                     label="Profile Photo"
                     initialUrl={editImage}
                     onUploadComplete={(url) => setEditImage(url)}
                   />
+                  <p className="mt-2 text-xs text-slate-500">
+                    We resize photos for upload. If cloud storage is offline, a JPEG preview is saved on your profile for this device.
+                  </p>
                 </div>
                 <div className="flex items-center gap-3 pt-4">
                   <button
@@ -369,7 +400,12 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                     Save
                   </button>
                   <button
-                    onClick={() => { setEditingBasic(false); setEditName(profile?.name || ""); setEditEmail(profile?.email || ""); }}
+                    onClick={() => {
+                      setEditingBasic(false);
+                      setEditName(profile?.name || "");
+                      setEditEmail(profile?.email || "");
+                      setEditImage(profile?.image_url || "");
+                    }}
                     className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-50"
                   >
                     <XIcon /> Cancel
@@ -511,13 +547,15 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400">Venue Location</label>
-                    <input
-                      type="text"
-                      value={editVenueLocation}
-                      onChange={(e) => setEditVenueLocation(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
-                      placeholder="e.g. Mumbai, Maharashtra"
-                    />
+                    <div className="mt-1">
+                      <CityStateDropdown
+                        value={editVenueLocation}
+                        onChange={(loc) => setEditVenueLocation(loc.label)}
+                        placeholderCity="Search venue city…"
+                        placeholderState="Select state"
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -771,15 +809,18 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                     <input type="text" value={newAddress.line2} onChange={(e) => setNewAddress({ ...newAddress, line2: e.target.value })}
                       className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#ff4f86]" placeholder="Area, Landmark" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400">City *</label>
-                    <input type="text" value={newAddress.city} onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#ff4f86]" placeholder="Delhi" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400">State</label>
-                    <input type="text" value={newAddress.state} onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#ff4f86]" placeholder="Delhi" />
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-400">City & State *</label>
+                    <div className="mt-1">
+                      <CityStateDropdown
+                        cityValue={newAddress.city}
+                        stateValue={newAddress.state}
+                        onChange={(loc) => setNewAddress((a) => ({ ...a, city: loc.city, state: loc.state }))}
+                        placeholderCity="Search city…"
+                        placeholderState="State"
+                        required
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="mt-5 flex items-center gap-3">

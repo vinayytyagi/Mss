@@ -24,3 +24,13 @@ export function slugify(text) {
     .replace(/[\s_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
+
+// Build a CSS `url("...")` value safe for inline style injection from an
+// untrusted URL string. Encodes characters that could otherwise close the
+// url() / quoted-string and inject CSS.
+export function safeCssUrl(url) {
+  const s = String(url || "").trim();
+  if (!s) return "none";
+  const encoded = s.replace(/["()'\\\s]/g, encodeURIComponent);
+  return `url("${encoded}")`;
+}

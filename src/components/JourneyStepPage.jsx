@@ -18,8 +18,14 @@ import {
   Star,
   ArrowUp,
   ArrowDown,
+  IndianRupee,
+  Users,
 } from "lucide-react";
-import { useAuthUser } from "@/lib/authCookies";
+import { useAuthUser, getAuthToken, saveAuthCookies } from "@/lib/authCookies";
+import { updateMyProfile } from "@/lib/api";
+import CityStateDropdown from "@/components/CityStateDropdown";
+import { buildLocationLabel } from "@/lib/indiaLocations";
+import { safeCssUrl } from "@/lib/utils";
 import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -34,7 +40,18 @@ function categoryUrlSegment(c) {
 
 function buildJourneyHref(
   slug,
-  { categorySlug, subcategorySlug, search: searchTerm, budget, capOff } = {},
+  {
+    categorySlug,
+    subcategorySlug,
+    search: searchTerm,
+    budget,
+    capOff,
+    matchLocOff = false,
+    matchGuestsOff = false,
+    priceMax = null,
+    guestCount,
+    venueLoc,
+  } = {},
 ) {
   const qs = new URLSearchParams();
   if (categorySlug) qs.set("category", categorySlug);
@@ -50,16 +67,19 @@ function buildJourneyHref(
   ) {
     qs.set("budget", String(Math.max(0, Math.round(Number(budget)))));
   }
+  if (matchLocOff === true) qs.set("matchLoc", "0");
+  if (matchGuestsOff === true) qs.set("matchGuests", "0");
+  if (priceMax != null && Number.isFinite(Number(priceMax)) && Number(priceMax) >= 0) {
+    qs.set("pmax", String(Math.round(Number(priceMax))));
+  }
+  if (guestCount != null && guestCount !== undefined && Number(guestCount) > 0) {
+    qs.set("guestCount", String(Math.round(Number(guestCount))));
+  }
+  if (venueLoc != null && venueLoc !== undefined && String(venueLoc).trim()) {
+    qs.set("venueLoc", String(venueLoc).trim());
+  }
   const q = qs.toString();
   return `/journey/${slug}${q ? `?${q}` : ""}`;
-}
-
-function formatInrBudget(value) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0);
 }
 
 function StarRating({ value = 4 }) {
@@ -257,6 +277,346 @@ function BudgetModal({
   );
 }
 
+function PriceFilterModal({ onClose, seedCap, summaryLine, onApply, onClearUrl }) {
+  const [capS, setCapS] = useState(() => (seedCap != null && Number.isFinite(Number(seedCap)) ? String(seedCap) : ""));
+  const [error, setError] = useState("");
+
+  function submit() {
+    setError("");
+    const raw = String(capS).replace(/[^\d]/g, "");
+    if (!raw) {
+      setError("Enter a maximum price in rupees.");
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) {
+      setError("Enter a valid amount.");
+      return;
+    }
+    onApply?.(Math.round(n));
+    onClose();
+  }
+
+  return (
+    <div
+      role="presentation"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/45 p-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="price-filter-title"
+        className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 id="price-filter-title" className="text-lg font-semibold text-slate-800">
+            Product budget
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-full p-2 transition-colors hover:bg-slate-100"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4 text-slate-400" />
+          </button>
+        </div>
+        <p className="mb-2 text-sm text-slate-500">
+          Starts the same as your step budget. Change it here to filter listings by maximum offer price (after
+          discount). Step budget still drives your plan row above.
+        </p>
+        {summaryLine ? (
+          <p className="mb-4 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-snug text-slate-700 ring-1 ring-slate-100">
+            {summaryLine}
+          </p>
+        ) : null}
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Max offer price (₹)
+        </label>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={capS}
+          onChange={(e) => setCapS(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          placeholder="e.g. 500000"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-[#ff4f86]"
+          aria-label="Maximum offer price"
+        />
+        {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
+          {onClearUrl ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClearUrl();
+                onClose();
+              }}
+              className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+            >
+              Match step budget again (remove product override)
+            </button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              className="h-10 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white hover:bg-[#ff3d79]"
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GuestFilterModal({ onClose, seedCount, onApplyUrl, onSaveToProfile, onFilterOff }) {
+  const [val, setVal] = useState(() => (Number(seedCount) > 0 ? String(seedCount) : ""));
+  const [saving, setSaving] = useState(false);
+
+  function applyUrl() {
+    const n = Number(String(val).replace(/[^\d]/g, ""));
+    if (!n || n < 1) {
+      toast.error("Enter a positive guest count.");
+      return;
+    }
+    onApplyUrl(n);
+    onClose();
+  }
+
+  async function saveProfile() {
+    const n = Number(String(val).replace(/[^\d]/g, ""));
+    if (!n || n < 1) {
+      toast.error("Enter a positive guest count.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSaveToProfile?.(n);
+      onClose();
+    } catch (e) {
+      toast.error(e?.message || "Could not save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      role="presentation"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/45 p-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="guest-filter-title"
+        className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 id="guest-filter-title" className="text-lg font-semibold text-slate-800">
+            Guest count
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-full p-2 transition-colors hover:bg-slate-100"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4 text-slate-400" />
+          </button>
+        </div>
+        <p className="mb-3 text-sm text-slate-500">
+          Venues with a listed capacity are filtered so the space can reasonably host your party size.
+        </p>
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Expected guests
+        </label>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && applyUrl()}
+          placeholder="e.g. 250"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-[#ff4f86]"
+        />
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={applyUrl}
+            className="h-10 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white hover:bg-[#ff3d79]"
+          >
+            Apply for this page
+          </button>
+          {onSaveToProfile ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={saveProfile}
+              className="h-10 rounded-xl border border-pink-200 bg-pink-50 px-4 text-sm font-semibold text-[#ff4f86] hover:bg-pink-100 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save to my account"}
+            </button>
+          ) : null}
+        </div>
+        {onFilterOff ? (
+          <button
+            type="button"
+            className="mt-4 w-full text-center text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+            onClick={() => {
+              onFilterOff();
+              onClose();
+            }}
+          >
+            Turn off guest filter for this page
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function LocationFilterModal({ onClose, seedLabel, onApplyUrl, onSaveToProfile, onFilterOff }) {
+  const parsed = parseCityStateForDropdown(seedLabel);
+  const [city, setCity] = useState(parsed.city);
+  const [state, setState] = useState(parsed.state);
+  const [saving, setSaving] = useState(false);
+
+  function applyUrl() {
+    const label = buildLocationLabel(city, state).trim();
+    if (!label) {
+      toast.error("Select or enter city and state.");
+      return;
+    }
+    onApplyUrl(label);
+    onClose();
+  }
+
+  async function saveProfile() {
+    const label = buildLocationLabel(city, state).trim();
+    if (!label) {
+      toast.error("Select or enter city and state.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSaveToProfile?.(label);
+      onClose();
+    } catch (e) {
+      toast.error(e?.message || "Could not save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      role="presentation"
+      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/45 p-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="loc-filter-title"
+        className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 id="loc-filter-title" className="text-lg font-semibold text-slate-800">
+            Wedding city &amp; state
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-full p-2 transition-colors hover:bg-slate-100"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4 text-slate-400" />
+          </button>
+        </div>
+        <p className="mb-4 text-sm text-slate-500">
+          Listings on venue, décor, and catering steps are matched to this area when the filter is on.
+        </p>
+        <CityStateDropdown
+          cityValue={city}
+          stateValue={state}
+          onChange={(loc) => {
+            setCity(loc.city || "");
+            setState(loc.state || "");
+          }}
+        />
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={applyUrl}
+            className="h-10 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white hover:bg-[#ff3d79]"
+          >
+            Apply for this page
+          </button>
+          {onSaveToProfile ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={saveProfile}
+              className="h-10 rounded-xl border border-pink-200 bg-pink-50 px-4 text-sm font-semibold text-[#ff4f86] hover:bg-pink-100 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save to my account"}
+            </button>
+          ) : null}
+        </div>
+        {onFilterOff ? (
+          <button
+            type="button"
+            className="mt-4 w-full text-center text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+            onClick={() => {
+              onFilterOff();
+              onClose();
+            }}
+          >
+            Turn off area filter for this page
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 const fallbackImages = [
   "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=80",
   "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=900&q=80",
@@ -277,6 +637,36 @@ function formatCurrency(value) {
   }).format(amount);
 }
 
+function describeProductPriceCapLine(cap, customizedInUrl) {
+  if (cap == null || !Number.isFinite(Number(cap))) return "Showing all offer prices";
+  const n = Number(cap);
+  if (n === 0) return "Showing listings with ₹0 offer price only";
+  const suffix = customizedInUrl ? " (your product budget)" : " (same as step budget)";
+  return `Showing listings up to ${formatCurrency(n)}${suffix}`;
+}
+
+function describeGuestFilterLine(count, filterOff) {
+  if (filterOff) return "Guest capacity filter is off";
+  const n = Number(count);
+  if (!Number.isFinite(n) || n < 1) return "Set guest count to match venue capacity";
+  return `~${n} guests`;
+}
+
+function describeAreaFilterLine(areaLabel, filterOff) {
+  if (filterOff) return "Area / city filter is off";
+  const s = String(areaLabel || "").trim();
+  if (!s) return "Set your wedding city to match listings";
+  return `${s}`;
+}
+
+function parseCityStateForDropdown(label) {
+  const parts = String(label || "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return { city: parts[0] || "", state: parts.slice(1).join(", ") || "" };
+}
+
 export default function JourneyStepPage({
   steps,
   step,
@@ -290,11 +680,24 @@ export default function JourneyStepPage({
   appliedBudgetCap = null,
   budgetQueryValue = undefined,
   capOffActive = false,
+  showSignupLocFilter = false,
+  showSignupGuestFilter = false,
+  matchLocOff = false,
+  matchGuestsOff = false,
+  productPriceCap = null,
+  productPriceMaxForUrl = undefined,
+  guestCountForUrl = undefined,
+  venueLocForUrl = undefined,
+  effectiveGuestCount = 0,
+  effectiveVenueLocation = "",
 }) {
   const router = useRouter();
   const authUser = useAuthUser();
   const cartState = useCartState();
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+  const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
+  const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(search);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [subcategoryMenuOpen, setSubcategoryMenuOpen] = useState(false);
@@ -313,6 +716,9 @@ export default function JourneyStepPage({
       categorySlug: selectedCategorySlug,
       subcategorySlug: selectedSubcategorySlug || undefined,
       search: searchQuery.trim(),
+      matchLocOff,
+      matchGuestsOff,
+      priceMax: productPriceMaxForUrl,
       ...capOrBudgetQs,
       ...overrides,
     };
@@ -341,7 +747,13 @@ export default function JourneyStepPage({
   }, [search]);
 
   useEffect(() => {
-    const lock = isBudgetModalOpen || categoryMenuOpen || subcategoryMenuOpen;
+    const lock =
+      isBudgetModalOpen ||
+      isPriceModalOpen ||
+      isGuestModalOpen ||
+      isLocationModalOpen ||
+      categoryMenuOpen ||
+      subcategoryMenuOpen;
     if (!lock) return undefined;
     const html = document.documentElement;
     const body = document.body;
@@ -353,7 +765,14 @@ export default function JourneyStepPage({
       html.style.overflow = prevHtml;
       body.style.overflow = prevBody;
     };
-  }, [isBudgetModalOpen, categoryMenuOpen, subcategoryMenuOpen]);
+  }, [
+    isBudgetModalOpen,
+    isPriceModalOpen,
+    isGuestModalOpen,
+    isLocationModalOpen,
+    categoryMenuOpen,
+    subcategoryMenuOpen,
+  ]);
 
   useEffect(() => {
     if (subcategoryMenuOpen) setSubcategorySearch("");
@@ -384,8 +803,82 @@ export default function JourneyStepPage({
     ? categories.find((c) => c.category_id === selectedSubcategoryId) || null
     : null;
 
-  const visibleItems = items;
+  const visibleItems = Array.isArray(items) ? items : [];
   const hasVisibleItems = visibleItems.length > 0;
+
+  const quotationTotalThisStep = useMemo(() => {
+    const sid = String(step.step_id || "");
+    return cartState.quotation.reduce((sum, line) => {
+      if (String(line.journey_step_id || "") !== sid) return sum;
+      const unit = Number(line.final_price ?? line.price) || 0;
+      const qty = Number(line.quantity) || 0;
+      return sum + unit * qty;
+    }, 0);
+  }, [cartState.quotation, step.step_id]);
+
+  const stepPlanRupees = useMemo(() => {
+    if (!capOffActive && appliedBudgetCap != null && Number.isFinite(Number(appliedBudgetCap))) {
+      return Math.max(0, Number(appliedBudgetCap));
+    }
+    const alloc = Number(profileStepBudget);
+    if (Number.isFinite(alloc) && alloc > 0) return alloc;
+    const def = Number(step.default_budget);
+    if (Number.isFinite(def) && def > 0) return def;
+    return null;
+  }, [capOffActive, appliedBudgetCap, profileStepBudget, step.default_budget]);
+
+  const stepRemainingRupees =
+    stepPlanRupees != null ? Math.max(0, stepPlanRupees - quotationTotalThisStep) : null;
+
+  function applyProductPriceToUrl(maxN) {
+    if (!Number.isFinite(maxN) || maxN < 0) {
+      toast.error("Enter a valid maximum price.");
+      return;
+    }
+    router.replace(makeJourneyHref({ priceMax: Math.round(maxN) }));
+  }
+
+  function clearPriceFilter() {
+    router.replace(makeJourneyHref({ priceMax: undefined }));
+  }
+
+  const canSaveProfile = !!getAuthToken() && !!authUser;
+
+  async function saveGuestCountToProfile(n) {
+    const t = getAuthToken();
+    if (!t) throw new Error("Please log in to save.");
+    const result = await updateMyProfile(t, {
+      onboarding: {
+        ...(authUser?.onboarding || {}),
+        guests_count: n,
+      },
+    });
+    saveAuthCookies({ token: t, user: result.user });
+    toast.success("Guest count saved to your account");
+    router.replace(makeJourneyHref({ guestCount: undefined, matchGuestsOff: false }));
+    router.refresh();
+  }
+
+  async function saveVenueLocationToProfile(label) {
+    const t = getAuthToken();
+    if (!t) throw new Error("Please log in to save.");
+    const result = await updateMyProfile(t, {
+      onboarding: {
+        ...(authUser?.onboarding || {}),
+        venue_location: label,
+      },
+    });
+    saveAuthCookies({ token: t, user: result.user });
+    toast.success("Location saved to your account");
+    router.replace(makeJourneyHref({ venueLoc: undefined, matchLocOff: false }));
+    router.refresh();
+  }
+
+  const productPriceCustomized = productPriceMaxForUrl != null && Number.isFinite(Number(productPriceMaxForUrl));
+  const priceFilterSummary = describeProductPriceCapLine(productPriceCap, productPriceCustomized);
+  const guestFilterSummary = describeGuestFilterLine(effectiveGuestCount, matchGuestsOff);
+  const areaFilterSummary = describeAreaFilterLine(effectiveVenueLocation, matchLocOff);
+
   const categorySearchLower = categorySearch.trim().toLowerCase();
   const filteredCategories = categorySearchLower
     ? topCategories.filter((c) => (c.name || "").toLowerCase().includes(categorySearchLower))
@@ -464,27 +957,83 @@ export default function JourneyStepPage({
       </div>
 
       <div className="mt-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-center">
-        {/* Budget Section */}
-        <div
-          onClick={() => setIsBudgetModalOpen(true)}
-          className="flex cursor-pointer select-none items-center gap-3 rounded-xl bg-white px-4 py-3 text-slate-700 shadow-sm ring-1 ring-slate-100 transition-all hover:bg-slate-50"
-        >
-          <div className="rounded-lg bg-pink-50 p-2 text-pink-500">
-            <SlidersHorizontal className="h-4 w-4" />
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {/* Budget Section */}
+          <div
+            onClick={() => setIsBudgetModalOpen(true)}
+            className="flex cursor-pointer select-none items-center gap-3 rounded-xl bg-white px-4 py-3 text-slate-700 shadow-sm ring-1 ring-slate-100 transition-all hover:bg-slate-50"
+          >
+            <div className="rounded-lg bg-pink-50 p-2 text-pink-500">
+              <SlidersHorizontal className="h-4 w-4" />
+            </div>
+            <div className="text-sm font-medium whitespace-nowrap">
+              {step.title} Budget:{" "}
+              <span className="font-bold text-slate-900 leading-none">
+                <BudgetBadge
+                  noLimit={capOffActive}
+                  effectiveCap={appliedBudgetCap}
+                  defaultBudget={step.default_budget}
+                />
+              </span>
+            </div>
+            <button className="ml-1 p-1 text-slate-300 pointer-events-none">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
           </div>
-          <div className="text-sm font-medium whitespace-nowrap">
-            {step.title} Budget:{" "}
-            <span className="font-bold text-slate-900 leading-none">
-              <BudgetBadge
-                noLimit={capOffActive}
-                effectiveCap={appliedBudgetCap}
-                defaultBudget={step.default_budget}
-              />
+
+          <button
+            type="button"
+            onClick={() => setIsPriceModalOpen(true)}
+            className={`flex max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
+              productPriceCap != null
+                ? "bg-[#fff1f6] text-[#ff4f86] ring-pink-200"
+                : "bg-white text-slate-700 ring-slate-100 hover:bg-slate-50"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <IndianRupee className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="whitespace-nowrap">Product budget</span>
             </span>
-          </div>
-          <button className="ml-1 p-1 text-slate-300 pointer-events-none">
-            <Pencil className="h-3.5 w-3.5" />
+            <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-slate-600">{priceFilterSummary}</span>
           </button>
+
+          {showSignupLocFilter ? (
+            <button
+              type="button"
+              onClick={() => setIsLocationModalOpen(true)}
+              aria-pressed={!matchLocOff}
+              className={`flex max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
+                !matchLocOff
+                  ? "bg-[#fff1f6] text-[#ff4f86] ring-pink-200"
+                  : "bg-white text-slate-600 ring-slate-100 hover:bg-slate-50"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="whitespace-nowrap">Your area</span>
+              </span>
+              <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-slate-600">{areaFilterSummary}</span>
+            </button>
+          ) : null}
+
+          {showSignupGuestFilter ? (
+            <button
+              type="button"
+              onClick={() => setIsGuestModalOpen(true)}
+              aria-pressed={!matchGuestsOff}
+              className={`flex max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
+                !matchGuestsOff
+                  ? "bg-[#fff1f6] text-[#ff4f86] ring-pink-200"
+                  : "bg-white text-slate-600 ring-slate-100 hover:bg-slate-50"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <Users className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="whitespace-nowrap">Guest size</span>
+              </span>
+              <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-slate-600">{guestFilterSummary}</span>
+            </button>
+          ) : null}
         </div>
 
         <div
@@ -681,6 +1230,36 @@ export default function JourneyStepPage({
         </div>
       </div>
 
+      <div className="mx-auto mt-6 flex w-full max-w-[1600px] justify-center px-4 sm:px-6">
+        <div className="w-full max-w-3xl rounded-2xl border border-pink-100/90 bg-linear-to-br from-pink-50/90 to-white px-4 py-3 text-sm text-slate-700 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-pink-50/80">
+          <p className="text-xs font-bold uppercase tracking-wide text-pink-600/90">This step</p>
+          {stepPlanRupees != null ? (
+            <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-4 sm:gap-y-1">
+              <span>
+                <span className="text-slate-500">Plan </span>
+                <span className="font-bold text-slate-900">{formatCurrency(stepPlanRupees)}</span>
+              </span>
+              <span>
+                <span className="text-slate-500">In quotation </span>
+                <span className="font-bold text-slate-900">{formatCurrency(quotationTotalThisStep)}</span>
+              </span>
+              <span>
+                <span className="text-slate-500">Remaining </span>
+                <span className="font-bold text-[#ff4f86]">{formatCurrency(stepRemainingRupees)}</span>
+              </span>
+            </div>
+          ) : (
+            <p className="mt-1 leading-relaxed">
+              <span className="font-semibold text-slate-900">{formatCurrency(quotationTotalThisStep)}</span>
+              <span className="text-slate-600"> in your quotation basket for this step.</span>
+              <span className="mt-1 block text-xs text-slate-500">
+                Set a step budget (tap budget above) or save allocations in your profile to track what’s left.
+              </span>
+            </p>
+          )}
+        </div>
+      </div>
+
       {isBudgetModalOpen ? (
         <BudgetModal
           key={`${step.step_id}-${budgetModalSeed}-${capOffActive}`}
@@ -710,6 +1289,39 @@ export default function JourneyStepPage({
         />
       ) : null}
 
+      {isPriceModalOpen ? (
+        <PriceFilterModal
+          key={`p-${productPriceCap ?? "x"}-${productPriceMaxForUrl ?? "s"}`}
+          seedCap={productPriceCap}
+          summaryLine={priceFilterSummary}
+          onClose={() => setIsPriceModalOpen(false)}
+          onApply={(maxN) => applyProductPriceToUrl(maxN)}
+          onClearUrl={productPriceCustomized ? clearPriceFilter : null}
+        />
+      ) : null}
+
+      {isGuestModalOpen ? (
+        <GuestFilterModal
+          key={`g-${effectiveGuestCount}-${matchGuestsOff ? "off" : "on"}`}
+          seedCount={effectiveGuestCount}
+          onClose={() => setIsGuestModalOpen(false)}
+          onApplyUrl={(n) => router.replace(makeJourneyHref({ guestCount: n, matchGuestsOff: false }))}
+          onSaveToProfile={canSaveProfile ? saveGuestCountToProfile : null}
+          onFilterOff={() => router.replace(makeJourneyHref({ matchGuestsOff: true, guestCount: undefined }))}
+        />
+      ) : null}
+
+      {isLocationModalOpen ? (
+        <LocationFilterModal
+          key={`loc-${effectiveVenueLocation || "empty"}-${venueLocForUrl || "p"}`}
+          seedLabel={effectiveVenueLocation}
+          onClose={() => setIsLocationModalOpen(false)}
+          onApplyUrl={(label) => router.replace(makeJourneyHref({ venueLoc: label, matchLocOff: false }))}
+          onSaveToProfile={canSaveProfile ? saveVenueLocationToProfile : null}
+          onFilterOff={() => router.replace(makeJourneyHref({ matchLocOff: true, venueLoc: undefined }))}
+        />
+      ) : null}
+
       <div className="mt-10 flex w-full max-w-[1600px] mx-auto items-start gap-4 md:gap-6">
         {/* Left Phase Control — top-aligned so row height follows content only */}
         <a
@@ -735,14 +1347,14 @@ export default function JourneyStepPage({
                 return (
                   <article key={item.item_id} className="group flex h-full min-w-0 flex-col">
                     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(255,79,134,0.2)]">
-                      <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden rounded-[24px] bg-gradient-to-br from-slate-100 to-slate-50">
+                      <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden rounded-[24px] bg-linear-to-br from-slate-100 to-slate-50">
                         <div
                           className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
-                          style={{ backgroundImage: image ? `url("${image}")` : "none" }}
+                          style={{ backgroundImage: safeCssUrl(image) }}
                           aria-label={item.name}
                           role="img"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                        <div className="absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                         <span className="absolute bottom-3 left-3 rounded-full bg-[#ffbb28]/95 px-3 py-1.5 text-xs font-bold text-slate-800 backdrop-blur-sm">
                           {label}
                         </span>
@@ -771,7 +1383,11 @@ export default function JourneyStepPage({
                           </h3>
                           <div className="flex items-center gap-2 text-xs text-slate-400">
                             <MapPin className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{item.location_city || "Available for service"}</span>
+                            <span className="truncate">
+                              {[item.location_city, item.location_state].filter(Boolean).join(", ") ||
+                                item.location ||
+                                "Available for service"}
+                            </span>
                           </div>
                         </div>
 
@@ -804,7 +1420,7 @@ export default function JourneyStepPage({
                                   >
                                     <Minus className="h-4 w-4" />
                                   </button>
-                                  <span className="min-w-[1.5rem] text-center text-base font-black text-white">
+                                  <span className="min-w-6 text-center text-base font-black text-white">
                                     {inCart.quantity}
                                   </span>
                                   <button
@@ -829,6 +1445,7 @@ export default function JourneyStepPage({
                                     category_label: selectedCategory?.name || step.title,
                                     subcategory_label: subForItem?.name || "",
                                     journey_title: step.title,
+                                    journey_step_id: step.step_id,
                                     source: "journey",
                                   }, 1);
                                   toast.success("Added to basket! 🎉");
@@ -853,25 +1470,30 @@ export default function JourneyStepPage({
           ) : (
             <div className="rounded-[28px] border border-slate-100 bg-white px-6 py-40 text-center shadow-[0_28px_60px_rgba(15,23,42,0.06)]">
               <p className="text-base font-semibold text-slate-700">
-                {appliedBudgetCap === 0
-                  ? "No free listings here"
-                  : appliedBudgetCap != null && appliedBudgetCap > 0
-                    ? `Nothing here fits within ${formatInrBudget(appliedBudgetCap)}`
-                    : search
-                      ? "No items match your search"
-                      : selectedCategoryId
-                        ? "No items in this category yet"
-                        : "No items in this step yet"}
+                {productPriceCap != null
+                  ? "No items within this product budget"
+                  : search
+                    ? "No items match your search"
+                    : selectedCategoryId
+                      ? "No items in this category yet"
+                      : "No items in this step yet"}
               </p>
               <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                {appliedBudgetCap === 0
-                  ? "You’re viewing only items with a final price of ₹0. If nothing shows, nothing in this category is free right now — clear the cap or pick another category."
-                  : appliedBudgetCap != null && appliedBudgetCap > 0
-                    ? "Prices use the current offer (discount) shown on each card. Try raising the budget filter or pick another category."
-                    : search
-                      ? "Try different keywords or clear search to see everything in this category."
-                      : "Check back soon—new options for this journey step will show up here once they are added."}
+                {productPriceCap != null
+                  ? "Try raising the max price in Product budget, or remove the product override to follow your step budget again."
+                  : search
+                    ? "Try different keywords or clear search to see everything in this category."
+                    : "Check back soon—new options for this journey step will show up here once they are added."}
               </p>
+              {productPriceCustomized ? (
+                <button
+                  type="button"
+                  onClick={clearPriceFilter}
+                  className="mt-6 rounded-xl bg-[#ff4f86] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#ff3d79]"
+                >
+                  Match step budget again
+                </button>
+              ) : null}
             </div>
           )}
         </div>
@@ -883,7 +1505,7 @@ export default function JourneyStepPage({
           }`}
           aria-label="Next Phase"
         >
-          <ChevronRight className="h-6 w-6 text-[#fff] transition-colors" />        </a>
+          <ChevronRight className="h-6 w-6 text-white transition-colors" />        </a>
       </div>
 
       <div>

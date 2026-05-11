@@ -6,6 +6,12 @@ export function isValidIndianPhone(phone) {
   return /^[6-9]\d{9}$/.test(String(phone || ""));
 }
 
+export function isValidEmail(email) {
+  const v = String(email || "").trim();
+  if (!v) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(v);
+}
+
 export function validatePasswordStrength(password) {
   const value = String(password || "");
   if (value.length < 8) return "Password must be at least 8 characters.";

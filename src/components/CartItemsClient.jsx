@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { clearCart, removeFromCart, updateCartQuantity, useCartState } from "@/lib/cartStore";
 import { formatCurrency } from "@/lib/shopUi";
+import { safeCssUrl } from "@/lib/utils";
 import { Minus, Plus, Trash2 } from "lucide-react";
 
 function CartRow({ item, cartType, onRemove, onQuantityChange }) {
@@ -13,7 +14,7 @@ function CartRow({ item, cartType, onRemove, onQuantityChange }) {
       <div className="h-28 w-full shrink-0 rounded-xl bg-[#fff4f7] sm:w-28">
         <div
           className="h-full w-full bg-contain bg-center bg-no-repeat"
-          style={{ backgroundImage: `url("${item.image || item.images?.[0] || ""}")` }}
+          style={{ backgroundImage: safeCssUrl(item.image || item.images?.[0] || "") }}
         />
       </div>
 

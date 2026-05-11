@@ -44,6 +44,12 @@ a.showcase-journey-cta:visited {
   color: #ffffff;
 }
 
+a.home-need-to-shop-cta,
+a.home-need-to-shop-cta:hover,
+a.home-need-to-shop-cta:visited {
+  color: #ffffff;
+}
+
 button,
 a,
 summary,
@@ -64,6 +70,31 @@ input::placeholder {
   background: #ffd5e4;
   color: #243041;
 }
+
+@keyframes mssTicker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.mss-ticker-track {
+  animation: mssTicker 102s linear infinite;
+  will-change: transform;
+  min-width: 200%;
+  transform: translate3d(0, 0, 0);
+}
+
+.mss-scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.mss-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

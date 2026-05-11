@@ -1,4 +1,4 @@
-import SignupPageServer from "@/components/server/SignupPageServer";
+import SignupWizard from "@/components/SignupWizard";
 
 export const metadata = {
   title: "Sign Up | MyShaadiStore",
@@ -7,6 +7,6 @@ export const metadata = {
 
 export default async function SignupPage() {
   return (
-    <SignupPageServer />
+    <SignupWizard step="signup" />
   );
 }

@@ -4,13 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
+import { buildWhatsAppUrl, WA_CAREERS_MESSAGE, WA_DEFAULT_MESSAGE } from "@/lib/whatsapp";
 
 const MAROON = "#70012b";
-const MAROON_SOFT = "#8b1a42";
-
-function whatsappLink(message) {
-  return `https://wa.me/919568559915?text=${encodeURIComponent(message)}`;
-}
 
 function SocialButton({ href, label, children }) {
   return (
@@ -61,6 +57,22 @@ function XIcon() {
   );
 }
 
+function YouTubeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
+      <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.5 31.5 0 0 0 0 12a31.5 31.5 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1 31.5 31.5 0 0 0 .5-5.8 31.5 31.5 0 0 0-.5-5.8ZM9.75 15.02V8.98L15.5 12l-5.75 3.02Z" />
+    </svg>
+  );
+}
+
+function LinkedInIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
+      <path d="M4.98 3.5C4.98 4.88 3.86 6 2.48 6S0 4.88 0 3.5 1.12 1 2.48 1s2.5 1.12 2.5 2.5ZM.5 8.5h4V23H.5V8.5ZM8 8.5h3.8v2h.05c.53-1 1.82-2.05 3.75-2.05 4 0 4.7 2.63 4.7 6.05V23H16v-7.2c0-1.72-.03-3.93-2.4-3.93-2.4 0-2.77 1.88-2.77 3.82V23H8V8.5Z" />
+    </svg>
+  );
+}
+
 export default function SiteFooterMaroon({ steps = [] }) {
   const pathname = usePathname();
   const shoppingHref = useMemo(() => {
@@ -77,7 +89,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
     return budget ? `/journey/${budget.slug}` : steps[0] ? `/journey/${steps[0].slug}` : "/how-it-works";
   }, [steps]);
 
-  if (pathname === "/login" || pathname === "/signup") {
+  if (pathname === "/login" || pathname === "/signup" || pathname.startsWith("/signup/")) {
     return null;
   }
 
@@ -87,15 +99,15 @@ export default function SiteFooterMaroon({ steps = [] }) {
         <div className="grid gap-12 lg:grid-cols-12 lg:gap-8">
           <div className="lg:col-span-4">
             <div className="flex flex-col items-start gap-5">
-              <div
-                className="relative h-20 w-20"
-              >
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center">
                 <Image
                   src="/Circular_logo.png"
-                  alt="MyShaadiStore"
+                  alt="MyShaadiStore logo"
                   width={200}
                   height={200}
-                  className="h-full w-full"
+                  quality={100}
+                  priority
+                  className="h-20 w-20 object-contain"
                 />
               </div>
               <div>
@@ -110,14 +122,29 @@ export default function SiteFooterMaroon({ steps = [] }) {
                 </p>
               </div>
               <div className="flex flex-wrap gap-3 pt-1">
-                <SocialButton href="https://instagram.com" label="Instagram">
+                <SocialButton
+                  href="https://www.instagram.com/my_shaadi_store?igsh=OHJ2OWpxaGQ2Mg=="
+                  label="Instagram — MyShaadiStore"
+                >
                   <InstagramIcon />
                 </SocialButton>
-                <SocialButton href="https://facebook.com" label="Facebook">
+                <SocialButton href="https://www.facebook.com/share/1DkWNmR29G/" label="Facebook — MyShaadiStore">
                   <FacebookIcon />
                 </SocialButton>
-                <SocialButton href="https://x.com" label="X">
+                <SocialButton href="https://x.com/myshaadistore" label="X (Twitter) — MyShaadiStore">
                   <XIcon />
+                </SocialButton>
+                <SocialButton
+                  href="https://www.youtube.com/@myshaadistore?si=-TDI4QfPiF7f3dFU"
+                  label="YouTube — MyShaadiStore"
+                >
+                  <YouTubeIcon />
+                </SocialButton>
+                <SocialButton
+                  href="https://www.linkedin.com/company/myshaadistore/"
+                  label="LinkedIn — MyShaadiStore"
+                >
+                  <LinkedInIcon />
                 </SocialButton>
               </div>
             </div>
@@ -131,8 +158,11 @@ export default function SiteFooterMaroon({ steps = [] }) {
                   <MaroonNavLink href="/about-us">About us</MaroonNavLink>
                 </li>
                 <li>
+                  <MaroonNavLink href="/join-as-vendor">Join as vendor</MaroonNavLink>
+                </li>
+                <li>
                   <a
-                    href={whatsappLink("Hi MyShaadiStore — Careers inquiry")}
+                    href={buildWhatsAppUrl(WA_CAREERS_MESSAGE)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block text-sm font-normal text-white/90 transition hover:text-white hover:underline decoration-white/40 underline-offset-4"
@@ -142,7 +172,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
                 </li>
                 <li>
                   <a
-                    href={whatsappLink("Hi MyShaadiStore")}
+                    href={buildWhatsAppUrl(WA_DEFAULT_MESSAGE)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block text-sm font-normal text-white/90 transition hover:text-white hover:underline decoration-white/40 underline-offset-4"
@@ -191,7 +221,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
         <div className="mt-14 border-t border-white/35 pt-8">
           <div className="flex flex-col items-center justify-between gap-4 text-xs text-white/80 sm:flex-row sm:text-sm">
             <p>© {new Date().getFullYear()} MyShaadiStore.com. All rights reserved.</p>
-            <p className="text-white/90">Made with love for celebrations</p>
+            <p className="text-white/90">Made with love for love ❤</p>
           </div>
         </div>
       </div>

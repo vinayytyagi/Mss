@@ -15,6 +15,56 @@ import { isValidIndianPhone, normalizeIndianPhone, validatePasswordStrength } fr
 import { makeIdempotencyKey } from "@/lib/idempotencyKey";
 import { toast } from "sonner";
 
+function computeResumePhaseFromOnboarding(onboarding = {}) {
+  const o = onboarding || {};
+  const progressStep = String(o?.onboarding_progress?.current_step || "").trim();
+  if (progressStep) return progressStep;
+  const engagement = String(o.engagement_status || "").trim();
+  if (!engagement) return "engagement";
+
+  const weddingType = String(o.wedding_date_type || "").trim();
+  if (!weddingType) return "weddingDate";
+  if (weddingType === "exact" && !String(o.wedding_date || "").trim()) return "weddingDate";
+  if (weddingType === "month" && !String(o.wedding_month || "").trim()) return "weddingDate";
+
+  if (!String(o.venue_location || "").trim()) return "venue";
+  if (!String(o.groom_or_bride || "").trim()) return "groomBride";
+  if (!(Number(o.function_days) > 0)) return "functionDays";
+  if (!(Number(o.guests_count) > 0)) return "guests";
+
+  const allocs = Array.isArray(o.budget_allocations) ? o.budget_allocations : [];
+  if (allocs.length === 0) return "budget";
+
+  return "done";
+}
+
+function resumePathFromUser(user) {
+  const step = String(user?.onboarding_progress?.current_step || "").trim();
+  const map = {
+    engagement: "/signup/engaged",
+    weddingDate: "/signup/date",
+    venue: "/signup/venue",
+    groomBride: "/signup/groom-bride",
+    functionDays: "/signup/days",
+    guests: "/signup/guests",
+    budget: "/signup/budget",
+  };
+  if (step && map[step]) return map[step];
+  // fallback to onboarding fields
+  const derived = computeResumePhaseFromOnboarding(user?.onboarding || {});
+  return (
+    {
+      engagement: "/signup/engaged",
+      weddingDate: "/signup/date",
+      venue: "/signup/venue",
+      groomBride: "/signup/groom-bride",
+      functionDays: "/signup/days",
+      guests: "/signup/guests",
+      budget: "/signup/budget",
+    }[derived] || null
+  );
+}
+
 function PhoneIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 opacity-40">
@@ -74,6 +124,11 @@ export default function LoginFlow({ initialSteps = [] }) {
         router.replace("/shopping");
         return;
       }
+      const resumePath = resumePathFromUser(user);
+      if (resumePath) {
+        router.replace(resumePath);
+        return;
+      }
       const firstStep = steps[0];
       if (firstStep) router.replace(`/journey/${firstStep.slug}`);
     } catch {
@@ -110,6 +165,11 @@ export default function LoginFlow({ initialSteps = [] }) {
 
       if (data.user?.onboarding?.engagement_status === "just_exploring") {
         router.push("/shopping");
+        return;
+      }
+      const resumePath = resumePathFromUser(data.user);
+      if (resumePath) {
+        router.push(resumePath);
         return;
       }
       const firstStep = steps[0];
@@ -281,7 +341,7 @@ export default function LoginFlow({ initialSteps = [] }) {
 
             <div className="pt-2 text-center text-sm font-medium text-slate-600">
               Don&apos;t have an account?{" "}
-              <Link href="/signup" className="text-[#ff4f86] hover:underline">
+              <Link href="/signup" className="text-[#ff4f86]! font-bold!">
                 Sign up
               </Link>
             </div>

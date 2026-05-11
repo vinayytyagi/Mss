@@ -1,15 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, Check, Flower2, Landmark } from "lucide-react";
+import { Check, Flower2, HandHeart, Landmark, ShoppingBag } from "lucide-react";
 import { Sparkles } from "lucide-react";
 
 const serif = "font-[family-name:var(--font-playfair),ui-serif,Georgia,serif]";
 
 const coupleMaskStyle = {
   WebkitMaskImage:
-    "linear-gradient(to right, transparent 0%, black 26%), linear-gradient(to bottom, black 0%, black 52%, transparent 100%)",
+    "linear-gradient(to right, transparent 0%, black 56%), linear-gradient(to bottom, black 0%, black 82%, transparent 100%)",
   maskImage:
-    "linear-gradient(to right, transparent 0%, black 26%), linear-gradient(to bottom, black 0%, black 52%, transparent 100%)",
+    "linear-gradient(to right, transparent 0%, black 36%), linear-gradient(to bottom, black 0%, black 72%, transparent 100%), linear-gradient(to top, transparent 0%, black 36%), linear-gradient(to bottom, transparent 0%, black 36%), linear-gradient(to bottom, transparent 0%, black 36%)",
   WebkitMaskComposite: "source-in",
   maskComposite: "intersect",
 };
@@ -42,14 +42,23 @@ const cards = [
       "Bridal makeup & styling",
       "Catering, invitations & more",
     ],
-    Icon: Camera,
-    iconWrap: "bg-pink-100/95 text-[#ff4f86]",
+    Icon: HandHeart,
+    iconWrap: "bg-amber-100/95 text-[#c27803]",
+  },
+  {
+    title: "Shopping",
+    points: ["Bridal and groom wear", "Jewellery and accessories", "Gifting and more"],
+    Icon: ShoppingBag,
+    iconWrap: "bg-amber-100/95 text-[#c27803]",
   },
 ];
 
 export default function HomeWeddingShowcase({ journeyHref = "/how-it-works" }) {
   return (
-    <section className="relative overflow-hidden bg-[#fff0f5] px-4 pb-28 pt-14 sm:px-6 lg:px-8">
+    <section
+      id="wedding-showcase"
+      className="relative scroll-mt-24 overflow-hidden bg-[#fff0f5] px-4 pb-28 pt-14 sm:px-6 lg:px-8"
+    >
       {/* Bottom bokeh + soft sparkles */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[min(48vh,340px)]" aria-hidden>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_100%,rgba(255,255,255,0.98)_0%,rgba(255,240,245,0.55)_38%,transparent_70%)]" />
@@ -65,19 +74,14 @@ export default function HomeWeddingShowcase({ journeyHref = "/how-it-works" }) {
       </div>
 
       <div className="relative z-10 mx-auto max-w-7xl">
-        <p
-          className={`text-center text-2xl font-semibold tracking-tight text-[#2d2d44] sm:text-3xl lg:text-[2.35rem]`}
-        >
-          MyShaadiStore
-        </p>
         <h2
-          className={`mx-auto mt-4 max-w-4xl text-center text-xl font-semibold leading-snug tracking-tight text-[#2d2d44] sm:text-2xl md:text-[2.125rem] md:leading-tight`}
+          className={`mx-auto mt-4 max-w-5xl text-center text-xl font-semibold leading-snug tracking-tight text-[#2d2d44] sm:text-2xl md:text-[2.125rem] md:leading-tight`}
         >
           Shop Everything for Your Dream Wedding —{" "}
           <span className="font-semibold text-[#ff4f86]">All in One Place</span>
         </h2>
 
-        <div className="mx-auto mt-5 max-w-3xl space-y-1 text-center text-[15px] leading-relaxed text-[#5c5c74] sm:text-base">
+        <div className="mx-auto mt-5 max-w-4xl space-y-1 text-center text-[15px] leading-relaxed text-[#5c5c74] sm:text-base">
           <p>
             Discover everything you need for your wedding — outfits, décor, venues, photography, makeup
             and more.
@@ -88,11 +92,11 @@ export default function HomeWeddingShowcase({ journeyHref = "/how-it-works" }) {
         </div>
 
         <div className="relative mt-12 lg:mt-16">
-          <div className="grid gap-5 lg:grid-cols-3 lg:gap-6 lg:pr-[min(340px,30vw)]">
+          <div className="grid gap-5 lg:grid-cols-2 lg:gap-6 lg:pr-[min(340px,30vw)]">
             {cards.map((card) => (
               <article
                 key={card.title}
-                className="relative z-10 rounded-3xl bg-white p-6 shadow-[0_10px_40px_rgba(45,45,68,0.07),0_2px_12px_rgba(45,45,68,0.04)] sm:p-7"
+                className="relative z-100 rounded-3xl bg-white p-6 shadow-[0_10px_40px_rgba(45,45,68,0.07),0_2px_12px_rgba(45,45,68,0.04)] sm:p-7"
               >
                 <div className="flex items-center gap-3">
                   <span
@@ -124,7 +128,7 @@ export default function HomeWeddingShowcase({ journeyHref = "/how-it-works" }) {
           <div className="pointer-events-none absolute -right-4 top-1/2 z-20 hidden h-[min(520px,52vw)] w-[min(380px,34vw)] -translate-y-1/2 lg:block xl:-right-6 xl:h-[min(560px,50vw)] xl:w-[min(420px,32vw)]">
             <div className="relative h-full w-full" style={coupleMaskStyle}>
               <Image
-                src="https://images.unsplash.com/photo-1606216794074-735e91aa2c92?auto=format&fit=crop&w=1000&q=80"
+                src="/homepage-dream-wedding.jpg"
                 alt="Couple in wedding attire"
                 fill
                 sizes="(min-width: 1280px) 420px, 380px"

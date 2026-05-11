@@ -22,6 +22,10 @@ export async function progressiveSave(payload, { idempotencyKey } = {}) {
   return apiPost("/auth/user/progressive-save", { payload, idempotencyKey });
 }
 
+export async function registerWithPhonePassword(payload, { idempotencyKey } = {}) {
+  return apiPost("/auth/user/register-phone", { payload, idempotencyKey });
+}
+
 export async function loginUser(phone, password, { idempotencyKey } = {}) {
   return apiPost("/auth/user/login", {
     payload: { phone, password },

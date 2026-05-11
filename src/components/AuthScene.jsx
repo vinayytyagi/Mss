@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export default function AuthScene({
   children,
   title,
@@ -22,20 +24,42 @@ export default function AuthScene({
           <div className="grid items-center gap-8 lg:grid-cols-[1fr_1.25fr]">
             <div className="hidden lg:block">
               <div className="mx-auto w-full max-w-md">
-                <div className="mb-6 flex h-28 w-28 items-center justify-center rounded-full border-4 border-white/70 bg-white/95 text-[#ff4f86] shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
-                  <img
+                <div className="mb-6 flex h-32 w-32 items-center justify-center">
+                  <Image
                     src="/Circular_logo.png"
                     alt="MyShaadiStore"
-                    className="h-20 w-20 object-contain"
+                    width={256}
+                    height={256}
+                    quality={100}
+                    priority
+                    className="h-40 w-40 object-contain"
                   />
                 </div>
-                <h2 className="text-5xl font-semibold tracking-tight text-white">MyShaadiStore</h2>
+                <h2 className="text-5xl font-semibold tracking-tight text-white font-[serif]">MyShaadiStore</h2>
+                <span className="font-semibold text-[#701332] sm:text-xl lg:text-5xl text-shadow-stone-200 text-shadow-lg font-[serif]">MyShaadi<span className="text-[#d4720a]">Store</span></span>
                 <p className="mt-4 text-2xl font-medium text-white/95">Plan Your Dream Wedding</p>
                 <div className="mt-5 h-1 w-40 rounded-full bg-[#ff4f86]" />
               </div>
             </div>
 
             <div>
+              <div className="mb-5 flex items-center justify-center gap-3 lg:hidden">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/70 bg-white/95 shadow-[0_10px_24px_rgba(0,0,0,0.22)]">
+                  <Image
+                    src="/Circular_logo.png"
+                    alt="MyShaadiStore"
+                    width={128}
+                    height={128}
+                    quality={100}
+                    priority
+                    className="h-9 w-9 object-contain"
+                  />
+                </div>
+                <div className="text-left">
+                  <div className="text-lg font-semibold tracking-tight text-white">MyShaadiStore</div>
+                  <div className="text-xs font-medium text-white/85">Plan Your Dream Wedding</div>
+                </div>
+              </div>
               <div className="mb-5 px-1">
                 <div className="flex items-center justify-between gap-2">
                   {stepLabels.map((label, index) => {
@@ -89,11 +113,11 @@ export default function AuthScene({
             <div className="mt-10 text-center">
               <p className="mb-4 text-[11px] font-medium text-slate-400">Trusted by 10k+ couples</p>
               <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs font-medium text-slate-500">
-                 <span className="text-slate-400">By continuing, you agree:</span>
+                 <span className="text-slate-400 font-[serif]">By continuing, you agree:</span>
                  <div className="flex items-center gap-4">
-                   <a href="#" className="text-[#ff4f86] underline decoration-2 underline-offset-4 decoration-[#ff4f86]/20 transition-all hover:decoration-[#ff4f86]">Terms</a>
+                   <a href="#" className="text-[#ff4f86]! underline decoration-2 underline-offset-4 decoration-[#ff4f86]/20 transition-all hover:decoration-[#ff4f86]">Terms</a>
                    <span className="h-1 w-1 rounded-full bg-slate-300" />
-                   <a href="#" className="text-[#ff4f86] underline decoration-2 underline-offset-4 decoration-[#ff4f86]/20 transition-all hover:decoration-[#ff4f86]">Privacy Policy</a>
+                   <a href="#" className="text-[#ff4f86]! underline decoration-2 underline-offset-4 decoration-[#ff4f86]/20 transition-all hover:decoration-[#ff4f86]">Privacy Policy</a>
                  </div>
               </div>
             </div>

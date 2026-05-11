@@ -1,13 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { uploadOracleImage } from "@/lib/api";
+
+/** When OCI upload is unavailable (e.g. dev), allow a bounded data URL stored on the user record. */
+const MAX_DATA_URL_CHARS = 480_000;
+
+function compressToJpegDataUrl(dataUrl, maxWidth = 720, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        if (w <= 0 || h <= 0) {
+          reject(new Error("Invalid image"));
+          return;
+        }
+        if (w > maxWidth) {
+          h = Math.round((h * maxWidth) / w);
+          w = maxWidth;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Unsupported canvas"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = () => reject(new Error("Could not read image"));
+    img.src = dataUrl;
+  });
+}
 
 export default function ImageUpload({ onUploadComplete, initialUrl = "", label = "Upload Image" }) {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [url, setUrl] = useState(initialUrl);
+  const [url, setUrl] = useState(initialUrl || "");
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    setUrl(initialUrl || "");
+  }, [initialUrl]);
 
   const handleFileChange = async (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -25,19 +66,36 @@ export default function ImageUpload({ onUploadComplete, initialUrl = "", label =
       const reader = new FileReader();
       reader.readAsDataURL(selectedFile);
       reader.onload = async () => {
-        const base64Url = reader.result;
-        
+        const raw = typeof reader.result === "string" ? reader.result : "";
+        let working = raw;
+        if (raw.startsWith("data:image/")) {
+          try {
+            working = await compressToJpegDataUrl(raw);
+          } catch {
+            working = raw;
+          }
+        }
+
         try {
           const data = await uploadOracleImage({
-            fileBase64: base64Url,
-            mimeType: selectedFile.type,
-            originalName: selectedFile.name,
+            fileBase64: working,
+            mimeType: "image/jpeg",
+            originalName: selectedFile.name.replace(/\.[^.]+$/, "") + ".jpg",
           });
 
           setUrl(data.url);
           if (onUploadComplete) onUploadComplete(data.url);
         } catch (err) {
-          setErrorMsg(err.message || "Upload failed");
+          if (working.startsWith("data:image/") && working.length <= MAX_DATA_URL_CHARS) {
+            setUrl(working);
+            if (onUploadComplete) onUploadComplete(working);
+            setErrorMsg("");
+          } else {
+            setErrorMsg(
+              err.message ||
+                "Upload failed — try a smaller image (photos are resized; very large originals may still fail)."
+            );
+          }
         }
         setLoading(false);
       };

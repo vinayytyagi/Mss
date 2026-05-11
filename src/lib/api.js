@@ -4,7 +4,16 @@ export { fetchJourneySteps, fetchJourneyStep, fetchStepCategories, fetchItems, f
 
 export { fetchHeroSlideshow } from "./api/siteSettingsApi";
 
-export { requestUserOtp, verifyUserOtp, signupUser, progressiveSave, loginUser, requestResetOtp, resetPassword } from "./api/authApi";
+export {
+  requestUserOtp,
+  verifyUserOtp,
+  signupUser,
+  progressiveSave,
+  registerWithPhonePassword,
+  loginUser,
+  requestResetOtp,
+  resetPassword,
+} from "./api/authApi";
 
 export { submitQuotationRequest, createShoppingOrder, verifyRazorpayPayment, trackOrder } from "./api/ordersApi";
 
