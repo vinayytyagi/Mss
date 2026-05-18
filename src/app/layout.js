@@ -78,7 +78,7 @@ export default async function RootLayout({ children }) {
       <body
         className={`${poppins.variable} ${playfair.variable} font-sans antialiased`}
       >
-        <div className="flex min-h-screen flex-col overflow-x-hidden bg-[radial-gradient(circle_at_top,#fff7fa_0%,#f7f7fb_35%,#f4f4f8_100%)]">
+        <div className="flex min-h-screen flex-col overflow-x-hidden bg-[radial-gradient(circle_at_top,var(--primary-soft)_0%,var(--background)_35%,var(--background)_100%)]">
           <SiteHeader steps={steps} initialUser={initialUser} />
           <AppToaster />
           {children}
@@ -88,9 +88,9 @@ export default async function RootLayout({ children }) {
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Chat on WhatsApp"
-            className="fixed bottom-5 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_14px_28px_rgba(37,211,102,0.35)] transition hover:scale-105 sm:bottom-6 sm:right-6"
+            className="fixed bottom-5 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-primary-foreground shadow-[0_14px_28px_rgba(37,211,102,0.35)] transition hover:scale-105 sm:bottom-6 sm:right-6"
           >
-            <WhatsAppIcon className="h-7 w-7 text-white" />
+            <WhatsAppIcon className="h-7 w-7 text-primary-foreground" />
           </a>
         </div>
       </body>

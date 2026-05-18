@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuthToken, getAuthUser } from "@/lib/authCookies";
 import { clearCart, useCartState, useCartSummary } from "@/lib/cartStore";
+import CityStateDropdown from "@/components/CityStateDropdown";
 import { createShoppingOrder, fetchMyProfile, submitQuotationRequest, verifyRazorpayPayment } from "@/lib/api";
 import { formatCurrency } from "@/lib/shopUi";
 import { makeIdempotencyKey } from "@/lib/idempotencyKey";
@@ -44,6 +45,15 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
   });
   const [submitState, setSubmitState] = useState({ loading: false, error: "", success: "" });
   const [checkoutState, setCheckoutState] = useState({ loading: false, error: "", success: "", orderNumber: "" });
+  // Live shipping quote — call backend whenever pincode + cart change.
+  // `paise` is what the customer will be charged for delivery; we add it
+  // to the subtotal + GST so the "Estimated total" matches the Razorpay
+  // amount exactly. Falls back to null until a valid pincode is entered.
+  const [shippingQuote, setShippingQuote] = useState({
+    loading: false,
+    paise: null,
+    error: "",
+  });
 
   useEffect(() => {
     const user = getAuthUser();
@@ -72,10 +82,14 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
         return;
       }
       const profileRes = await fetchMyProfile(token);
-      const addresses = Array.isArray(profileRes?.user?.addresses)
-        ? profileRes.user.addresses
-        : [];
-      setSavedAddresses(addresses);
+      // GET /user/me returns the sanitized user FLAT; PUT /user/me wraps
+      // it under `user`. Handle both shapes so the cart works regardless
+      // of which call's response is in our hands.
+      const candidate =
+        (Array.isArray(profileRes?.addresses) && profileRes.addresses) ||
+        (Array.isArray(profileRes?.user?.addresses) && profileRes.user.addresses) ||
+        [];
+      setSavedAddresses(candidate);
       setAddressState({ loading: false, error: "" });
     } catch {
       setSavedAddresses([]);
@@ -86,6 +100,57 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
   useEffect(() => {
     loadProfileAddresses();
   }, []);
+
+  // Debounced shipping quote — triggers as soon as the user enters a
+  // valid 6-digit pincode, and re-fires when the basket or pincode
+  // changes. We hit `/api/v1/checkout/shipping-quote` which mirrors the
+  // same Shiprocket logic the real `/orders` POST runs, so what we show
+  // here equals what Razorpay charges.
+  useEffect(() => {
+    const pincode = checkoutForm.pincode.trim();
+    if (!PINCODE_REGEX.test(pincode) || carts.shopping.length === 0) {
+      setShippingQuote({ loading: false, paise: null, error: "" });
+      return;
+    }
+    setShippingQuote((s) => ({ ...s, loading: true, error: "" }));
+    const handle = setTimeout(async () => {
+      try {
+        const items = carts.shopping.map((c) => ({
+          item_id: c.item_id,
+          quantity: Number(c.quantity) || 1,
+        }));
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/v1/checkout/shipping-quote`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items, delivery_pincode: pincode }),
+          },
+        );
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setShippingQuote({
+            loading: false,
+            paise: null,
+            error: body?.message || "Couldn't fetch shipping for this pincode.",
+          });
+          return;
+        }
+        setShippingQuote({
+          loading: false,
+          paise: Number(body?.shipping_total_paise) || 0,
+          error: "",
+        });
+      } catch (err) {
+        setShippingQuote({
+          loading: false,
+          paise: null,
+          error: err?.message || "Couldn't fetch shipping.",
+        });
+      }
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [checkoutForm.pincode, carts.shopping]);
 
   function applySavedAddress(indexValue) {
     const index = Number(indexValue);
@@ -303,10 +368,10 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
       {activeCart === "quotation" ? (
         <form
           onSubmit={handleSubmitQuotation}
-          className="rounded-2xl border border-[#efe7eb] bg-white p-6 shadow-[0_16px_38px_rgba(15,23,42,0.05)]"
+          className="rounded-2xl border border-border bg-surface p-6 shadow-[0_16px_38px_rgba(15,23,42,0.05)]"
         >
-          <h3 className="text-xl font-semibold text-slate-900">Send Quotation Request</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
+          <h3 className="text-xl font-semibold text-text-strong">Send Quotation Request</h3>
+          <p className="mt-2 text-sm leading-6 text-muted">
             We will use your quotation cart items and contact details to generate a quote.
           </p>
 
@@ -316,14 +381,14 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
               placeholder="Your name"
               value={quotationForm.name}
               onChange={(e) => setQuotationForm((current) => ({ ...current, name: e.target.value }))}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none focus:border-primary"
             />
             <input
               type="tel"
               placeholder="Phone number"
               value={quotationForm.phone}
               onChange={(e) => setQuotationForm((current) => ({ ...current, phone: e.target.value }))}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none focus:border-primary"
             />
             <input
               type="email"
@@ -331,25 +396,25 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
               value={quotationForm.email}
               onChange={(e) => setQuotationForm((current) => ({ ...current, email: e.target.value }))}
               required
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none focus:border-primary"
             />
             <textarea
               placeholder="Add note for quotation request"
               value={quotationForm.note}
               onChange={(e) => setQuotationForm((current) => ({ ...current, note: e.target.value }))}
-              className="min-h-28 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="min-h-28 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm font-medium text-text outline-none focus:border-primary"
             />
           </div>
 
-          {submitState.error ? <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{submitState.error}</p> : null}
+          {submitState.error ? <p className="mt-4 rounded-2xl bg-danger/10 px-4 py-3 text-sm text-danger">{submitState.error}</p> : null}
           {submitState.success ? (
-            <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-600">{submitState.success}</p>
+            <p className="mt-4 rounded-2xl bg-success/10 px-4 py-3 text-sm text-success">{submitState.success}</p>
           ) : null}
 
           <button
             type="submit"
             disabled={submitState.loading || carts.quotation.length === 0}
-            className="mt-6 w-full cursor-pointer rounded-xl bg-[#ff4f86] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(255,79,134,0.2)]"
+            className="mt-6 w-full cursor-pointer rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_24px_rgba(255,79,134,0.2)]"
           >
             {submitState.loading ? "Sending..." : "Send Quotation"}
           </button>
@@ -357,35 +422,72 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
       ) : (
         <form
           onSubmit={handleCheckout}
-          className="rounded-2xl border border-[#efe7eb] bg-white p-6 shadow-[0_16px_38px_rgba(15,23,42,0.05)]"
+          className="rounded-2xl border border-border bg-surface p-6 shadow-[0_16px_38px_rgba(15,23,42,0.05)]"
         >
-          <h3 className="text-xl font-semibold text-slate-900">Shopping Checkout</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-500">Fill in your details and pay securely via Razorpay.</p>
+          <h3 className="text-xl font-semibold text-text-strong">Shopping Checkout</h3>
+          <p className="mt-2 text-sm leading-6 text-muted">Fill in your details and pay securely via Razorpay.</p>
 
-          <div className="mt-5 space-y-4">
-            <div className="flex items-center justify-between text-sm text-slate-500">
-              <span>Items</span>
-              <span className="font-semibold text-slate-800">{shoppingCount}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm text-slate-500">
-              <span>Total</span>
-              <span className="font-semibold text-slate-800">{formatCurrency(shoppingTotal)}</span>
-            </div>
-          </div>
+          {(() => {
+            const shippingRupees = shippingQuote.paise != null ? shippingQuote.paise / 100 : 0;
+            const preTax = shoppingTotal + shippingRupees;
+            const gst = Math.round(preTax * 0.18);
+            const total = Math.round(preTax + gst);
+            return (
+              <div className="mt-5 space-y-3">
+                <div className="flex items-center justify-between text-sm text-muted">
+                  <span>Items ({shoppingCount})</span>
+                  <span className="font-medium text-text-strong">
+                    {formatCurrency(shoppingTotal)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted">
+                  <span>Shipping</span>
+                  <span className="font-medium text-text-strong">
+                    {shippingQuote.loading
+                      ? "Calculating…"
+                      : shippingQuote.paise != null
+                      ? formatCurrency(shippingRupees)
+                      : "Enter pincode →"}
+                  </span>
+                </div>
+                {shippingQuote.error ? (
+                  <p className="-mt-2 text-[11px] text-danger">{shippingQuote.error}</p>
+                ) : null}
+                <div className="flex items-center justify-between text-sm text-muted">
+                  <span>GST (18%)</span>
+                  <span className="font-medium text-text-strong">{formatCurrency(gst)}</span>
+                </div>
+                <div className="border-t border-border pt-3" />
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="font-semibold text-text-strong">
+                    {shippingQuote.paise != null ? "Total" : "Estimated total"}
+                  </span>
+                  <span className="text-lg font-bold text-text-strong">
+                    {formatCurrency(total)}
+                  </span>
+                </div>
+                {shippingQuote.paise == null ? (
+                  <p className="text-[11px] leading-4 text-muted">
+                    Final total updates once you enter a valid delivery pincode.
+                  </p>
+                ) : null}
+              </div>
+            );
+          })()}
 
-          <div className="mt-5 rounded-xl border border-[#f1e4ea] bg-[#fcf7fa] p-4">
+          <div className="mt-5 rounded-xl border border-border bg-primary-soft p-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-slate-700">Saved Addresses</p>
+              <p className="text-sm font-semibold text-text">Saved Addresses</p>
               <button
                 type="button"
                 onClick={loadProfileAddresses}
-                className="rounded-lg border border-[#ffd3e3] px-3 py-1.5 text-xs font-semibold text-[#ff4f86]"
+                className="rounded-lg border border-primary-soft px-3 py-1.5 text-xs font-semibold text-primary"
               >
                 {addressState.loading ? "Refreshing..." : "Refresh"}
               </button>
             </div>
             {addressState.error ? (
-              <p className="mt-2 text-xs text-red-500">{addressState.error}</p>
+              <p className="mt-2 text-xs text-danger">{addressState.error}</p>
             ) : null}
             {savedAddresses.length > 0 ? (
               <div className="mt-3 grid gap-2">
@@ -399,8 +501,8 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
                     }}
                     className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
                       selectedAddressIndex === String(index)
-                        ? "border-[#ff4f86] bg-[#fff1f6] text-[#ff4f86]"
-                        : "border-slate-200 bg-white text-slate-600"
+                        ? "border-primary bg-primary-soft text-primary"
+                        : "border-border-strong bg-surface text-muted"
                     }`}
                   >
                     <div className="font-semibold">{address.label || "Address"}</div>
@@ -413,9 +515,9 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
                 ))}
               </div>
             ) : (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-muted">
                 No saved addresses found. Add one in{" "}
-                <Link href="/profile" className="font-semibold text-[#ff4f86] underline">
+                <Link href="/profile" className="font-semibold text-primary underline">
                   Profile
                 </Link>
                 .
@@ -429,72 +531,69 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
               placeholder="Full name"
               value={checkoutForm.name}
               onChange={(e) => setCheckoutForm((current) => ({ ...current, name: e.target.value }))}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none focus:border-primary"
             />
             <input
               type="tel"
               placeholder="Phone number"
               value={checkoutForm.phone}
               onChange={(e) => setCheckoutForm((current) => ({ ...current, phone: e.target.value.replace(/[^\d+]/g, "") }))}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none focus:border-primary"
             />
             <input
               type="email"
               placeholder="Email address"
               value={checkoutForm.email}
               onChange={(e) => setCheckoutForm((current) => ({ ...current, email: e.target.value }))}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none focus:border-primary"
             />
             <input
               type="text"
               placeholder="Address line 1"
               value={checkoutForm.line1}
               onChange={(e) => setCheckoutForm((current) => ({ ...current, line1: e.target.value }))}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none focus:border-primary"
             />
             <input
               type="text"
               placeholder="Address line 2"
               value={checkoutForm.line2}
               onChange={(e) => setCheckoutForm((current) => ({ ...current, line2: e.target.value }))}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none focus:border-primary"
             />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <input
-                type="text"
-                placeholder="City"
-                value={checkoutForm.city}
-                onChange={(e) => setCheckoutForm((current) => ({ ...current, city: e.target.value }))}
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
-              />
-              <input
-                type="text"
-                placeholder="State"
-                value={checkoutForm.state}
-                onChange={(e) => setCheckoutForm((current) => ({ ...current, state: e.target.value }))}
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
-              />
-            </div>
+            <CityStateDropdown
+              cityValue={checkoutForm.city}
+              stateValue={checkoutForm.state}
+              onChange={(loc) =>
+                setCheckoutForm((current) => ({
+                  ...current,
+                  city: loc.city || "",
+                  state: loc.state || "",
+                }))
+              }
+              placeholderCity="City"
+              placeholderState="State"
+            />
             <input
               type="text"
               placeholder="Pincode"
               value={checkoutForm.pincode}
               onChange={(e) => setCheckoutForm((current) => ({ ...current, pincode: e.target.value }))}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none focus:border-primary"
             />
             <textarea
               placeholder="Order note"
               value={checkoutForm.notes}
               onChange={(e) => setCheckoutForm((current) => ({ ...current, notes: e.target.value }))}
-              className="min-h-24 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none focus:border-[#ff4f86]"
+              className="min-h-24 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm font-medium text-text outline-none focus:border-primary"
             />
           </div>
 
           {checkoutState.error ? (
-            <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{checkoutState.error}</p>
+            <p className="mt-4 rounded-2xl bg-danger/10 px-4 py-3 text-sm text-danger">{checkoutState.error}</p>
           ) : null}
           {checkoutState.success ? (
-            <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="mt-4 rounded-2xl bg-success/10 px-4 py-3 text-sm text-success">
               <div>{checkoutState.success}</div>
               {checkoutState.orderNumber ? <div className="mt-1 font-semibold">Order: {checkoutState.orderNumber}</div> : null}
             </div>
@@ -503,7 +602,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
           <button
             type="submit"
             disabled={checkoutState.loading || carts.shopping.length === 0}
-            className="mt-6 w-full cursor-pointer rounded-xl bg-[#ff4f86] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(255,79,134,0.2)]"
+            className="mt-6 w-full cursor-pointer rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_24px_rgba(255,79,134,0.2)]"
           >
             {checkoutState.loading ? "Creating Order..." : "Pay with Razorpay"}
           </button>

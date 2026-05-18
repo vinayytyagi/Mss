@@ -25,16 +25,16 @@ export default function BasketButton({ floating = false }) {
       href="/cart"
       className={
         floating
-          ? "fixed bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-[0_20px_50px_rgba(15,23,42,0.16)]"
-          : "inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          ? "fixed bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-surface px-5 py-3 text-sm font-semibold text-text shadow-[0_20px_50px_rgba(15,23,42,0.16)]"
+          : "inline-flex items-center gap-3 rounded-2xl border border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text transition hover:bg-surface-muted"
       }
     >
-      <span className="rounded-full bg-[#fff1f6] p-2 text-[#ff4f86]">
+      <span className="rounded-full bg-primary-soft p-2 text-primary">
         <BasketIcon />
       </span>
       <span>Basket</span>
-      <span className="rounded-full bg-[#ff4f86] px-2.5 py-1 text-xs font-bold text-white">{totalCount}</span>
-      <span className="hidden text-xs text-slate-400 md:inline">
+      <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">{totalCount}</span>
+      <span className="hidden text-xs text-subtle md:inline">
         Q {quotationCount} | S {shoppingCount}
       </span>
     </Link>

@@ -1,13 +1,182 @@
 @import "tailwindcss";
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * Color Token System (Tailwind 4)
+ * ──────────────────────────────────────────────────────────────────────────
+ * All colors flow through CSS variables defined here so the entire site
+ * can be re-themed by editing this file alone. Do not hardcode colors in
+ * components — use the semantic Tailwind utilities instead:
+ *
+ *   bg-primary           text-primary-foreground
+ *   bg-surface           text-text
+ *   bg-primary-soft      text-muted
+ *   border-border        ring-primary/20
+ *
+ * Tokens are stored as plain CSS values (hex). Tailwind 4 automatically
+ * applies opacity modifiers via `color-mix()`, so `bg-primary/40` works
+ * on every token without any extra wiring.
+ *
+ * The `@theme inline` block below aliases each token onto a Tailwind
+ * `--color-*` variable using `var(--token)` — `inline` is what tells
+ * Tailwind to KEEP the var() reference in the generated CSS instead of
+ * baking the value in. That is what makes the dark-mode swap work at
+ * runtime: when `.dark` overrides `--primary`, every utility instantly
+ * picks up the new value.
+ *
+ * To add a new color:
+ *   1. Add `--my-token: #RRGGBB;` under `:root` (and `.dark` if it differs).
+ *   2. Register it in the `@theme inline` block as
+ *      `--color-my-token: var(--my-token);`
+ *   3. Use it as `bg-my-token`, `text-my-token`, `border-my-token/30`, etc.
+ *
+ * To re-skin the whole site: change values under `:root`. That's it.
+ *
+ * Intentional exceptions — inline hex values that are NOT theme tokens:
+ *   • #d4720a (logo "Store" wordmark)        — fixed brand color of the logo
+ *   • #25D366, #128C7E, #0d6f63, #e8fff4     — WhatsApp brand palette
+ *   • #f5e6d3, #f5de32, #C68752, #f4ebd9,
+ *     #e8c18f, #fdeaee                       — decorative one-offs (timeline,
+ *                                              hero accents, category chip)
+ * ────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #f6f4f8;
-  --foreground: #243041;
+  /* Surfaces */
+  --background: #f6f4f8;       /* page background */
+  --surface: #ffffff;          /* cards / panels */
+  --surface-muted: #f7f2f5;    /* subtle inset bg */
+
+  /* Text — three-step ramp from darkest to faint */
+  --text-strong: #2d2d44;      /* emphasized headings */
+  --text: #243041;             /* primary body / heading */
+  --muted-strong: #49516f;     /* mid-tone heading (e.g. hero h1) — darker than `muted` */
+  --muted: #6b7280;            /* secondary text */
+  --subtle: #94a3b8;           /* placeholders / faint */
+
+  /* Borders */
+  --border: #efe7eb;           /* default border */
+  --border-strong: #e2e8f0;    /* slate-200 — emphasized */
+
+  /* Brand: pink (primary) */
+  --primary: #ff4f86;          /* brand */
+  --primary-hover: #ff3d79;    /* hover */
+  --primary-soft: #fff1f6;     /* tinted bg */
+  --primary-foreground: #ffffff;
+  --primary-accent: #ff6ba8;   /* gradient companion */
+  --primary-accent-2: #e91e90; /* magenta gradient end */
+
+  /* Brand: maroon (secondary — footer / auth scenes) */
+  --secondary: #70012b;
+  --secondary-foreground: #ffffff;
+
+  /* Status */
+  --success: #22c55e;          /* green-500 */
+  --warning: #ffbb28;          /* gold (rating star) */
+  --warning-strong: #c27803;   /* amber dark */
+  --danger: #ef4444;           /* red-500 */
+  --info: #2563eb;             /* blue-600 — used for "Confirmed/Shipped/Refunded" status badges */
+
+  /* Misc */
+  --selection-bg: #ffd5e4;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * Dark mode
+ * ──────────────────────────────────────────────────────────────────────────
+ * Toggled by adding the `.dark` class to <html> or any ancestor. Tailwind
+ * utilities like `dark:bg-surface` are wired through the @custom-variant
+ * declaration below.
+ *
+ * To toggle from JS:    document.documentElement.classList.toggle("dark");
+ * To respect OS pref:   add class on first paint based on
+ *                       window.matchMedia("(prefers-color-scheme: dark)").
+ * ────────────────────────────────────────────────────────────────────────── */
+.dark {
+  /* Surfaces */
+  --background: #0f0614;       /* near-black with a maroon hint */
+  --surface: #1a0d22;
+  --surface-muted: #24122c;
+
+  /* Text */
+  --text-strong: #ffffff;
+  --text: #f5e6d3;             /* warm light */
+  --muted-strong: #b8a8c0;
+  --muted: #c8becf;
+  --subtle: #968c9b;
+
+  /* Borders */
+  --border: #322337;
+  --border-strong: #463250;
+
+  /* Brand pink — bumped lighter for contrast on dark surfaces */
+  --primary: #ff6ba8;
+  --primary-hover: #ff4f86;
+  --primary-soft: #321423;
+  --primary-foreground: #ffffff;
+  --primary-accent: #ff8fb8;
+  --primary-accent-2: #e91e90;
+
+  /* Maroon */
+  --secondary: #8a123c;
+  --secondary-foreground: #ffffff;
+
+  /* Status */
+  --success: #4ade80;
+  --warning: #ffbb28;
+  --warning-strong: #ffd764;
+  --danger: #f87171;
+  --info: #60a5fa;             /* blue-400 — bumped for contrast on dark surfaces */
+
+  --selection-bg: #500f2d;
+}
+
+/* Tailwind 4 dark variant: enables `dark:` utility prefix */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Register tokens as Tailwind colors so utilities like
+ * `bg-primary`, `text-muted`, `border-border-strong/50` are generated.
+ *
+ * IMPORTANT: `@theme inline` + `var(--token)` is what enables runtime
+ * theme switching. Without `inline`, Tailwind would freeze the resolved
+ * value at build time and dark mode would not work. */
 @theme inline {
+  /* Surfaces */
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+
+  /* Text */
+  --color-text: var(--text);
+  --color-text-strong: var(--text-strong);
+  --color-muted-strong: var(--muted-strong);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+
+  /* Borders */
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  /* Brand pink */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-accent: var(--primary-accent);
+  --color-primary-accent-2: var(--primary-accent-2);
+
+  /* Maroon */
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  /* Status */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-warning-strong: var(--warning-strong);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+
+  /* Backwards-compat alias */
+  --color-foreground: var(--text);
+
   --font-sans: var(--font-poppins);
 }
 
@@ -22,7 +191,7 @@ html {
 
 body {
   background: var(--background);
-  color: var(--foreground);
+  color: var(--text);
   font-family: var(--font-poppins), sans-serif;
   min-height: 100vh;
 }
@@ -34,20 +203,14 @@ a {
 
 a.signup-header-cta,
 a.signup-header-cta:hover,
-a.signup-header-cta:visited {
-  color: #ffffff;
-}
-
+a.signup-header-cta:visited,
 a.showcase-journey-cta,
 a.showcase-journey-cta:hover,
-a.showcase-journey-cta:visited {
-  color: #ffffff;
-}
-
+a.showcase-journey-cta:visited,
 a.home-need-to-shop-cta,
 a.home-need-to-shop-cta:hover,
 a.home-need-to-shop-cta:visited {
-  color: #ffffff;
+  color: var(--primary-foreground);
 }
 
 button,
@@ -63,12 +226,12 @@ input:disabled {
 }
 
 input::placeholder {
-  color: #94a3b8;
+  color: var(--subtle);
 }
 
 ::selection {
-  background: #ffd5e4;
-  color: #243041;
+  background: var(--selection-bg);
+  color: var(--text);
 }
 
 @keyframes mssTicker {
@@ -109,7 +272,7 @@ input::placeholder {
 /* Themed scrollbars (category / subcategory panels) */
 .scrollbar-themed {
   scrollbar-width: thin;
-  scrollbar-color: #f9a8c9 #fff1f6;
+  scrollbar-color: var(--primary-accent) var(--primary-soft);
 }
 
 .scrollbar-themed::-webkit-scrollbar {
@@ -118,16 +281,16 @@ input::placeholder {
 }
 
 .scrollbar-themed::-webkit-scrollbar-track {
-  background: #fff1f6;
+  background: var(--primary-soft);
   border-radius: 9999px;
 }
 
 .scrollbar-themed::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #ff8fb8, #ff4f86);
+  background: linear-gradient(180deg, var(--primary-accent), var(--primary));
   border-radius: 9999px;
-  border: 2px solid #fff1f6;
+  border: 2px solid var(--primary-soft);
 }
 
 .scrollbar-themed::-webkit-scrollbar-thumb:hover {
-  background: #ff3d79;
+  background: var(--primary-hover);
 }

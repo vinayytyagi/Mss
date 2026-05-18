@@ -37,14 +37,14 @@ const highlights = [
 export default function HowItWorksPageServer() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-      <section className="overflow-hidden rounded-[34px] border border-[#eee4ea] bg-[linear-gradient(140deg,#ffffff_0%,#faf7f9_55%,#f6f0f4_100%)] p-7 shadow-[0_24px_60px_rgba(15,23,42,0.06)] sm:p-10">
-        <p className="inline-flex rounded-full bg-[#f8eef3] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#ff4f86]">
+      <section className="overflow-hidden rounded-[34px] border border-primary-soft bg-[linear-gradient(140deg,#ffffff_0%,#faf7f9_55%,#f6f0f4_100%)] p-7 shadow-[0_24px_60px_rgba(15,23,42,0.06)] sm:p-10">
+        <p className="inline-flex rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
           How it works
         </p>
-        <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-slate-800 sm:text-4xl">
+        <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-text-strong sm:text-4xl">
           A calm and guided way to plan your wedding, one step at a time.
         </h1>
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">
+        <p className="mt-4 max-w-3xl text-sm leading-7 text-muted sm:text-base">
           MyShaadiStore combines journey planning, curated shopping, quotation requests, and live order
           tracking so your complete wedding workflow stays clean and organized.
         </p>
@@ -53,7 +53,7 @@ export default function HowItWorksPageServer() {
           {highlights.map((point) => (
             <div
               key={point}
-              className="flex items-center gap-2 rounded-2xl border border-[#f0e6ec] bg-white/90 px-4 py-3 text-sm font-medium text-[#ff4f86]"
+              className="flex items-center gap-2 rounded-2xl border border-primary-soft bg-surface/90 px-4 py-3 text-sm font-medium text-primary"
             >
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               {point}
@@ -65,16 +65,16 @@ export default function HowItWorksPageServer() {
           {steps.map((item, index) => (
             <article
               key={item.title}
-              className="flex items-start gap-4 rounded-3xl border border-[#efe5eb] bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.03)]"
+              className="flex items-start gap-4 rounded-3xl border border-primary-soft bg-surface p-5 shadow-[0_10px_26px_rgba(15,23,42,0.03)]"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#fff1f6] text-[#ff4f86]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary">
                 <item.icon className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">
+                <h2 className="text-lg font-semibold text-text-strong">
                   {String(index + 1).padStart(2, "0")} . {item.title}
                 </h2>
-                <p className="mt-1 text-sm leading-6 text-slate-600">{item.description}</p>
+                <p className="mt-1 text-sm leading-6 text-muted">{item.description}</p>
               </div>
             </article>
           ))}

@@ -31,7 +31,7 @@ function ChevronRight() {
 
 function EmptyBoxIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-20 w-20 text-slate-300">
+    <svg viewBox="0 0 24 24" fill="none" className="h-20 w-20 text-border-strong">
       <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
@@ -40,18 +40,18 @@ function EmptyBoxIcon() {
 
 /* ── Status badges ─────────────────────────────────────── */
 const statusColors = {
-  Pending: "bg-amber-50 text-amber-700 border-amber-200",
-  Paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Confirmed: "bg-blue-50 text-blue-700 border-blue-200",
-  Shipped: "bg-purple-50 text-purple-700 border-purple-200",
-  Delivered: "bg-green-50 text-green-800 border-green-200",
-  Cancelled: "bg-red-50 text-red-700 border-red-200",
-  Failed: "bg-red-50 text-red-600 border-red-200",
-  Refunded: "bg-violet-50 text-violet-700 border-violet-200",
+  Pending: "bg-warning/15 text-warning-strong border-warning/40",
+  Paid: "bg-success/10 text-success border-success/40",
+  Confirmed: "bg-info/10 text-info border-info/40",
+  Shipped: "bg-info/10 text-info border-info/40",
+  Delivered: "bg-success/10 text-success border-success/40",
+  Cancelled: "bg-danger/10 text-danger border-danger/30",
+  Failed: "bg-danger/10 text-danger border-danger/30",
+  Refunded: "bg-info/10 text-info border-info/40",
 };
 
 function StatusBadge({ status }) {
-  const cls = statusColors[status] || "bg-slate-50 text-slate-600 border-slate-200";
+  const cls = statusColors[status] || "bg-surface-muted text-muted border-border-strong";
   return (
     <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${cls}`}>
       {status}
@@ -61,11 +61,11 @@ function StatusBadge({ status }) {
 
 function FulfillmentBadge({ status }) {
   const map = {
-    Unfulfilled: "bg-orange-50 text-orange-600 border-orange-200",
-    Shipped: "bg-indigo-50 text-indigo-600 border-indigo-200",
-    Delivered: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    Unfulfilled: "bg-warning/15 text-warning-strong border-warning/40",
+    Shipped: "bg-info/10 text-info border-info/40",
+    Delivered: "bg-success/10 text-success border-success/40",
   };
-  const cls = map[status] || "bg-slate-50 text-slate-600 border-slate-200";
+  const cls = map[status] || "bg-surface-muted text-muted border-border-strong";
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold ${cls}`}>
       {status === "Shipped" && <TruckIcon />}
@@ -96,13 +96,13 @@ export default function MyOrdersClient({ initialOrders = [], initialError = "", 
   if (!user && !hasServerSession) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
-        <div className="rounded-3xl border border-slate-100 bg-white/80 px-8 py-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
+        <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
           <PackageIcon />
-          <h1 className="mt-4 text-2xl font-semibold text-slate-700">My Orders</h1>
-          <p className="mt-2 text-slate-500">Please log in to view your orders.</p>
+          <h1 className="mt-4 text-2xl font-semibold text-text">My Orders</h1>
+          <p className="mt-2 text-muted">Please log in to view your orders.</p>
           <Link
             href="/login"
-            className="mt-6 inline-block rounded-2xl bg-[#ff4f86] px-8 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-[#ff3d79]"
+            className="mt-6 inline-block rounded-2xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-primary-hover"
           >
             Login
           </Link>
@@ -114,9 +114,9 @@ export default function MyOrdersClient({ initialOrders = [], initialError = "", 
   if (loading) {
     return (
       <main className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
-        <h1 className="text-2xl font-semibold text-slate-700">My Orders</h1>
+        <h1 className="text-2xl font-semibold text-text">My Orders</h1>
         <div className="mt-8 flex items-center justify-center py-20">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#ff4f86] border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       </main>
     );
@@ -125,8 +125,8 @@ export default function MyOrdersClient({ initialOrders = [], initialError = "", 
   if (error) {
     return (
       <main className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
-        <h1 className="text-2xl font-semibold text-slate-700">My Orders</h1>
-        <div className="mt-8 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center text-red-600">
+        <h1 className="text-2xl font-semibold text-text">My Orders</h1>
+        <div className="mt-8 rounded-2xl border border-danger/30 bg-danger/10 px-6 py-8 text-center text-danger">
           {error}
         </div>
       </main>
@@ -138,12 +138,12 @@ export default function MyOrdersClient({ initialOrders = [], initialError = "", 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-700">My Orders</h1>
-          <p className="mt-1 text-sm text-slate-400">{orders.length} order{orders.length !== 1 ? "s" : ""}</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-text">My Orders</h1>
+          <p className="mt-1 text-sm text-subtle">{orders.length} order{orders.length !== 1 ? "s" : ""}</p>
         </div>
         <Link
           href="/orders/track-order"
-          className="flex items-center gap-2 rounded-2xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-[#ff4f86] hover:text-[#ff4f86]"
+          className="flex items-center gap-2 rounded-2xl border border-border-strong px-5 py-2.5 text-sm font-semibold text-muted transition hover:border-primary hover:text-primary"
         >
           <TruckIcon />
           Track Order
@@ -152,13 +152,13 @@ export default function MyOrdersClient({ initialOrders = [], initialError = "", 
 
       {/* Empty */}
       {orders.length === 0 && (
-        <div className="mt-12 flex flex-col items-center rounded-3xl border border-slate-100 bg-white/80 px-8 py-20 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
+        <div className="mt-12 flex flex-col items-center rounded-3xl border border-border bg-surface/80 px-8 py-20 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
           <EmptyBoxIcon />
-          <h2 className="mt-4 text-lg font-semibold text-slate-600">No orders yet</h2>
-          <p className="mt-1 text-sm text-slate-400">Your purchases will appear here once you place an order.</p>
+          <h2 className="mt-4 text-lg font-semibold text-muted">No orders yet</h2>
+          <p className="mt-1 text-sm text-subtle">Your purchases will appear here once you place an order.</p>
           <Link
             href="/"
-            className="mt-6 rounded-2xl bg-[#ff4f86] px-8 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-[#ff3d79]"
+            className="mt-6 rounded-2xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-primary-hover"
           >
             Start Shopping
           </Link>
@@ -171,13 +171,13 @@ export default function MyOrdersClient({ initialOrders = [], initialError = "", 
           <Link
             key={order._id}
             href={`/orders/${order._id}`}
-            className="group block rounded-2xl border border-slate-100 bg-white/80 p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)] backdrop-blur transition hover:border-[#ff4f86]/30 hover:shadow-[0_8px_30px_rgba(255,79,134,0.08)]"
+            className="group block rounded-2xl border border-border bg-surface/80 p-6 shadow-[0_4px_20px_rgba(0,0,0,0.04)] backdrop-blur transition hover:border-primary/30 hover:shadow-[0_8px_30px_rgba(255,79,134,0.08)]"
           >
             {/* Top row */}
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-slate-400">Order</p>
-                <p className="text-lg font-semibold text-slate-700">{order.order_number}</p>
+                <p className="text-xs font-medium uppercase tracking-widest text-subtle">Order</p>
+                <p className="text-lg font-semibold text-text">{order.order_number}</p>
               </div>
               <div className="flex items-center gap-2">
                 <StatusBadge status={order.status} />
@@ -194,41 +194,41 @@ export default function MyOrdersClient({ initialOrders = [], initialError = "", 
                     <img
                       src={item.image}
                       alt={item.name}
-                      className="h-14 w-14 rounded-xl border border-slate-100 object-cover"
+                      className="h-14 w-14 rounded-xl border border-border object-cover"
                     />
                   ) : (
-                    <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-xs text-slate-400">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-surface-muted text-xs text-subtle">
                       {item.name?.charAt(0) || "?"}
                     </div>
                   )}
                 </div>
               ))}
               {(order.items || []).length > 4 && (
-                <span className="shrink-0 text-xs font-semibold text-slate-400">
+                <span className="shrink-0 text-xs font-semibold text-subtle">
                   +{order.items.length - 4} more
                 </span>
               )}
             </div>
 
             {/* Bottom row */}
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
               <div className="flex items-center gap-6">
                 <div>
-                  <p className="text-xs text-slate-400">Total</p>
-                  <p className="text-sm font-bold text-slate-700">{formatCurrency(order.total_amount)}</p>
+                  <p className="text-xs text-subtle">Total</p>
+                  <p className="text-sm font-bold text-text">{formatCurrency(order.total_amount)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Placed on</p>
-                  <p className="text-sm font-semibold text-slate-600">{formatDate(order.created_at)}</p>
+                  <p className="text-xs text-subtle">Placed on</p>
+                  <p className="text-sm font-semibold text-muted">{formatDate(order.created_at)}</p>
                 </div>
                 {order.shipment?.courier_name && (
                   <div>
-                    <p className="text-xs text-slate-400">Courier</p>
-                    <p className="text-sm font-semibold text-slate-600">{order.shipment.courier_name}</p>
+                    <p className="text-xs text-subtle">Courier</p>
+                    <p className="text-sm font-semibold text-muted">{order.shipment.courier_name}</p>
                   </div>
                 )}
               </div>
-              <span className="flex items-center gap-1 text-sm font-semibold text-[#ff4f86] opacity-0 transition group-hover:opacity-100">
+              <span className="flex items-center gap-1 text-sm font-semibold text-primary opacity-0 transition group-hover:opacity-100">
                 View details <ChevronRight />
               </span>
             </div>

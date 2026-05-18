@@ -1,15 +1,41 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ChevronsDown } from "lucide-react";
+import { ChevronRight, ChevronsDown } from "lucide-react";
 import BasketButton from "@/components/BasketButton";
-import ShoppingProductCard from "@/components/ShoppingProductCard";
+import ShoppingItemsGrid from "@/components/ShoppingItemsGrid";
+import ShoppingSidebar from "@/components/ShoppingSidebar";
 import { isProductItem } from "@/lib/shopUi";
 import ShoppingSearchBar from "@/components/ShoppingSearchBar";
 
-function buildQuery(categoryId, subcategoryId, search) {
+function itemFabric(item) {
+  const f = item?.attributes?.fabric || item?.attributes?.material;
+  if (typeof f === "string") return f.trim();
+  if (Array.isArray(f)) return f.map((v) => String(v).trim()).filter(Boolean);
+  return null;
+}
+
+function matchesFabric(item, selectedFabrics) {
+  if (!selectedFabrics?.length) return true;
+  const f = itemFabric(item);
+  if (!f) return false;
+  if (Array.isArray(f)) {
+    return selectedFabrics.some((sf) => f.some((iv) => iv.toLowerCase() === sf.toLowerCase()));
+  }
+  return selectedFabrics.some((sf) => sf.toLowerCase() === f.toLowerCase());
+}
+
+function matchesPrice(item, minPrice, maxPrice) {
+  const price = Number(item?.final_price ?? item?.price ?? 0);
+  if (minPrice != null && price < minPrice) return false;
+  if (maxPrice != null && price > maxPrice) return false;
+  return true;
+}
+
+function buildQuery(categoryId, subcategoryId, subSubcategoryId, search) {
   const qs = new URLSearchParams();
   if (categoryId) qs.set("category", categoryId);
   if (subcategoryId) qs.set("subcategory", subcategoryId);
+  if (subSubcategoryId) qs.set("subSubcategory", subSubcategoryId);
   if (search && String(search).trim()) qs.set("search", String(search).trim());
   const query = qs.toString();
   return query ? `?${query}` : "";
@@ -21,7 +47,11 @@ export default function ShoppingCatalog({
   items,
   selectedCategoryId = "",
   selectedSubcategoryId = "",
+  selectedSubSubcategoryId = "",
   search = "",
+  minPrice = null,
+  maxPrice = null,
+  selectedFabrics = [],
 }) {
   const productItems = items.filter(isProductItem);
   const topCategories = categories.filter((category) => !category.parent_category_id);
@@ -32,8 +62,20 @@ export default function ShoppingCatalog({
     : [];
   const selectedSubcategory =
     visibleSubcategories.find((category) => category.category_id === selectedSubcategoryId) || null;
+  const visibleSubSubcategories = selectedSubcategory
+    ? categories.filter((category) => category.parent_category_id === selectedSubcategory.category_id)
+    : [];
+  const selectedSubSubcategory =
+    visibleSubSubcategories.find((category) => category.category_id === selectedSubSubcategoryId) || null;
+  const hasSubSubcategoryRow = visibleSubSubcategories.length > 0;
 
-  const filteredItems = productItems;
+  // Apply sidebar facets on top of what the API returned (category/sub
+  // filters happened server-side). The sidebar needs the unfiltered pool
+  // to derive its facet list (fabrics, price range), so we hand it
+  // `productItems` not `filteredItems`.
+  const filteredItems = productItems
+    .filter((item) => matchesFabric(item, selectedFabrics))
+    .filter((item) => matchesPrice(item, minPrice, maxPrice));
 
   const showcaseCategories = topCategories.slice(0, 6);
   const filterSubcategories = visibleSubcategories.length
@@ -42,9 +84,9 @@ export default function ShoppingCatalog({
 
   return (
     <main className="mx-auto w-full px-4 pb-8 pt-5 sm:px-6 lg:px-8">
-      <section className="rounded-[28px] bg-[#efedf0] p-5 sm:p-7">
-        <div className="relative min-h-[220px]">
-          <h1 className="pt-8 text-center text-2xl font-medium leading-tight text-[#75152f] sm:pt-12 sm:text-3xl">
+      <section className="rounded-[28px] bg-primary-soft p-5 sm:p-7">
+        <div className="relative min-h-55">
+          <h1 className="pt-8 text-center text-2xl font-medium leading-tight text-secondary sm:pt-12 sm:text-3xl">
             Shop Curated Essentials for
             <br />
             Your Dream Wedding
@@ -59,8 +101,8 @@ export default function ShoppingCatalog({
               />
             </div>
           </div>
-          <div className="pointer-events-none absolute right-2 top-0 hidden h-[210px] w-[220px] md:block lg:h-[260px] lg:w-[300px]">
-            <div className="h-full w-full rounded-b-[120px] rounded-t-[24px] bg-[#f4d8de]/40 p-2">
+          <div className="pointer-events-none absolute right-2 top-0 hidden h-52.5 w-55 md:block lg:h-65 lg:w-75">
+            <div className="h-full w-full rounded-b-[120px] rounded-t-3xl bg-primary-soft/40 p-2">
               <div className="relative h-full w-full">
                 <Image
                   src="/shopping_header.webp"
@@ -76,8 +118,8 @@ export default function ShoppingCatalog({
         </div>
 
         <div className="mt-4">
-          <h2 className="text-2xl sm:text-3xl font-medium text-slate-900">Category</h2>
-          <div className="no-scrollbar mt-4 flex items-center gap-0.5 overflow-x-auto overflow-y-visible rounded-[30px] bg-[#edd6df] px-0.5 py-2">
+          <h2 className="text-2xl sm:text-3xl font-medium text-text-strong">Category</h2>
+          <div className="no-scrollbar mt-4 flex items-center gap-0.5 overflow-x-auto overflow-y-visible rounded-[30px] bg-primary-soft px-0.5 py-2">
             {showcaseCategories.map((category) => {
               const isActive = selectedCategory?.category_id === category.category_id;
               const categoryImage =
@@ -86,16 +128,16 @@ export default function ShoppingCatalog({
                 productItems.find((item) => item.category_id === category.category_id)?.image ||
                 "";
               const categoryHref = isActive
-                ? `/shopping${buildQuery("", "", search)}`
-                : `/shopping${buildQuery(category.category_id, "", search)}`;
+                ? `/shopping${buildQuery("", "", "", search)}`
+                : `/shopping${buildQuery(category.category_id, "", "", search)}`;
               return (
                 <Link
                   key={category.category_id}
                   href={categoryHref}
-                  className={`flex min-w-[165px] flex-1 cursor-pointer flex-col items-center justify-between rounded-[22px] border px-3 py-4 transition-transform duration-200 ease-out ${
+                  className={`flex min-w-41.25 flex-1 cursor-pointer flex-col items-center justify-between rounded-[22px] border px-3 py-4 transition-transform duration-200 ease-out ${
                     isActive
-                      ? "z-10 scale-110 border-[#88072f] bg-[#88072f] text-white shadow-md"
-                      : "scale-100 border-transparent bg-[#edd6df] text-slate-700"
+                      ? "z-10 scale-110 border-secondary bg-secondary text-primary-foreground shadow-md"
+                      : "scale-100 border-transparent bg-primary-soft text-text"
                   }`}
                 >
                   <div className="relative h-24 w-full shrink-0">
@@ -109,13 +151,13 @@ export default function ShoppingCatalog({
                         unoptimized
                       />
                     ) : (
-                      <div className="h-full w-full rounded-md bg-white/35" aria-hidden />
+                      <div className="h-full w-full rounded-md bg-surface/35" aria-hidden />
                     )}
                   </div>
-                  <div className="mt-2 text-slate-300 flex items-center justify-center gap-1 text-center text-lg font-normal leading-tight sm:text-xl">
-                    {isActive ? <span className="text-slate-300">{category.name}</span> : <span className="text-slate-900">{category.name}</span>}
+                  <div className="mt-2 text-border-strong flex items-center justify-center gap-1 text-center text-lg font-normal leading-tight sm:text-xl">
+                    {isActive ? <span className="text-border-strong">{category.name}</span> : <span className="text-text-strong">{category.name}</span>}
                     {isActive ? (
-                      <ChevronsDown className="h-5 w-5 shrink-0 text-slate-300" aria-hidden strokeWidth={2.25} />
+                      <ChevronsDown className="h-5 w-5 shrink-0 text-border-strong" aria-hidden strokeWidth={2.25} />
                     ) : null}
                   </div>
                 </Link>
@@ -125,16 +167,16 @@ export default function ShoppingCatalog({
         </div>
 
         <div className="no-scrollbar mt-6 flex items-center gap-3 overflow-x-auto rounded-full bg-transparent py-1">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#ff4f86]" aria-hidden />
-          <span className="h-7 w-px shrink-0 bg-[#caa8b6]" aria-hidden />
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary" aria-hidden />
+          <span className="h-7 w-px shrink-0 bg-primary-accent" aria-hidden />
           <Link
             href={
               selectedCategory
-                ? `/shopping${buildQuery(selectedCategory.category_id, "", search)}`
-                : `/shopping${buildQuery("", "", search)}`
+                ? `/shopping${buildQuery(selectedCategory.category_id, "", "", search)}`
+                : `/shopping${buildQuery("", "", "", search)}`
             }
             className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-lg ${
-              !selectedSubcategory ? "bg-[#f5de32] text-slate-900" : "text-[#a44f6b]"
+              !selectedSubcategory ? "bg-[#f5de32] text-text-strong" : "text-secondary"
             }`}
           >
             All
@@ -142,17 +184,18 @@ export default function ShoppingCatalog({
           {visibleSubcategories.map((sub) => (
             (() => {
               const isSubActive = selectedSubcategory?.category_id === sub.category_id;
+              // Switching subcategory always clears the deeper sub-sub filter.
               const href = isSubActive
-                ? `/shopping${buildQuery(selectedCategory?.category_id || "", "", search)}`
-                : `/shopping${buildQuery(selectedCategory?.category_id || "", sub.category_id, search)}`;
+                ? `/shopping${buildQuery(selectedCategory?.category_id || "", "", "", search)}`
+                : `/shopping${buildQuery(selectedCategory?.category_id || "", sub.category_id, "", search)}`;
               return (
             <Link
               key={sub.category_id}
               href={href}
               className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-lg ${
                 isSubActive
-                  ? "bg-[#f5de32] text-slate-900"
-                  : "text-[#a44f6b]"
+                  ? "bg-[#f5de32] text-text-strong"
+                  : "text-secondary"
               }`}
             >
               {sub.name}
@@ -162,104 +205,61 @@ export default function ShoppingCatalog({
           ))}
           <button
             type="button"
-            className="ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f5de32] text-[#8f1036]"
+            className="ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f5de32] text-secondary"
             aria-label="Scroll subcategories forward"
           >
             <ChevronRight className="h-6 w-6" strokeWidth={2.25} aria-hidden />
           </button>
         </div>
+
+        {/* Sub-subcategory pill row — appears only when the picked subcategory has children. */}
+        {hasSubSubcategoryRow ? (
+          <div className="no-scrollbar mt-3 flex items-center gap-3 overflow-x-auto rounded-full bg-transparent py-1">
+            <span className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-primary-accent" aria-hidden />
+            <span className="h-5 w-px shrink-0 bg-primary-accent" aria-hidden />
+            <Link
+              href={`/shopping${buildQuery(selectedCategory?.category_id || "", selectedSubcategory?.category_id || "", "", search)}`}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm ${
+                !selectedSubSubcategory ? "bg-[#f5de32] text-text-strong" : "text-secondary"
+              }`}
+            >
+              All
+            </Link>
+            {visibleSubSubcategories.map((ss) => {
+              const isActive = selectedSubSubcategory?.category_id === ss.category_id;
+              const href = isActive
+                ? `/shopping${buildQuery(selectedCategory?.category_id || "", selectedSubcategory?.category_id || "", "", search)}`
+                : `/shopping${buildQuery(selectedCategory?.category_id || "", selectedSubcategory?.category_id || "", ss.category_id, search)}`;
+              return (
+                <Link
+                  key={ss.category_id}
+                  href={href}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm ${
+                    isActive ? "bg-[#f5de32] text-text-strong" : "text-secondary"
+                  }`}
+                >
+                  {ss.name}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
       </section>
 
       <section className="mt-8 grid gap-6 xl:grid-cols-[260px_1fr]">
-        <aside className="h-fit rounded-[22px] bg-[#e6ced7] p-5">
-          <h3 className="text-2xl font-medium text-[#7b1535]">Filters</h3>
-          <div className="mt-4 space-y-4">
-            <div>
-              <p className="text-sm font-medium text-[#8f2748]">Subcategory</p>
-              <div className="mt-2 space-y-2">
-                {filterSubcategories.map((sub) => (
-                  <label key={sub.category_id} className="flex items-center gap-2 text-sm text-[#9f5672]">
-                    <input
-                      type="checkbox"
-                      checked={selectedSubcategory?.category_id === sub.category_id}
-                      readOnly
-                      className="h-3.5 w-3.5 rounded border border-[#d7afbe] accent-[#ff4f86]"
-                    />
-                    <Link
-                      href={
-                        selectedSubcategory?.category_id === sub.category_id
-                          ? `/shopping${buildQuery(selectedCategory?.category_id || "", "", search)}`
-                          : `/shopping${buildQuery(selectedCategory?.category_id || "", sub.category_id, search)}`
-                      }
-                      className={`${
-                        selectedSubcategory?.category_id === sub.category_id ? "font-semibold text-[#7b1535]" : ""
-                      }`}
-                    >
-                      {sub.name}
-                    </Link>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="h-px w-full bg-[#c89eb0]" />
-            <div>
-              <p className="text-sm font-medium text-[#8f2748]">Fabric</p>
-              <div className="mt-2 space-y-2 text-sm text-[#9f5672]">
-                {["Silk", "Velvet", "Cotton", "Brocade", "Linen", "Jacquard"].map((fabric) => (
-                  <label key={fabric} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-3.5 w-3.5 rounded border border-[#d7afbe] accent-[#ff4f86]"
-                    />
-                    {fabric}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="h-px w-full bg-[#c89eb0]" />
-            <div>
-              <p className="text-sm font-medium text-[#8f2748]">Price</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <input className="h-8 w-full rounded border border-[#dcb9c7] bg-white px-2 text-xs" placeholder="15,000" />
-                <input className="h-8 w-full rounded border border-[#dcb9c7] bg-white px-2 text-xs" placeholder="60,000" />
-              </div>
-              <button className="mt-4 h-9 w-full rounded-full bg-[#ff4f86] text-sm font-semibold text-white">
-                Filter
-              </button>
-            </div>
-          </div>
-        </aside>
+        <ShoppingSidebar
+          items={productItems}
+          filterSubcategories={filterSubcategories}
+          selectedCategoryId={selectedCategory?.category_id || ""}
+          selectedSubcategoryId={selectedSubcategory?.category_id || ""}
+          search={search}
+          selectedFabrics={selectedFabrics}
+          minPrice={minPrice}
+          maxPrice={maxPrice}
+        />
 
         <div>
-          {filteredItems.length > 0 ? (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredItems.map((item, index) => (
-                <ShoppingProductCard key={item.item_id} item={item} index={index} />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-[22px] bg-[#f1dfe6] px-6 py-12 text-center text-[#8f2748]">
-              No shopping products found for this selection.
-            </div>
-          )}
-
-          <div className="mt-7 flex items-center justify-center gap-4 text-[#d19cb0]">
-            <button
-              type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full text-[#d19cb0] transition hover:bg-[#f2dbe4]/80 hover:text-[#b96e88]"
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-7 w-7" strokeWidth={2} />
-            </button>
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f2dbe4] text-[#b96e88]">1</span>
-            <button
-              type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full text-[#ff4f86] transition hover:bg-[#f2dbe4]/80"
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-7 w-7" strokeWidth={2} />
-            </button>
-          </div>
+          <ShoppingItemsGrid items={filteredItems} />
         </div>
       </section>
 

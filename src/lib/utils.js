@@ -1,3 +1,12 @@
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+// Merge conditional Tailwind class names. clsx handles conditionals/arrays/objects;
+// twMerge resolves Tailwind conflicts so the last class wins (e.g. cn("p-2", "p-4") → "p-4").
+export function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
+
 export function normalizePhone(value) {
   return String(value || "").replace(/\D/g, "").slice(0, 10);
 }

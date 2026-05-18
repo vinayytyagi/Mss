@@ -25,10 +25,10 @@ export default function ShoppingProductCard({ item, index = 0, compact = false }
   const reviews = reviewCountFromItemId(item.item_id);
 
   return (
-    <article className="group overflow-hidden rounded-xl border border-slate-100/90 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_14px_44px_rgba(15,23,42,0.09)]">
+    <article className="group overflow-hidden rounded-xl border border-border/90 bg-surface shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_14px_44px_rgba(15,23,42,0.09)]">
       <div className="relative">
         <Link href={href} className="block p-3 pb-2">
-          <div className={`relative w-full overflow-hidden rounded-lg bg-slate-100 ${imgClass}`}>
+          <div className={`relative w-full overflow-hidden rounded-lg bg-surface-muted ${imgClass}`}>
             <Image
               src={image}
               alt={item.name}
@@ -49,32 +49,32 @@ export default function ShoppingProductCard({ item, index = 0, compact = false }
               return next;
             });
           }}
-          className="absolute right-5 top-5 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white shadow-md transition hover:bg-slate-800"
+          className="absolute right-5 top-5 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-text-strong text-primary-foreground shadow-md transition hover:bg-text-strong"
           aria-label={wishlisted ? "Remove from wishlist" : "Add to wishlist"}
           aria-pressed={wishlisted}
         >
-          <Heart className={`h-5 w-5 ${wishlisted ? "fill-white" : ""}`} strokeWidth={2} />
+          <Heart className={`h-5 w-5 ${wishlisted ? "fill-primary-foreground" : ""}`} strokeWidth={2} />
         </button>
       </div>
 
       <Link href={href} className="block px-4 pb-4 pt-1">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="min-w-0 flex-1 text-base font-bold leading-snug text-slate-900 line-clamp-2">{item.name}</h3>
-          <span className="shrink-0 text-base font-bold tabular-nums text-slate-900">{formatCurrency(price)}</span>
+          <h3 className="min-w-0 flex-1 text-base font-bold leading-snug text-text-strong line-clamp-2">{item.name}</h3>
+          <span className="shrink-0 text-base font-bold tabular-nums text-text-strong">{formatCurrency(price)}</span>
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600 line-clamp-2">
+        <p className="mt-2 text-sm leading-relaxed text-muted line-clamp-2">
           {truncateText(item.description || "Curated wedding essential for your celebration.", 72)}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-1">
           {[0, 1, 2, 3, 4].map((i) => (
             <Star
               key={i}
-              className="h-4 w-4 fill-emerald-500 text-emerald-500"
+              className="h-4 w-4 fill-success text-success"
               strokeWidth={0}
               aria-hidden
             />
           ))}
-          <span className="ml-0.5 text-sm text-slate-400">({reviews})</span>
+          <span className="ml-0.5 text-sm text-subtle">({reviews})</span>
         </div>
       </Link>
     </article>

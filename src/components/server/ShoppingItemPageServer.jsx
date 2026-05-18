@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
 import ShoppingProductDetail from "@/components/ShoppingProductDetail";
-import { fetchItem, fetchItems, fetchJourneySteps, fetchStepCategories } from "@/lib/api";
+import {
+  fetchItem,
+  fetchItems,
+  fetchJourneySteps,
+  fetchStepCategories,
+  fetchAttributeSchema,
+} from "@/lib/api";
 import { isProductItem } from "@/lib/shopUi";
 
 function resolveShoppingStep(steps = []) {
@@ -32,9 +38,10 @@ export default async function ShoppingItemPageServer({ params }) {
     if (item.journey_step_id !== shoppingStep.step_id) {
       notFound();
     }
-    const [nextCategories, relatedRes] = await Promise.all([
+    const [nextCategories, relatedRes, schemaRes] = await Promise.all([
       fetchStepCategories(shoppingStep.slug),
       fetchItems({ journeyStepId: shoppingStep.step_id, categoryId: item.category_id, limit: 100 }),
+      fetchAttributeSchema(shoppingStep.slug),
     ]);
 
     categories = nextCategories;
@@ -46,10 +53,17 @@ export default async function ShoppingItemPageServer({ params }) {
         return relatedItem.category_id === item.category_id;
       })
       .slice(0, 4);
+
+    return (
+      <ShoppingProductDetail
+        item={item}
+        categories={categories}
+        relatedItems={relatedItems}
+        attributeSchema={schemaRes?.schema || null}
+      />
+    );
   } catch {
     notFound();
   }
-
-  return <ShoppingProductDetail item={item} categories={categories} relatedItems={relatedItems} />;
 }
 

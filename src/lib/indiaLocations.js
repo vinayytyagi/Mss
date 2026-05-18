@@ -73,7 +73,30 @@ export function normalizeText(v) {
 export function buildLocationLabel(city, state) {
   const c = normalizeText(city);
   const s = normalizeText(state);
-  if (c && s) return `${c}, ${s}`;
-  return c || s || "";
+  if (!c && !s) return "";
+  // Always include the comma so the string can round-trip "state-only"
+  // vs "city-only" without ambiguity. "Maharashtra" alone was being
+  // mis-parsed back into the city field on re-render.
+  return `${c}, ${s}`;
+}
+
+/**
+ * Inverse of buildLocationLabel. Returns `{ city, state }`. Treats empty
+ * segments as truly empty (so ", Maharashtra" → { city: "", state: "Maharashtra" }).
+ *
+ * Backwards-compat: a string with no comma is assumed to be the city
+ * (matches old "City"-only payloads stored before the comma-always fix).
+ */
+export function parseLocationLabel(raw) {
+  const s = normalizeText(raw);
+  if (!s) return { city: "", state: "" };
+  if (!s.includes(",")) {
+    return { city: s, state: "" };
+  }
+  const [first, ...rest] = s.split(",");
+  return {
+    city: normalizeText(first),
+    state: normalizeText(rest.join(",")),
+  };
 }
 

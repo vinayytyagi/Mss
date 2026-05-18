@@ -177,8 +177,20 @@ function categoryUrlSegment(c) {
   return s || c.category_id || "";
 }
 
-function resolveJourneyCategorySelection(categories, categoryParam, subcategoryParam) {
+function resolveJourneyCategorySelection(categories, categoryParam, subcategoryParam, subSubcategoryParam) {
   const tops = categories.filter((c) => !c.parent_category_id);
+  if (tops.length === 0) {
+    // Step has no categories — nothing to select. The UI hides all pills.
+    return {
+      effectiveCategoryId: "",
+      effectiveSubcategoryId: "",
+      effectiveSubSubcategoryId: "",
+      selectedCategorySlug: "",
+      selectedSubcategorySlug: "",
+      selectedSubSubcategorySlug: "",
+    };
+  }
+
   const p = String(categoryParam || "").trim();
   let cat = null;
   if (p) {
@@ -197,11 +209,23 @@ function resolveJourneyCategorySelection(categories, categoryParam, subcategoryP
     if (!sub) sub = subs.find((c) => c.category_id === sp) || null;
   }
 
+  const ssp = String(subSubcategoryParam || "").trim();
+  let subSub = null;
+  if (ssp && sub) {
+    const subsubs = categories.filter((c) => c.parent_category_id === sub.category_id);
+    if (/^[a-f\d]{24}$/i.test(ssp)) subSub = subsubs.find((c) => c.category_id === ssp) || null;
+    if (!subSub)
+      subSub = subsubs.find((c) => String(c.slug || "").trim().toLowerCase() === ssp.toLowerCase()) || null;
+    if (!subSub) subSub = subsubs.find((c) => c.category_id === ssp) || null;
+  }
+
   return {
     effectiveCategoryId: cat?.category_id || "",
     effectiveSubcategoryId: sub?.category_id || "",
+    effectiveSubSubcategoryId: subSub?.category_id || "",
     selectedCategorySlug: categoryUrlSegment(cat),
     selectedSubcategorySlug: sub ? categoryUrlSegment(sub) : "",
+    selectedSubSubcategorySlug: subSub ? categoryUrlSegment(subSub) : "",
   };
 }
 
@@ -220,6 +244,11 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
 
   const categoryParam = resolvedSearchParams?.category || "";
   const subcategoryParam = resolvedSearchParams?.subcategory || resolvedSearchParams?.subcategory_id || "";
+  const subSubcategoryParam =
+    resolvedSearchParams?.subSubcategory ||
+    resolvedSearchParams?.sub_subcategory ||
+    resolvedSearchParams?.sub_subcategory_id ||
+    "";
   const search = (resolvedSearchParams?.search || "").trim();
 
   const matchLocRaw = String(resolvedSearchParams?.matchLoc ?? "").trim().toLowerCase();
@@ -265,7 +294,12 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
     fetchStepCategories(slug),
   ]);
 
-  const sel = resolveJourneyCategorySelection(categories, categoryParam, subcategoryParam);
+  const sel = resolveJourneyCategorySelection(
+    categories,
+    categoryParam,
+    subcategoryParam,
+    subSubcategoryParam,
+  );
 
   /** Step budget is for plan / UI only — item price band comes only from Product price (?pmin / ?pmax). */
   const itemsRes = await fetchItems(
@@ -273,6 +307,8 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
       journeyStepId: step.step_id,
       ...(sel.selectedCategorySlug ? { categorySlug: sel.selectedCategorySlug } : {}),
       ...(sel.selectedSubcategorySlug ? { subcategorySlug: sel.selectedSubcategorySlug } : {}),
+      // sub-sub doesn't have a slug-resolver on the backend — pass the id directly.
+      ...(sel.effectiveSubSubcategoryId ? { subSubcategoryId: sel.effectiveSubSubcategoryId } : {}),
       ...(search ? { search } : {}),
       limit: 500,
     },
@@ -327,8 +363,10 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
         items={items}
         selectedCategoryId={sel.effectiveCategoryId}
         selectedSubcategoryId={sel.effectiveSubcategoryId}
+        selectedSubSubcategoryId={sel.effectiveSubSubcategoryId}
         selectedCategorySlug={sel.selectedCategorySlug}
         selectedSubcategorySlug={sel.selectedSubcategorySlug}
+        selectedSubSubcategorySlug={sel.selectedSubSubcategorySlug}
         search={search}
         appliedBudgetCap={appliedBudgetCap}
         budgetQueryValue={budgetQueryValue}

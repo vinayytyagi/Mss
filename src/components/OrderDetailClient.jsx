@@ -54,17 +54,17 @@ function CopyIcon() {
 
 /* ── Status badge ───────────────────────────────────── */
 const statusColors = {
-  Pending: "bg-amber-50 text-amber-700 border-amber-200",
-  Paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Confirmed: "bg-blue-50 text-blue-700 border-blue-200",
-  Shipped: "bg-purple-50 text-purple-700 border-purple-200",
-  Delivered: "bg-green-50 text-green-800 border-green-200",
-  Cancelled: "bg-red-50 text-red-700 border-red-200",
-  Failed: "bg-red-50 text-red-600 border-red-200",
+  Pending: "bg-warning/15 text-warning-strong border-warning/40",
+  Paid: "bg-success/10 text-success border-success/40",
+  Confirmed: "bg-info/10 text-info border-info/40",
+  Shipped: "bg-info/10 text-info border-info/40",
+  Delivered: "bg-success/10 text-success border-success/40",
+  Cancelled: "bg-danger/10 text-danger border-danger/30",
+  Failed: "bg-danger/10 text-danger border-danger/30",
 };
 
 function StatusBadge({ status }) {
-  const cls = statusColors[status] || "bg-slate-50 text-slate-600 border-slate-200";
+  const cls = statusColors[status] || "bg-surface-muted text-muted border-border-strong";
   return (
     <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${cls}`}>
       {status}
@@ -102,10 +102,10 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
   if (!user && !hasServerSession) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
-        <div className="rounded-3xl border border-slate-100 bg-white/80 px-8 py-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
-          <h1 className="text-2xl font-semibold text-slate-700">Order Details</h1>
-          <p className="mt-2 text-slate-500">Please log in to view your order.</p>
-          <Link href="/login" className="mt-6 inline-block rounded-2xl bg-[#ff4f86] px-8 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-[#ff3d79]">
+        <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
+          <h1 className="text-2xl font-semibold text-text">Order Details</h1>
+          <p className="mt-2 text-muted">Please log in to view your order.</p>
+          <Link href="/login" className="mt-6 inline-block rounded-2xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-primary-hover">
             Login
           </Link>
         </div>
@@ -117,7 +117,7 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
     return (
       <main className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
         <div className="flex items-center justify-center py-20">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#ff4f86] border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       </main>
     );
@@ -126,10 +126,10 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
   if (error || !currentOrder) {
     return (
       <main className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
-        <Link href="/orders" className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-[#ff4f86]">
+        <Link href="/orders" className="flex items-center gap-2 text-sm font-semibold text-muted hover:text-primary">
           <ArrowLeft /> Back to Orders
         </Link>
-        <div className="mt-8 rounded-2xl border border-red-100 bg-red-50 px-6 py-8 text-center text-red-600">
+        <div className="mt-8 rounded-2xl border border-danger/30 bg-danger/10 px-6 py-8 text-center text-danger">
           {error || "Order not found"}
         </div>
       </main>
@@ -170,7 +170,7 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Back link */}
-      <Link href="/orders" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-[#ff4f86]">
+      <Link href="/orders" className="inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-primary">
         <ArrowLeft /> Back to Orders
       </Link>
 
@@ -178,16 +178,16 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
       <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-700">{currentOrder.order_number}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-text">{currentOrder.order_number}</h1>
             <button
               onClick={() => handleCopy(currentOrder.order_number)}
-              className="cursor-pointer rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              className="cursor-pointer rounded-lg p-1.5 text-subtle transition hover:bg-surface-muted hover:text-muted"
               title="Copy order number"
             >
               {copied ? <CheckCircle /> : <CopyIcon />}
             </button>
           </div>
-          <p className="mt-1 text-sm text-slate-400">Placed on {formatDate(currentOrder.created_at)}</p>
+          <p className="mt-1 text-sm text-subtle">Placed on {formatDate(currentOrder.created_at)}</p>
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge status={currentOrder.status} />
@@ -197,13 +197,13 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
 
       {/* Progress Tracker */}
       {!isCancelled && (
-        <div className="mt-8 rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Order Progress</h2>
+        <div className="mt-8 rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Order Progress</h2>
           <div className="relative mt-6 flex items-center justify-between">
             {/* Line */}
-            <div className="absolute left-0 top-1/2 h-0.5 w-full -translate-y-1/2 bg-slate-100" />
+            <div className="absolute left-0 top-1/2 h-0.5 w-full -translate-y-1/2 bg-surface-muted" />
             <div
-              className="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 bg-linear-to-r from-[#ff4f86] to-[#ff8fb1] transition-all duration-700"
+              className="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 bg-linear-to-r from-primary to-primary-accent transition-all duration-700"
               style={{ width: `${(stepIndex / (ORDER_STEPS.length - 1)) * 100}%` }}
             />
 
@@ -215,13 +215,13 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                   <div
                     className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300 ${
                       isActive
-                        ? "border-[#ff4f86] bg-[#ff4f86] text-white shadow-[0_0_16px_rgba(255,79,134,0.4)]"
-                        : "border-slate-200 bg-white text-slate-400"
+                        ? "border-primary bg-primary text-primary-foreground shadow-[0_0_16px_rgba(255,79,134,0.4)]"
+                        : "border-border-strong bg-surface text-subtle"
                     } ${isCurrent ? "scale-110" : ""}`}
                   >
                     {isActive ? <CheckCircle /> : <span className="text-xs font-bold">{i + 1}</span>}
                   </div>
-                  <p className={`mt-2 text-xs font-semibold ${isActive ? "text-[#ff4f86]" : "text-slate-400"}`}>
+                  <p className={`mt-2 text-xs font-semibold ${isActive ? "text-primary" : "text-subtle"}`}>
                     {step}
                   </p>
                 </div>
@@ -233,8 +233,8 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
 
       {/* Cancelled banner */}
       {isCancelled && (
-        <div className="mt-8 rounded-2xl border border-red-100 bg-red-50 px-6 py-4 text-center">
-          <p className="font-semibold text-red-600">This order has been {currentOrder.status.toLowerCase()}.</p>
+        <div className="mt-8 rounded-2xl border border-danger/30 bg-danger/10 px-6 py-4 text-center">
+          <p className="font-semibold text-danger">This order has been {currentOrder.status.toLowerCase()}.</p>
         </div>
       )}
 
@@ -244,7 +244,7 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
             <button
               onClick={onCancelOrder}
               disabled={actionState.loading}
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700"
+              className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger"
             >
               {actionState.loading ? "Please wait..." : "Cancel Order"}
             </button>
@@ -253,57 +253,57 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
             <button
               onClick={onRequestRefund}
               disabled={actionState.loading}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+              className="rounded-xl border border-border-strong bg-surface px-4 py-2 text-sm font-semibold text-text"
             >
               {actionState.loading ? "Please wait..." : "Request Refund"}
             </button>
           )}
-          {actionState.error ? <p className="text-sm text-red-600">{actionState.error}</p> : null}
-          {actionState.success ? <p className="text-sm text-emerald-700">{actionState.success}</p> : null}
+          {actionState.error ? <p className="text-sm text-danger">{actionState.error}</p> : null}
+          {actionState.success ? <p className="text-sm text-success">{actionState.success}</p> : null}
         </div>
       )}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         {/* Items */}
-        <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur lg:col-span-2">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Items ({currentOrder.items?.length || 0})</h2>
-          <div className="mt-4 divide-y divide-slate-50">
+        <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur lg:col-span-2">
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Items ({currentOrder.items?.length || 0})</h2>
+          <div className="mt-4 divide-y divide-border">
             {(currentOrder.items || []).map((item, i) => (
               <div key={i} className="flex items-center gap-4 py-4">
                 {item.image ? (
-                  <img src={item.image} alt={item.name} className="h-16 w-16 shrink-0 rounded-2xl border border-slate-100 object-cover" />
+                  <img src={item.image} alt={item.name} className="h-16 w-16 shrink-0 rounded-2xl border border-border object-cover" />
                 ) : (
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 text-lg font-bold text-slate-300">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-border bg-surface-muted text-lg font-bold text-border-strong">
                     {item.name?.charAt(0) || "?"}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-slate-700">{item.name}</p>
+                  <p className="truncate font-semibold text-text">{item.name}</p>
                   {item.category_label && (
-                    <p className="text-xs text-slate-400">{item.category_label}</p>
+                    <p className="text-xs text-subtle">{item.category_label}</p>
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-slate-700">{formatCurrency(item.price)}</p>
-                  <p className="text-xs text-slate-400">Qty: {item.quantity}</p>
+                  <p className="font-bold text-text">{formatCurrency(item.price)}</p>
+                  <p className="text-xs text-subtle">Qty: {item.quantity}</p>
                 </div>
               </div>
             ))}
           </div>
           {/* Total */}
-          <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-4">
-            <p className="font-semibold text-slate-600">Total</p>
-            <p className="text-xl font-semibold text-slate-800">{formatCurrency(currentOrder.total_amount)}</p>
+          <div className="mt-2 flex items-center justify-between border-t border-border pt-4">
+            <p className="font-semibold text-muted">Total</p>
+            <p className="text-xl font-semibold text-text-strong">{formatCurrency(currentOrder.total_amount)}</p>
           </div>
         </div>
 
         {/* Right column */}
         <div className="space-y-6">
           {/* Shipping Info */}
-          <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Shipping Address</h2>
+          <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Shipping Address</h2>
             {currentOrder.shipping_address ? (
-              <div className="mt-3 space-y-1 text-sm text-slate-600">
+              <div className="mt-3 space-y-1 text-sm text-muted">
                 {currentOrder.shipping_address.line1 && <p>{currentOrder.shipping_address.line1}</p>}
                 {currentOrder.shipping_address.line2 && <p>{currentOrder.shipping_address.line2}</p>}
                 <p>
@@ -314,27 +314,27 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                 )}
               </div>
             ) : (
-              <p className="mt-3 text-sm text-slate-400">Not provided</p>
+              <p className="mt-3 text-sm text-subtle">Not provided</p>
             )}
           </div>
 
           {/* Shipment info */}
           {currentOrder.shipment && (
-            <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Shipment</h2>
+            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Shipment</h2>
               <div className="mt-3 space-y-2 text-sm">
                 {currentOrder.shipment.courier_name && (
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Courier</span>
-                    <span className="font-semibold text-slate-700">{currentOrder.shipment.courier_name}</span>
+                    <span className="text-subtle">Courier</span>
+                    <span className="font-semibold text-text">{currentOrder.shipment.courier_name}</span>
                   </div>
                 )}
                 {currentOrder.shipment.awb_code && (
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">AWB</span>
+                    <span className="text-subtle">AWB</span>
                     <button
                       onClick={() => handleCopy(currentOrder.shipment.awb_code)}
-                      className="flex cursor-pointer items-center gap-1 font-mono text-sm font-semibold text-[#ff4f86] transition hover:text-[#ff3d79]"
+                      className="flex cursor-pointer items-center gap-1 font-mono text-sm font-semibold text-primary transition hover:text-primary-hover"
                     >
                       {currentOrder.shipment.awb_code} <CopyIcon />
                     </button>
@@ -342,8 +342,8 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                 )}
                 {currentOrder.shipment.shipped_at && (
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Shipped</span>
-                    <span className="font-semibold text-slate-700">{formatDate(currentOrder.shipment.shipped_at)}</span>
+                    <span className="text-subtle">Shipped</span>
+                    <span className="font-semibold text-text">{formatDate(currentOrder.shipment.shipped_at)}</span>
                   </div>
                 )}
                 {currentOrder.shipment.tracking_url && (
@@ -351,7 +351,7 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                     href={currentOrder.shipment.tracking_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 block w-full rounded-xl bg-linear-to-r from-[#ff4f86] to-[#ff8fb1] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:shadow-[0_16px_40px_rgba(255,79,134,0.35)]"
+                    className="mt-2 block w-full rounded-xl bg-linear-to-r from-primary to-primary-accent px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:shadow-[0_16px_40px_rgba(255,79,134,0.35)]"
                   >
                     <span className="inline-flex items-center justify-center gap-2">
                       Track on Courier Site
@@ -365,17 +365,17 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
 
           {/* Live tracking activities */}
           {tracking?.tracking?.tracking_data?.shipment_track_activities && (
-            <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Tracking Updates</h2>
+            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Tracking Updates</h2>
               {tracking?.tracking_summary && (
                 <div className="mb-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                    <p className="text-xs text-slate-400">Current Status</p>
-                    <p className="mt-0.5 text-sm font-bold text-slate-700">{tracking.tracking_summary.current_status || "—"}</p>
+                  <div className="rounded-2xl bg-surface-muted px-4 py-3">
+                    <p className="text-xs text-subtle">Current Status</p>
+                    <p className="mt-0.5 text-sm font-bold text-text">{tracking.tracking_summary.current_status || "—"}</p>
                   </div>
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                    <p className="text-xs text-slate-400">Expected Delivery</p>
-                    <p className="mt-0.5 text-sm font-bold text-slate-700">{tracking.tracking_summary.expected_delivery_date || "—"}</p>
+                  <div className="rounded-2xl bg-surface-muted px-4 py-3">
+                    <p className="text-xs text-subtle">Expected Delivery</p>
+                    <p className="mt-0.5 text-sm font-bold text-text">{tracking.tracking_summary.expected_delivery_date || "—"}</p>
                   </div>
                 </div>
               )}
@@ -384,15 +384,15 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                   <div key={i} className="relative flex gap-3 pb-4">
                     {/* Vertical line */}
                     {i < 9 && (
-                      <div className="absolute left-[9px] top-5 h-full w-0.5 bg-slate-100" />
+                      <div className="absolute left-[9px] top-5 h-full w-0.5 bg-surface-muted" />
                     )}
                     <div className={`relative z-10 mt-1 h-[18px] w-[18px] shrink-0 rounded-full border-2 ${
-                      i === 0 ? "border-[#ff4f86] bg-[#ff4f86]" : "border-slate-200 bg-white"
+                      i === 0 ? "border-primary bg-primary" : "border-border-strong bg-surface"
                     }`} />
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">{activity["sr-status-label"] || activity.activity}</p>
-                      <p className="text-xs text-slate-400">{activity.location}</p>
-                      <p className="text-xs text-slate-400">{formatDate(activity.date)}</p>
+                      <p className="text-sm font-semibold text-text">{activity["sr-status-label"] || activity.activity}</p>
+                      <p className="text-xs text-subtle">{activity.location}</p>
+                      <p className="text-xs text-subtle">{formatDate(activity.date)}</p>
                     </div>
                   </div>
                 ))}

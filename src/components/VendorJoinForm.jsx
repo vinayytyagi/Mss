@@ -58,21 +58,21 @@ function CategoryDropdown({ value, onChange }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 text-left text-sm text-slate-900 outline-none focus:border-[#ff4f86] focus:ring-4 focus:ring-[#ff4f86]/15"
+        className="flex h-11 w-full items-center justify-between gap-3 rounded-xl border border-border-strong bg-surface px-3 text-left text-sm text-text-strong outline-none focus:border-primary focus:ring-4 focus:ring-primary/15"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className={value ? "text-slate-900" : "text-slate-400"}>
+        <span className={value ? "text-text-strong" : "text-subtle"}>
           {value || "Select a category"}
         </span>
-        <span className="text-slate-500" aria-hidden>
+        <span className="text-muted" aria-hidden>
           ▾
         </span>
       </button>
 
       {open ? (
         <div
-          className="mss-scrollbar-hidden absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-[0_18px_40px_rgba(15,23,42,0.12)]"
+          className="mss-scrollbar-hidden absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-56 overflow-y-auto rounded-xl border border-border-strong bg-surface p-1 shadow-[0_18px_40px_rgba(15,23,42,0.12)]"
           role="listbox"
           aria-label="Category"
         >
@@ -87,12 +87,12 @@ function CategoryDropdown({ value, onChange }) {
                   setOpen(false);
                 }}
                 className={`flex w-full items-center justify-between text-left rounded-lg px-3 py-2 text-sm transition ${
-                  active ? "bg-[#ff4f86]/10 text-[#b11257]" : "text-slate-700 hover:bg-slate-50"
+                  active ? "bg-primary/10 text-secondary" : "text-text hover:bg-surface-muted"
                 }`}
               >
                 <span>{c}</span>
                 {active ? (
-                  <span className="text-[#ff4f86]" aria-hidden>
+                  <span className="text-primary" aria-hidden>
                     ✓
                   </span>
                 ) : null}
@@ -234,11 +234,11 @@ export default function VendorJoinForm({ showClose = false, onClose }) {
   }
 
   return (
-    <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-[0_24px_60px_rgba(15,23,42,0.10)] sm:p-8">
+    <div className="w-full max-w-xl rounded-2xl bg-surface p-6 shadow-[0_24px_60px_rgba(15,23,42,0.10)] sm:p-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-bold text-slate-900 sm:text-xl">Join as vendor</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="text-lg font-bold text-text-strong sm:text-xl">Join as vendor</h1>
+          <p className="mt-1 text-sm text-muted">
             Fill your details and send us an email.
           </p>
         </div>
@@ -246,7 +246,7 @@ export default function VendorJoinForm({ showClose = false, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-strong text-muted hover:bg-surface-muted"
             aria-label="Close"
           >
             ✕
@@ -256,34 +256,34 @@ export default function VendorJoinForm({ showClose = false, onClose }) {
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <label className="grid gap-1">
-          <span className="text-xs font-semibold text-slate-600">Your name *</span>
+          <span className="text-xs font-semibold text-muted">Your name *</span>
           <input
             value={values.name}
             onChange={update("name")}
             onBlur={() => markTouched("name")}
-            className={`h-11 rounded-xl border px-3 text-sm text-slate-900 outline-none focus:border-[#ff4f86] focus:ring-4 focus:ring-[#ff4f86]/15 ${
-              showError("name") ? "border-red-300" : "border-slate-200"
+            className={`h-11 rounded-xl border px-3 text-sm text-text-strong outline-none focus:border-primary focus:ring-4 focus:ring-primary/15 ${
+              showError("name") ? "border-danger" : "border-border-strong"
             }`}
             placeholder="Full name"
           />
           {showError("name") ? (
-            <span className="text-xs font-medium text-red-600">{errors.name}</span>
+            <span className="text-xs font-medium text-danger">{errors.name}</span>
           ) : null}
         </label>
 
         <label className="grid gap-1">
-          <span className="text-xs font-semibold text-slate-600">Phone *</span>
+          <span className="text-xs font-semibold text-muted">Phone *</span>
           <div
-            className={`flex h-11 items-center gap-2 rounded-xl border bg-white px-3 text-sm outline-none focus-within:border-[#ff4f86] focus-within:ring-4 focus-within:ring-[#ff4f86]/15 ${
-              showError("phone") ? "border-red-300" : "border-slate-200"
+            className={`flex h-11 items-center gap-2 rounded-xl border bg-surface px-3 text-sm outline-none focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15 ${
+              showError("phone") ? "border-danger" : "border-border-strong"
             }`}
           >
-            <span className="select-none text-slate-500">+91</span>
+            <span className="select-none text-muted">+91</span>
             <input
               value={values.phone}
               onChange={(e) => setField("phone", normalizeIndianMobile(e.target.value))}
               onBlur={() => markTouched("phone")}
-              className="h-full w-full bg-transparent text-slate-900 outline-none placeholder:text-slate-400"
+              className="h-full w-full bg-transparent text-text-strong outline-none placeholder:text-subtle"
               placeholder="10 digit number"
               inputMode="numeric"
               pattern="[0-9]*"
@@ -291,28 +291,28 @@ export default function VendorJoinForm({ showClose = false, onClose }) {
             />
           </div>
           {showError("phone") ? (
-            <span className="text-xs font-medium text-red-600">{errors.phone}</span>
+            <span className="text-xs font-medium text-danger">{errors.phone}</span>
           ) : null}
         </label>
 
         <label className="grid gap-1">
-          <span className="text-xs font-semibold text-slate-600">Business name</span>
+          <span className="text-xs font-semibold text-muted">Business name</span>
           <input
             value={values.business}
             onChange={update("business")}
             onBlur={() => markTouched("business")}
-            className={`h-11 rounded-xl border px-3 text-sm text-slate-900 outline-none focus:border-[#ff4f86] focus:ring-4 focus:ring-[#ff4f86]/15 ${
-              showError("business") ? "border-red-300" : "border-slate-200"
+            className={`h-11 rounded-xl border px-3 text-sm text-text-strong outline-none focus:border-primary focus:ring-4 focus:ring-primary/15 ${
+              showError("business") ? "border-danger" : "border-border-strong"
             }`}
             placeholder="Your brand / studio / shop"
           />
           {showError("business") ? (
-            <span className="text-xs font-medium text-red-600">{errors.business}</span>
+            <span className="text-xs font-medium text-danger">{errors.business}</span>
           ) : null}
         </label>
 
         <label className="grid gap-1">
-          <span className="text-xs font-semibold text-slate-600">Category *</span>
+          <span className="text-xs font-semibold text-muted">Category *</span>
           <CategoryDropdown
             value={values.category}
             onChange={(v) => {
@@ -321,62 +321,62 @@ export default function VendorJoinForm({ showClose = false, onClose }) {
             }}
           />
           {showError("category") ? (
-            <span className="text-xs font-medium text-red-600">{errors.category}</span>
+            <span className="text-xs font-medium text-danger">{errors.category}</span>
           ) : null}
         </label>
 
         <label className="grid gap-1">
-          <span className="text-xs font-semibold text-slate-600">City</span>
+          <span className="text-xs font-semibold text-muted">City</span>
           <input
             value={values.city}
             onChange={update("city")}
             onBlur={() => markTouched("city")}
-            className={`h-11 rounded-xl border px-3 text-sm text-slate-900 outline-none focus:border-[#ff4f86] focus:ring-4 focus:ring-[#ff4f86]/15 ${
-              showError("city") ? "border-red-300" : "border-slate-200"
+            className={`h-11 rounded-xl border px-3 text-sm text-text-strong outline-none focus:border-primary focus:ring-4 focus:ring-primary/15 ${
+              showError("city") ? "border-danger" : "border-border-strong"
             }`}
             placeholder="Mumbai, Pune..."
           />
           {showError("city") ? (
-            <span className="text-xs font-medium text-red-600">{errors.city}</span>
+            <span className="text-xs font-medium text-danger">{errors.city}</span>
           ) : null}
         </label>
 
         <label className="grid gap-1">
-          <span className="text-xs font-semibold text-slate-600">Email</span>
+          <span className="text-xs font-semibold text-muted">Email</span>
           <input
             value={values.email}
             onChange={update("email")}
             onBlur={() => markTouched("email")}
-            className={`h-11 rounded-xl border px-3 text-sm text-slate-900 outline-none focus:border-[#ff4f86] focus:ring-4 focus:ring-[#ff4f86]/15 ${
-              showError("email") ? "border-red-300" : "border-slate-200"
+            className={`h-11 rounded-xl border px-3 text-sm text-text-strong outline-none focus:border-primary focus:ring-4 focus:ring-primary/15 ${
+              showError("email") ? "border-danger" : "border-border-strong"
             }`}
             placeholder="name@company.com"
             inputMode="email"
           />
           {showError("email") ? (
-            <span className="text-xs font-medium text-red-600">{errors.email}</span>
+            <span className="text-xs font-medium text-danger">{errors.email}</span>
           ) : null}
         </label>
       </div>
 
       <label className="mt-4 grid gap-1">
-        <span className="text-xs font-semibold text-slate-600">Message (optional)</span>
+        <span className="text-xs font-semibold text-muted">Message (optional)</span>
         <textarea
           value={values.message}
           onChange={update("message")}
           onBlur={() => markTouched("message")}
-          className={`min-h-[96px] rounded-xl border p-3 text-sm text-slate-900 outline-none focus:border-[#ff4f86] focus:ring-4 focus:ring-[#ff4f86]/15 ${
-            showError("message") ? "border-red-300" : "border-slate-200"
+          className={`min-h-[96px] rounded-xl border p-3 text-sm text-text-strong outline-none focus:border-primary focus:ring-4 focus:ring-primary/15 ${
+            showError("message") ? "border-danger" : "border-border-strong"
           }`}
           placeholder="Tell us about your services, coverage areas, price range, etc."
         />
         {showError("message") ? (
-          <span className="text-xs font-medium text-red-600">{errors.message}</span>
+          <span className="text-xs font-medium text-danger">{errors.message}</span>
         ) : null}
       </label>
 
       {!canSend ? (
-        <p className="mt-4 text-xs font-medium text-slate-500">
+        <p className="mt-4 text-xs font-medium text-muted">
           {submitAttempted ? "Please fix the highlighted fields to send." : "* Name and phone are required to send."}
         </p>
       ) : null}
@@ -386,7 +386,7 @@ export default function VendorJoinForm({ showClose = false, onClose }) {
           type="button"
           onClick={sendEmail}
           disabled={!canSend}
-          className="h-11 w-full rounded-xl bg-[#ff4f86] px-5 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(255,79,134,0.28)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          className="h-11 w-full rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-[0_14px_28px_rgba(255,79,134,0.28)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           Send email
         </button>

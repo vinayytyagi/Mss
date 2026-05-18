@@ -6,8 +6,6 @@ import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { buildWhatsAppUrl, WA_CAREERS_MESSAGE, WA_DEFAULT_MESSAGE } from "@/lib/whatsapp";
 
-const MAROON = "#70012b";
-
 function SocialButton({ href, label, children }) {
   return (
     <a
@@ -15,7 +13,7 @@ function SocialButton({ href, label, children }) {
       target="_blank"
       rel="noopener noreferrer"
       aria-label={label}
-      className="flex h-11 w-11 items-center justify-center rounded-full bg-white/12 text-white transition hover:bg-white/20"
+      className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-foreground/15 text-primary-foreground transition hover:bg-primary-foreground/25"
     >
       {children}
     </a>
@@ -26,7 +24,7 @@ function MaroonNavLink({ href, children }) {
   return (
     <Link
       href={href}
-      className="block text-sm font-normal text-white/90 transition hover:text-white hover:underline decoration-white/40 underline-offset-4"
+      className="block text-sm font-normal text-primary-foreground/90 transition hover:text-primary-foreground hover:underline decoration-primary-foreground/40 underline-offset-4"
     >
       {children}
     </Link>
@@ -94,7 +92,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
   }
 
   return (
-    <footer className="border-t border-white/10 text-white" style={{ backgroundColor: MAROON }}>
+    <footer className="border-t border-primary-foreground/10 bg-secondary text-primary-foreground">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
         <div className="grid gap-12 lg:grid-cols-12 lg:gap-8">
           <div className="lg:col-span-4">
@@ -112,12 +110,12 @@ export default function SiteFooterMaroon({ steps = [] }) {
               </div>
               <div>
                 <p
-                  className="text-3xl font-medium tracking-tight text-white sm:text-4xl"
+                  className="text-3xl font-medium tracking-tight text-primary-foreground sm:text-4xl"
                   style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
                 >
                   MyShaadiStore
                 </p>
-                <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/85">
+                <p className="mt-3 max-w-sm text-sm leading-relaxed text-primary-foreground/85">
                   Your dream wedding, all in one place. Premium planning for unforgettable celebrations.
                 </p>
               </div>
@@ -152,7 +150,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
 
           <div className="grid gap-10 sm:grid-cols-3 lg:col-span-8">
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-white">Company</h3>
+              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground">Company</h3>
               <ul className="mt-5 space-y-3">
                 <li>
                   <MaroonNavLink href="/about-us">About us</MaroonNavLink>
@@ -165,7 +163,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
                     href={buildWhatsAppUrl(WA_CAREERS_MESSAGE)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-sm font-normal text-white/90 transition hover:text-white hover:underline decoration-white/40 underline-offset-4"
+                    className="block text-sm font-normal text-primary-foreground/90 transition hover:text-primary-foreground hover:underline decoration-primary-foreground/40 underline-offset-4"
                   >
                     Careers
                   </a>
@@ -175,7 +173,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
                     href={buildWhatsAppUrl(WA_DEFAULT_MESSAGE)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-sm font-normal text-white/90 transition hover:text-white hover:underline decoration-white/40 underline-offset-4"
+                    className="block text-sm font-normal text-primary-foreground/90 transition hover:text-primary-foreground hover:underline decoration-primary-foreground/40 underline-offset-4"
                   >
                     Contact
                   </a>
@@ -184,7 +182,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
             </div>
 
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-white">Services</h3>
+              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground">Services</h3>
               <ul className="mt-5 space-y-3">
                 <li>
                   <MaroonNavLink href={shoppingHref}>Vendors</MaroonNavLink>
@@ -202,7 +200,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
             </div>
 
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-white">Legal</h3>
+              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground">Legal</h3>
               <ul className="mt-5 space-y-3">
                 <li>
                   <MaroonNavLink href="/legal/privacy-policy">Privacy Policy</MaroonNavLink>
@@ -218,10 +216,10 @@ export default function SiteFooterMaroon({ steps = [] }) {
           </div>
         </div>
 
-        <div className="mt-14 border-t border-white/35 pt-8">
-          <div className="flex flex-col items-center justify-between gap-4 text-xs text-white/80 sm:flex-row sm:text-sm">
+        <div className="mt-14 border-t border-primary-foreground/35 pt-8">
+          <div className="flex flex-col items-center justify-between gap-4 text-xs text-primary-foreground/80 sm:flex-row sm:text-sm">
             <p>© {new Date().getFullYear()} MyShaadiStore.com. All rights reserved.</p>
-            <p className="text-white/90">Designed and developed by <a href="https://xenotixlabs.com/" target="_blank" rel="noopener noreferrer" className="text-white/90 font-bold hover:text-white">Xenotix Labs</a></p>
+            <p className="text-primary-foreground/90">Designed and developed by <a href="https://xenotixlabs.com/" target="_blank" rel="noopener noreferrer" className="text-primary-foreground/90 font-bold hover:text-primary-foreground">Xenotix Labs</a></p>
           </div>
         </div>
       </div>

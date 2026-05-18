@@ -15,11 +15,34 @@ function resolveShoppingStep(steps = []) {
   );
 }
 
+function parseNumber(v) {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(String(v).replace(/[^\d.]/g, ""));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function parseFabricList(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter(Boolean);
+  return String(raw)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export default async function ShoppingPageServer({ searchParams }) {
   const resolvedSearchParams = await searchParams;
   const search = (resolvedSearchParams?.search || "").trim();
   const categoryId = (resolvedSearchParams?.category || "").trim();
   const subcategoryId = (resolvedSearchParams?.subcategory || "").trim();
+  const subSubcategoryId = (
+    resolvedSearchParams?.subSubcategory ||
+    resolvedSearchParams?.sub_subcategory ||
+    ""
+  ).trim();
+  const minPrice = parseNumber(resolvedSearchParams?.minPrice);
+  const maxPrice = parseNumber(resolvedSearchParams?.maxPrice);
+  const selectedFabrics = parseFabricList(resolvedSearchParams?.fabric);
 
   try {
     const steps = await fetchJourneySteps();
@@ -34,6 +57,7 @@ export default async function ShoppingPageServer({ searchParams }) {
           journeyStepId: shoppingStep.step_id,
           ...(categoryId ? { categoryId } : {}),
           ...(subcategoryId ? { subcategoryId } : {}),
+          ...(subSubcategoryId ? { subSubcategoryId } : {}),
           ...(search ? { search } : {}),
           limit: 500,
         },
@@ -48,7 +72,11 @@ export default async function ShoppingPageServer({ searchParams }) {
         items={itemsRes.items || []}
         selectedCategoryId={resolvedSearchParams?.category || ""}
         selectedSubcategoryId={resolvedSearchParams?.subcategory || ""}
+        selectedSubSubcategoryId={subSubcategoryId || ""}
         search={search}
+        minPrice={minPrice}
+        maxPrice={maxPrice}
+        selectedFabrics={selectedFabrics}
       />
     );
   } catch {

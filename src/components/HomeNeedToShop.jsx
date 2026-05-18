@@ -15,15 +15,15 @@ export default function HomeNeedToShop({ ctaHref = "/#wedding-showcase" }) {
     >
       {/* Bokeh / sparkles */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
-        <div className="absolute left-[8%] top-[18%] h-40 w-40 rounded-full bg-amber-400/15 blur-lg" />
-        <div className="absolute right-[12%] top-[22%] h-48 w-48 rounded-full bg-yellow-200/10 blur-lg" />
-        <div className="absolute bottom-[20%] left-[20%] h-32 w-56 rounded-full bg-rose-300/10 blur-lg" />
-        <div className="absolute bottom-[28%] right-[18%] h-36 w-36 rounded-full bg-amber-200/12 blur-lg" />
-        <div className="absolute left-[40%] top-[40%] h-2 w-2 rounded-full bg-white/90 shadow-[0_0_14px_4px_rgba(255,255,255,0.5)]" />
-        <div className="absolute left-[62%] top-[28%] h-1.5 w-1.5 rounded-full bg-amber-100/90 shadow-[0_0_12px_3px_rgba(253,230,138,0.55)]" />
-        <div className="absolute left-[25%] top-[55%] h-1 w-1 rounded-full bg-white/80 shadow-[0_0_10px_2px_rgba(255,255,255,0.45)]" />
-        <div className="absolute right-[30%] top-[48%] h-1.5 w-1.5 rounded-full bg-white/70 shadow-[0_0_12px_3px_rgba(255,255,255,0.4)]" />
-        <div className="absolute right-[42%] bottom-[35%] h-1 w-1 rounded-full bg-amber-200/80 shadow-[0_0_10px_2px_rgba(253,230,138,0.4)]" />
+        <div className="absolute left-[8%] top-[18%] h-40 w-40 rounded-full bg-warning/15 blur-lg" />
+        <div className="absolute right-[12%] top-[22%] h-48 w-48 rounded-full bg-warning/10 blur-lg" />
+        <div className="absolute bottom-[20%] left-[20%] h-32 w-56 rounded-full bg-primary/15 blur-lg" />
+        <div className="absolute bottom-[28%] right-[18%] h-36 w-36 rounded-full bg-warning/15 blur-lg" />
+        <div className="absolute left-[40%] top-[40%] h-2 w-2 rounded-full bg-surface/90 shadow-[0_0_14px_4px_rgba(255,255,255,0.5)]" />
+        <div className="absolute left-[62%] top-[28%] h-1.5 w-1.5 rounded-full bg-warning/20/90 shadow-[0_0_12px_3px_rgba(253,230,138,0.55)]" />
+        <div className="absolute left-[25%] top-[55%] h-1 w-1 rounded-full bg-surface/80 shadow-[0_0_10px_2px_rgba(255,255,255,0.45)]" />
+        <div className="absolute right-[30%] top-[48%] h-1.5 w-1.5 rounded-full bg-surface/70 shadow-[0_0_12px_3px_rgba(255,255,255,0.4)]" />
+        <div className="absolute right-[42%] bottom-[35%] h-1 w-1 rounded-full bg-warning/80 shadow-[0_0_10px_2px_rgba(253,230,138,0.4)]" />
       </div>
 
       <div className="relative z-10 mx-auto max-w-4xl text-center">
@@ -33,7 +33,7 @@ export default function HomeNeedToShop({ ctaHref = "/#wedding-showcase" }) {
         >
           Everything You Need for Your Wedding
         </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-pretty text-[15px] leading-relaxed text-white/85 sm:text-base">
+        <p className="mx-auto mt-4 max-w-2xl text-pretty text-[15px] leading-relaxed text-primary-foreground/85 sm:text-base">
           Discover the best outfits, jewelry, décor, and more — all in one place with MyShaadiStore.
         </p>
 
@@ -62,7 +62,7 @@ export default function HomeNeedToShop({ ctaHref = "/#wedding-showcase" }) {
         <div className="mt-10 flex justify-center sm:mt-12">
           <Link
             href={ctaHref}
-            className="home-need-to-shop-cta inline-flex items-center gap-2 rounded-full bg-linear-to-r from-[#ff6ba8] via-[#ff4f86] to-[#e91e90] px-8 py-3.5 text-sm font-semibold text-white shadow-[0_14px_40px_rgba(233,30,144,0.45)] transition hover:brightness-[1.06] sm:px-10 sm:py-4 sm:text-base lg:px-12 lg:text-lg"
+            className="home-need-to-shop-cta inline-flex items-center gap-2 rounded-full bg-linear-to-r from-primary-accent via-primary to-primary-accent-2 px-8 py-3.5 text-sm font-semibold text-primary-foreground shadow-[0_14px_40px_rgba(233,30,144,0.45)] transition hover:brightness-[1.06] sm:px-10 sm:py-4 sm:text-base lg:px-12 lg:text-lg"
           >
             Start Shopping Now
             <span className="text-lg font-light leading-none sm:text-xl" aria-hidden>

@@ -141,7 +141,7 @@ export default function HeroSlideshow({
   if (n === 0) {
     return (
       <div
-        className={`relative flex items-center justify-center bg-linear-to-br from-rose-50/95 via-[#fdf2f6] to-slate-100/90 ${className}`}
+        className={`relative flex items-center justify-center bg-linear-to-br from-primary-soft/95 via-primary-soft to-surface-muted/90 ${className}`}
         style={maskStyle}
         aria-hidden
       />

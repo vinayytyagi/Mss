@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { IN_CITIES_BY_STATE, IN_STATES, buildLocationLabel, normalizeText } from "@/lib/indiaLocations";
+import {
+  IN_CITIES_BY_STATE,
+  IN_STATES,
+  buildLocationLabel,
+  normalizeText,
+  parseLocationLabel,
+} from "@/lib/indiaLocations";
 
 function filterOptions(options, query, limit = 30) {
   const q = normalizeText(query).toLowerCase();
@@ -42,11 +48,7 @@ export default function CityStateDropdown({
       const state = normalizeText(stateValue);
       return { city, state, label: buildLocationLabel(city, state) };
     }
-    const raw = normalizeText(value);
-    if (!raw) return { city: "", state: "", label: "" };
-    const parts = raw.split(",").map((p) => p.trim()).filter(Boolean);
-    const city = parts[0] || "";
-    const state = parts.slice(1).join(", ") || "";
+    const { city, state } = parseLocationLabel(value);
     return { city, state, label: buildLocationLabel(city, state) };
   }, [value, cityValue, stateValue]);
 
@@ -114,9 +116,14 @@ export default function CityStateDropdown({
             onChange={(e) => {
               const nextState = e.target.value;
               setState(nextState);
-              emit(city, nextState);
+              // Changing the state invalidates the previous city (city
+              // options are scoped per state). Clear it so the user
+              // re-picks a city that exists in the new state.
+              setCity("");
+              setCityQuery("");
+              emit("", nextState);
             }}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
             required={required}
             aria-label="State"
           >
@@ -148,7 +155,7 @@ export default function CityStateDropdown({
               setCityQuery("");
             }}
             placeholder={placeholderCity}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
             required={required}
             aria-label="City"
           />
@@ -157,13 +164,13 @@ export default function CityStateDropdown({
             ? createPortal(
                 <div
                   style={menuStyle}
-                  className="overflow-auto rounded-2xl border border-slate-100 bg-white p-1 shadow-[0_18px_60px_rgba(15,23,42,0.16)]"
+                  className="overflow-auto rounded-2xl border border-border bg-surface p-1 shadow-[0_18px_60px_rgba(15,23,42,0.16)]"
                 >
                   {cityOptions.map((opt) => (
                     <button
                       key={`${state || "any"}:${opt}`}
                       type="button"
-                      className="w-full cursor-pointer rounded-xl px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-[#fff1f6] hover:text-[#ff4f86]"
+                      className="w-full cursor-pointer rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition hover:bg-primary-soft hover:text-primary"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setCity(opt);
@@ -173,7 +180,7 @@ export default function CityStateDropdown({
                       }}
                     >
                       {opt}
-                      {state ? <span className="ml-2 text-xs font-medium text-slate-400">({state})</span> : null}
+                      {state ? <span className="ml-2 text-xs font-medium text-subtle">({state})</span> : null}
                     </button>
                   ))}
                 </div>,

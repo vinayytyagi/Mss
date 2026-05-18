@@ -38,3 +38,21 @@ export async function requestMyOrderRefund(token, orderId, reason, { idempotency
     idempotencyKey,
   });
 }
+
+/** Wipes onboarding + budget on the user doc. After this returns, send
+ *  the user to /signup/engaged to walk through the wizard again. */
+export async function restartMyJourney(token) {
+  return apiPost("/auth/user/restart-journey", {
+    payload: {},
+    headers: withAuthHeaders(token),
+  });
+}
+
+/** Soft-deletes the customer account. Logged-in sessions become useless
+ *  (login route refuses), so the UI must clear auth cookies after this. */
+export async function deleteMyAccount(token) {
+  return apiPost("/auth/user/delete-me", {
+    payload: {},
+    headers: withAuthHeaders(token),
+  });
+}

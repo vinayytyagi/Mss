@@ -14,8 +14,8 @@ export default function HomeWeddingOverwhelming() {
       aria-labelledby="wedding-overwhelming-heading"
     >
       <div className="px-4 sm:px-6 lg:px-8 pointer-events-none absolute inset-0 opacity-40" aria-hidden>
-        <div className="absolute -left-10 top-1/4 h-40 w-40 rounded-full bg-rose-200/50 blur-3xl" />
-        <div className="absolute -right-8 bottom-1/4 h-48 w-48 rounded-full bg-pink-100/60 blur-3xl" />
+        <div className="absolute -left-10 top-1/4 h-40 w-40 rounded-full bg-primary/15 blur-3xl" />
+        <div className="absolute -right-8 bottom-1/4 h-48 w-48 rounded-full bg-primary-soft/60 blur-3xl" />
       </div>
 
       <div className="relative z-10 mx-auto max-w-7xl">
@@ -23,8 +23,8 @@ export default function HomeWeddingOverwhelming() {
           id="wedding-overwhelming-heading"
           className={`${serif} px-4 sm:px-6 lg:px-8 text-center text-balance text-2xl font-semibold leading-snug tracking-tight sm:text-3xl md:text-4xl`}
         >
-          <span className="text-[#2a3042]">Wedding Planning is </span>
-          <span className="font-semibold text-[#d45b7b]">Overwhelming</span>
+          <span className="text-text-strong">Wedding Planning is </span>
+          <span className="font-semibold text-primary-hover">Overwhelming</span>
           <span className="ml-2 inline-block align-middle sm:ml-2.5">
             <Image
               src="/happy-girl.webp"
@@ -35,7 +35,7 @@ export default function HomeWeddingOverwhelming() {
             />
           </span>
         </h2>
-        <p className="mx-auto px-4 sm:px-6 lg:px-8 mt-3 max-w-xl text-center text-sm leading-relaxed text-[#6b7280] sm:text-base">
+        <p className="mx-auto px-4 sm:px-6 lg:px-8 mt-3 max-w-xl text-center text-sm leading-relaxed text-muted sm:text-base">
           Venues, guests, décor, outfits — it can feel like pressure from every direction. You are not alone.
         </p>
 

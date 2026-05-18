@@ -16,22 +16,22 @@ export default function ShoppingProductPurchasePanel({ item, cartItem }) {
   return (
     <>
       <div className="mt-6 flex flex-wrap items-baseline gap-3">
-        <p className="text-3xl font-semibold text-slate-900 sm:text-[2rem]">
+        <p className="text-3xl font-semibold text-text-strong sm:text-[2rem]">
           {formatPriceDetailed(effectivePrice)}
         </p>
         {item?.is_discount_active ? (
           <>
-            <span className="text-xl font-medium text-slate-400 line-through">
+            <span className="text-xl font-medium text-subtle line-through">
               {formatPriceDetailed(item.price)}
             </span>
-            <span className="rounded-md bg-[#fff1f6] px-2.5 py-0.5 text-sm font-semibold text-[#ff4f86]">
+            <span className="rounded-md bg-primary-soft px-2.5 py-0.5 text-sm font-semibold text-primary">
               {item.discount_percentage}% off
             </span>
           </>
         ) : null}
       </div>
 
-      <div className="my-8 h-px w-full bg-slate-200" />
+      <div className="my-8 h-px w-full bg-border-strong" />
 
       <ShoppingProductDetailControls
         cartItem={cartItem}

@@ -7,9 +7,9 @@ import { toast } from "sonner";
 
 function baseButtonClass(kind) {
   if (kind === "quotation") {
-    return "rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50";
+    return "rounded-2xl border border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text transition hover:bg-surface-muted";
   }
-  return "rounded-2xl bg-[#ff4f86] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(255,79,134,0.2)] transition hover:bg-[#ff3d79]";
+  return "rounded-2xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_14px_28px_rgba(255,79,134,0.2)] transition hover:bg-primary-hover";
 }
 
 export default function CartActionButtons({

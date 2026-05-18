@@ -184,14 +184,14 @@ const DOCS = {
 function renderPolicySection({ heading, paragraphs = [], callout }) {
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold text-slate-900">{heading}</h2>
-      <div className="mt-3 space-y-3 text-sm sm:text-base leading-relaxed text-slate-700">
+      <h2 className="text-lg font-semibold text-text-strong">{heading}</h2>
+      <div className="mt-3 space-y-3 text-sm sm:text-base leading-relaxed text-text">
         {paragraphs.map((p) => (
           <p key={p}>{p}</p>
         ))}
       </div>
       {callout ? (
-        <div className="mt-4 rounded-2xl border border-pink-100 bg-pink-50 px-4 py-3 text-sm leading-relaxed text-slate-700">
+        <div className="mt-4 rounded-2xl border border-primary/20 bg-primary-soft px-4 py-3 text-sm leading-relaxed text-text">
           {callout}
         </div>
       ) : null}
@@ -229,23 +229,23 @@ export default async function LegalPage({ params }) {
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="w-full lg:max-w-2xl">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#ff4f86] hover:underline">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to home
           </Link>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+            <span className="inline-flex items-center rounded-full border border-border-strong bg-surface/70 px-3 py-1 text-xs font-semibold text-text shadow-sm">
               {doc.badge}
             </span>
-            <span className="text-xs font-medium text-slate-500">{doc.effectiveDate}</span>
+            <span className="text-xs font-medium text-muted">{doc.effectiveDate}</span>
           </div>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">{doc.title}</h1>
-          <p className="mt-3 text-base leading-relaxed text-slate-700">{doc.tagline}</p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-text-strong">{doc.title}</h1>
+          <p className="mt-3 text-base leading-relaxed text-text">{doc.tagline}</p>
         </div>
 
         <aside className="w-full lg:w-72">
-          <div className="rounded-3xl border border-slate-100 bg-white/70 p-4 shadow-sm backdrop-blur">
-            <p className="text-sm font-semibold text-slate-900">Legal pages</p>
+          <div className="rounded-3xl border border-border bg-surface/70 p-4 shadow-sm backdrop-blur">
+            <p className="text-sm font-semibold text-text-strong">Legal pages</p>
             <div className="mt-3 space-y-1">
               {legalLinks.map((l) => {
                 const active = l.slug === slug;
@@ -254,7 +254,7 @@ export default async function LegalPage({ params }) {
                     key={l.slug}
                     href={`/legal/${l.slug}`}
                     className={`block rounded-2xl px-3 py-2 text-sm font-semibold transition ${
-                      active ? "bg-[#fff1f6] text-[#ff4f86]" : "text-slate-600 hover:bg-slate-50"
+                      active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
                     }`}
                   >
                     {l.label}
@@ -262,18 +262,18 @@ export default async function LegalPage({ params }) {
                 );
               })}
             </div>
-            <p className="mt-4 text-xs leading-relaxed text-slate-500">
+            <p className="mt-4 text-xs leading-relaxed text-muted">
               Need help? Contact us via WhatsApp from the website footer.
             </p>
           </div>
         </aside>
       </div>
 
-      <section className="mt-8 rounded-3xl border border-slate-100 bg-white/75 p-6 shadow-sm backdrop-blur sm:p-7">
+      <section className="mt-8 rounded-3xl border border-border bg-surface/75 p-6 shadow-sm backdrop-blur sm:p-7">
         {doc.sections.map((s) => renderPolicySection(s))}
-        <div className="mt-10 rounded-3xl border border-slate-100 bg-slate-50/60 p-4">
-          <p className="text-sm font-semibold text-slate-900">Disclaimer</p>
-          <p className="mt-2 text-sm leading-relaxed text-slate-700">
+        <div className="mt-10 rounded-3xl border border-border bg-surface-muted/60 p-4">
+          <p className="text-sm font-semibold text-text-strong">Disclaimer</p>
+          <p className="mt-2 text-sm leading-relaxed text-text">
             This content is a general information summary. For specific scenarios related to your order,
             please reach out on WhatsApp so our team can review your case.
           </p>

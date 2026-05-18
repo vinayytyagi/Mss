@@ -107,6 +107,19 @@ export default function SignupWizard({ step }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  // Pick up a `?redirect=…` if the user landed here from a gated page
+  // (e.g. /cart). On successful registration we send them there instead
+  // of the default /journey/venue. We also propagate it on the back-to-
+  // login link so the round-trip survives a mid-signup change of mind.
+  const [redirectTo, setRedirectTo] = useState("");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    setRedirectTo(sp.get("redirect") || sp.get("returnTo") || "");
+  }, []);
+  const loginHref = redirectTo
+    ? `/login?redirect=${encodeURIComponent(redirectTo)}`
+    : "/login";
   const [form, setForm] = useState(() => {
     const defaults = {
       name: "",
@@ -425,6 +438,10 @@ export default function SignupWizard({ step }) {
       }
       clearState();
       toast.success("Account created.");
+      // Step the new user through the onboarding wizard
+      // (engagement → date → venue → groom-bride → days → guests → budget).
+      // The `redirectTo` query param is preserved on the wizard state so
+      // the final budget step can honour it once onboarding completes.
       goto(STEP_TO_PATH.engaged);
     } catch (err) {
       toast.error(err?.message || "Sign up failed.");
@@ -489,7 +506,7 @@ export default function SignupWizard({ step }) {
             placeholder="Your full name"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
             required
           />
           <input
@@ -499,10 +516,10 @@ export default function SignupWizard({ step }) {
             placeholder="Email (optional)"
             value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
           />
           <div className="relative flex items-center">
-            <span className="absolute left-6 text-md font-semibold text-slate-400">+91</span>
+            <span className="absolute left-6 text-md font-semibold text-subtle">+91</span>
             <input
               type="tel"
               inputMode="numeric"
@@ -510,16 +527,16 @@ export default function SignupWizard({ step }) {
               placeholder="9876543210"
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: normalizeIndianPhone(e.target.value) }))}
-              className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-14 pr-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+              className="h-12 w-full rounded-xl border border-border-strong bg-surface pl-14 pr-4 text-sm font-medium text-text outline-none transition focus:border-primary"
               required
             />
           </div>
-          <button type="submit" className="h-11 w-full rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79]">
+          <button type="submit" className="h-11 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover">
             Continue
           </button>
-          <p className="text-center text-sm text-slate-500">
+          <p className="text-center text-sm text-muted">
             Already a user?{" "}
-            <Link href="/login" className="font-semibold text-[#ff4f86] underline underline-offset-4">
+            <Link href={loginHref} className="font-semibold text-primary underline underline-offset-4">
               Login
             </Link>
           </p>
@@ -541,7 +558,7 @@ export default function SignupWizard({ step }) {
             placeholder="Create password"
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
             required
             autoComplete="new-password"
           />
@@ -550,25 +567,25 @@ export default function SignupWizard({ step }) {
             placeholder="Confirm password"
             value={form.confirmPassword}
             onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
             required
             autoComplete="new-password"
           />
-          <p className="text-xs leading-relaxed text-slate-500">
+          <p className="text-xs leading-relaxed text-muted">
             Password must be 8+ characters with upper, lower, number, and a special character.
           </p>
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => goto(STEP_TO_PATH.signup)}
-              className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="h-11 flex-1 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted"
             >
               Back
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="h-11 flex-1 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79] disabled:opacity-60"
+              className="h-11 flex-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
             >
               {loading ? "Creating account..." : "Create account"}
             </button>
@@ -599,12 +616,12 @@ export default function SignupWizard({ step }) {
               onClick={() => setForm((f) => ({ ...f, engagement_status: value }))}
               className={`w-full cursor-pointer rounded-xl border px-4 py-4 text-left transition ${
                 form.engagement_status === value
-                  ? "border-[#ff8ab0] bg-white shadow-[0_10px_24px_rgba(255,79,134,0.08)]"
-                  : "border-slate-200 bg-white/70"
+                  ? "border-primary-accent bg-surface shadow-[0_10px_24px_rgba(255,79,134,0.08)]"
+                  : "border-border-strong bg-surface/70"
               }`}
             >
-              <div className="text-base font-semibold text-slate-700">{title}</div>
-              <div className="mt-1 text-sm text-slate-500">{text}</div>
+              <div className="text-base font-semibold text-text">{title}</div>
+              <div className="mt-1 text-sm text-muted">{text}</div>
             </button>
           ))}
 
@@ -613,7 +630,7 @@ export default function SignupWizard({ step }) {
               type="button"
               disabled={loading}
               onClick={() => router.back()}
-              className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              className="h-11 flex-1 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted disabled:opacity-60"
             >
               Back
             </button>
@@ -629,7 +646,7 @@ export default function SignupWizard({ step }) {
                 }
                 goto(STEP_TO_PATH.date);
               }}
-              className="h-11 flex-1 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79] disabled:opacity-60"
+              className="h-11 flex-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
             >
               {loading ? "Saving..." : "Continue"}
             </button>
@@ -660,8 +677,8 @@ export default function SignupWizard({ step }) {
               onClick={() => setForm((f) => ({ ...f, wedding_date_type: value }))}
               className={`w-full cursor-pointer rounded-xl border px-4 py-4 text-left text-base font-semibold transition ${
                 form.wedding_date_type === value
-                  ? "border-[#ff8ab0] bg-white"
-                  : "border-slate-200 bg-white/70 text-slate-600"
+                  ? "border-primary-accent bg-surface"
+                  : "border-border-strong bg-surface/70 text-muted"
               }`}
             >
               {label}
@@ -674,7 +691,7 @@ export default function SignupWizard({ step }) {
               min={todayIso}
               value={form.wedding_date}
               onChange={(e) => setForm((f) => ({ ...f, wedding_date: e.target.value }))}
-              className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+              className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
             />
           ) : null}
 
@@ -684,7 +701,7 @@ export default function SignupWizard({ step }) {
               min={currentMonthIso}
               value={form.wedding_month}
               onChange={(e) => setForm((f) => ({ ...f, wedding_month: e.target.value }))}
-              className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+              className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
             />
           ) : null}
 
@@ -692,7 +709,7 @@ export default function SignupWizard({ step }) {
             <button
               type="button"
               onClick={() => goto(STEP_TO_PATH.engaged)}
-              className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="h-11 flex-1 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted"
             >
               Back
             </button>
@@ -717,7 +734,7 @@ export default function SignupWizard({ step }) {
                 if (!ok) return;
                 goto(STEP_TO_PATH.venue);
               }}
-              className="h-11 flex-1 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79] disabled:opacity-60"
+              className="h-11 flex-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
             >
               {loading ? "Saving..." : "Continue"}
             </button>
@@ -748,7 +765,7 @@ export default function SignupWizard({ step }) {
             <button
               type="button"
               onClick={() => goto(STEP_TO_PATH.date)}
-              className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="h-11 flex-1 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted"
             >
               Back
             </button>
@@ -764,7 +781,7 @@ export default function SignupWizard({ step }) {
                 if (!ok) return;
                 goto(STEP_TO_PATH["groom-bride"]);
               }}
-              className="h-11 flex-1 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79] disabled:opacity-60"
+              className="h-11 flex-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
             >
               {loading ? "Saving..." : "Continue"}
             </button>
@@ -794,12 +811,12 @@ export default function SignupWizard({ step }) {
               onClick={() => setForm((f) => ({ ...f, groom_or_bride: value }))}
               className={`w-full cursor-pointer rounded-xl border px-4 py-4 text-left transition ${
                 form.groom_or_bride === value
-                  ? "border-[#ff8ab0] bg-white shadow-[0_10px_24px_rgba(255,79,134,0.08)]"
-                  : "border-slate-200 bg-white/70"
+                  ? "border-primary-accent bg-surface shadow-[0_10px_24px_rgba(255,79,134,0.08)]"
+                  : "border-border-strong bg-surface/70"
               }`}
             >
-              <div className="text-base font-semibold text-slate-700">{title}</div>
-              <div className="mt-1 text-sm text-slate-500">{text}</div>
+              <div className="text-base font-semibold text-text">{title}</div>
+              <div className="mt-1 text-sm text-muted">{text}</div>
             </button>
           ))}
 
@@ -807,7 +824,7 @@ export default function SignupWizard({ step }) {
             <button
               type="button"
               onClick={() => goto(STEP_TO_PATH.venue)}
-              className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="h-11 flex-1 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted"
             >
               Back
             </button>
@@ -823,7 +840,7 @@ export default function SignupWizard({ step }) {
                 if (!ok) return;
                 goto(STEP_TO_PATH.days);
               }}
-              className="h-11 flex-1 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79] disabled:opacity-60"
+              className="h-11 flex-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
             >
               {loading ? "Saving..." : "Continue"}
             </button>
@@ -849,13 +866,13 @@ export default function SignupWizard({ step }) {
             placeholder="e.g. 2"
             value={form.function_days}
             onChange={(e) => setForm((f) => ({ ...f, function_days: e.target.value }))}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
           />
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => goto(STEP_TO_PATH["groom-bride"])}
-              className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="h-11 flex-1 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted"
             >
               Back
             </button>
@@ -872,7 +889,7 @@ export default function SignupWizard({ step }) {
                 if (!ok) return;
                 goto(STEP_TO_PATH.guests);
               }}
-              className="h-11 flex-1 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79] disabled:opacity-60"
+              className="h-11 flex-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
             >
               {loading ? "Saving..." : "Continue"}
             </button>
@@ -898,13 +915,13 @@ export default function SignupWizard({ step }) {
             placeholder="e.g. 300"
             value={form.guests_count}
             onChange={(e) => setForm((f) => ({ ...f, guests_count: e.target.value }))}
-            className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]"
+            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
           />
           <div className="flex gap-3">
             <button
               type="button"
               onClick={() => goto(STEP_TO_PATH.days)}
-              className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="h-11 flex-1 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted"
             >
               Back
             </button>
@@ -921,7 +938,7 @@ export default function SignupWizard({ step }) {
                 if (!ok) return;
                 goto(STEP_TO_PATH.budget);
               }}
-              className="h-11 flex-1 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79] disabled:opacity-60"
+              className="h-11 flex-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
             >
               {loading ? "Saving..." : "Continue"}
             </button>
@@ -941,43 +958,43 @@ export default function SignupWizard({ step }) {
         activeStep={activeStep}
       >
         <div className="space-y-5">
-          <div className="rounded-xl bg-white p-4 text-center">
-            <div className="text-xl font-semibold text-[#ff4f86]">₹{totalAllocated.toLocaleString("en-IN")}</div>
-            <div className="mt-1 text-[11px] font-medium text-slate-400">Auto total</div>
+          <div className="rounded-xl bg-surface p-4 text-center">
+            <div className="text-xl font-semibold text-primary">₹{totalAllocated.toLocaleString("en-IN")}</div>
+            <div className="mt-1 text-[11px] font-medium text-subtle">Auto total</div>
           </div>
 
-          <div className="space-y-2 rounded-xl bg-white p-3">
-            <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-2 rounded-xl bg-surface p-3">
+            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
               {budgetAllocations.map((item, index) => (
-                <div key={item.step_id || item.slug || index} className="rounded-lg border border-slate-100 bg-[#fffafb] px-3 py-2">
+                <div key={item.step_id || item.slug || index} className="rounded-lg border border-border bg-primary-soft px-3 py-2">
                   <div className="grid grid-cols-[92px_1fr_92px] items-center gap-2">
-                    <div className="truncate text-xs font-semibold text-slate-700">{item.title}</div>
+                    <div className="truncate text-xs font-semibold text-text">{item.title}</div>
                     <input
                       type="range"
                       min="0"
                       max={item.max_budget || MAX_BUDGET_PER_STEP}
-                      step="50000"
+                      step="1000"
                       value={item.amount || 0}
                       onChange={(e) => updateBudgetAmount(index, e.target.value)}
-                      className="w-full cursor-pointer accent-[#ff4f86]"
+                      className="w-full cursor-pointer accent-primary"
                     />
                     <input
                       type="number"
                       min="0"
                       max={item.max_budget || MAX_BUDGET_PER_STEP}
-                      step="50000"
+                      step="1000"
                       value={item.amount || 0}
                       onChange={(e) => updateBudgetAmount(index, e.target.value)}
-                      className="h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 outline-none"
+                      className="h-8 w-full rounded-md border border-border-strong bg-surface px-2 text-xs font-medium text-text outline-none"
                     />
                   </div>
-                  <div className="mt-1 text-right text-[10px] font-medium text-slate-400">
+                  <div className="mt-1 text-right text-[10px] font-medium text-subtle">
                     ₹{Number(item.amount || 0).toLocaleString("en-IN")} / Max ₹{Number(item.max_budget || MAX_BUDGET_PER_STEP).toLocaleString("en-IN")}
                   </div>
                 </div>
               ))}
               {budgetAllocations.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-6 text-center text-sm font-medium text-slate-500">
+                <div className="rounded-lg border border-dashed border-border-strong bg-surface px-3 py-6 text-center text-sm font-medium text-muted">
                   Loading journey steps…
                 </div>
               ) : null}
@@ -988,7 +1005,7 @@ export default function SignupWizard({ step }) {
             <button
               type="button"
               onClick={() => goto(STEP_TO_PATH.guests)}
-              className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              className="h-11 flex-1 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted"
             >
               Back
             </button>
@@ -1008,9 +1025,13 @@ export default function SignupWizard({ step }) {
                 });
                 if (!ok) return;
                 clearState();
-                router.push("/");
+                // End of wizard. Honour the original `redirect` if the
+                // user came in from a gated page (e.g. /cart), else send
+                // them into the journey at the Venue step — that's the
+                // natural first stop after onboarding.
+                router.push(redirectTo || "/journey/venue");
               }}
-              className="h-11 flex-1 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79] disabled:opacity-60"
+              className="h-11 flex-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
             >
               {loading ? "Saving..." : "Finish"}
             </button>

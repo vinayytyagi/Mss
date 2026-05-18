@@ -21,7 +21,7 @@ function Stars({ value = 0, sizeClass = "h-4 w-4" }) {
         return (
           <Star
             key={i}
-            className={`${sizeClass} ${filled ? "fill-amber-400 text-amber-400" : "text-slate-300"}`}
+            className={`${sizeClass} ${filled ? "fill-warning text-warning" : "text-border-strong"}`}
             strokeWidth={filled ? 0 : 1.7}
           />
         );
@@ -148,20 +148,20 @@ export default function ProductReviews({ itemId }) {
   const count = Number(summary.count) || 0;
 
   return (
-    <section className="mt-12 rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-[0_18px_46px_rgba(15,23,42,0.06)] backdrop-blur sm:p-8">
+    <section className="mt-12 rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_18px_46px_rgba(15,23,42,0.06)] backdrop-blur sm:p-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <span className="h-9 w-2 shrink-0 rounded-full bg-[#ff4f86]" aria-hidden />
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900">Ratings &amp; Reviews</h2>
+            <span className="h-9 w-2 shrink-0 rounded-full bg-primary" aria-hidden />
+            <h2 className="text-2xl font-bold tracking-tight text-text-strong">Ratings &amp; Reviews</h2>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-3">
-              <p className="text-3xl font-bold text-slate-900">{summary.avgRating || 0}</p>
+              <p className="text-3xl font-bold text-text-strong">{summary.avgRating || 0}</p>
               <div className="flex flex-col">
                 <Stars value={Math.round((Number(summary.avgRating) || 0) * 2) / 2} sizeClass="h-5 w-5" />
-                <p className="mt-1 text-sm text-slate-500">{count} review{count === 1 ? "" : "s"}</p>
+                <p className="mt-1 text-sm text-muted">{count} review{count === 1 ? "" : "s"}</p>
               </div>
             </div>
           </div>
@@ -172,11 +172,11 @@ export default function ProductReviews({ itemId }) {
               const width = pct(c, count);
               return (
                 <div key={r} className="flex items-center gap-3">
-                  <span className="w-10 text-sm font-semibold text-slate-700">{r}★</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-amber-400" style={{ width: `${width}%` }} />
+                  <span className="w-10 text-sm font-semibold text-text">{r}★</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-muted">
+                    <div className="h-full rounded-full bg-warning" style={{ width: `${width}%` }} />
                   </div>
-                  <span className="w-10 text-right text-sm font-semibold text-slate-500">{c}</span>
+                  <span className="w-10 text-right text-sm font-semibold text-muted">{c}</span>
                 </div>
               );
             })}
@@ -184,9 +184,9 @@ export default function ProductReviews({ itemId }) {
         </div>
 
         <div className="w-full lg:max-w-md">
-          <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="rounded-3xl border border-border bg-surface p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-base font-bold text-slate-900">
+              <p className="text-base font-bold text-text-strong">
                 {canWrite ? (myReview ? "Edit your review" : "Write a review") : "Login to write a review"}
               </p>
               {canWrite && myReview ? (
@@ -194,7 +194,7 @@ export default function ProductReviews({ itemId }) {
                   type="button"
                   onClick={handleDelete}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-border-strong px-3 py-2 text-sm font-semibold text-muted transition hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:opacity-60"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                   Delete
@@ -204,7 +204,7 @@ export default function ProductReviews({ itemId }) {
 
             <form onSubmit={handleSave} className="mt-4 space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-slate-700">Your rating</label>
+                <label className="text-sm font-semibold text-text">Your rating</label>
                 <div className="flex items-center gap-1">
                   {[1, 2, 3, 4, 5].map((r) => {
                     const active = r <= clampRating(draftRating);
@@ -218,7 +218,7 @@ export default function ProductReviews({ itemId }) {
                         aria-label={`Rate ${r} star`}
                       >
                         <Star
-                          className={`h-6 w-6 ${active ? "fill-amber-400 text-amber-400" : "text-slate-300"}`}
+                          className={`h-6 w-6 ${active ? "fill-warning text-warning" : "text-border-strong"}`}
                           strokeWidth={active ? 0 : 1.7}
                         />
                       </button>
@@ -228,22 +228,22 @@ export default function ProductReviews({ itemId }) {
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-slate-700">Your comment</label>
+                <label className="text-sm font-semibold text-text">Your comment</label>
                 <textarea
                   value={draftComment}
                   onChange={(e) => setDraftComment(e.target.value)}
                   disabled={!canWrite || saving}
                   rows={4}
                   placeholder="Share details about quality, service, fit, delivery…"
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-[#ff4f86] disabled:bg-slate-50"
+                  className="mt-2 w-full rounded-2xl border border-border-strong bg-surface px-4 py-3 text-sm text-text outline-none focus:border-primary disabled:bg-surface-muted"
                 />
-                <p className="mt-2 text-xs text-slate-500">Minimum 10 characters. Max 500.</p>
+                <p className="mt-2 text-xs text-muted">Minimum 10 characters. Max 500.</p>
               </div>
 
               <button
                 type="submit"
                 disabled={!canWrite || saving}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ff4f86] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(255,79,134,0.25)] transition hover:bg-[#ff3d79] disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[0_14px_30px_rgba(255,79,134,0.25)] transition hover:bg-primary-hover disabled:opacity-60"
               >
                 {myReview ? <Edit3 className="h-4 w-4" aria-hidden="true" /> : <MessageSquare className="h-4 w-4" aria-hidden="true" />}
                 {saving ? "Saving…" : myReview ? "Update review" : "Submit review"}
@@ -254,18 +254,18 @@ export default function ProductReviews({ itemId }) {
       </div>
 
       <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm font-semibold text-slate-700">
+        <div className="text-sm font-semibold text-text">
           {loading ? "Loading reviews…" : count ? `Showing ${reviews.length} of ${count}` : "No reviews yet"}
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-semibold text-slate-600">Sort</label>
+          <label className="text-sm font-semibold text-muted">Sort</label>
           <select
             value={sort}
             onChange={(e) => {
               setPage(1);
               setSort(e.target.value);
             }}
-            className="h-10 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none focus:border-[#ff4f86]"
+            className="h-10 rounded-2xl border border-border-strong bg-surface px-4 text-sm font-semibold text-text outline-none focus:border-primary"
           >
             <option value="newest">Newest</option>
             <option value="highest">Highest rating</option>
@@ -275,28 +275,28 @@ export default function ProductReviews({ itemId }) {
       </div>
 
       {error ? (
-        <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+        <div className="mt-6 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm font-semibold text-danger">
           {error}
         </div>
       ) : null}
 
       <div className="mt-6 space-y-4">
         {!loading && reviews.length === 0 ? (
-          <div className="rounded-2xl border border-slate-100 bg-slate-50/70 px-6 py-10 text-center text-slate-500">
+          <div className="rounded-2xl border border-border bg-surface-muted/70 px-6 py-10 text-center text-muted">
             Be the first to review this product.
           </div>
         ) : null}
 
         {reviews.map((r) => (
-          <article key={r.review_id} className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+          <article key={r.review_id} className="rounded-3xl border border-border bg-surface p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm font-bold text-slate-900">{r.user?.name || "Customer"}</p>
-                <p className="mt-0.5 text-xs font-semibold text-slate-400">{formatDate(r.created_at)}</p>
+                <p className="text-sm font-bold text-text-strong">{r.user?.name || "Customer"}</p>
+                <p className="mt-0.5 text-xs font-semibold text-subtle">{formatDate(r.created_at)}</p>
               </div>
               <Stars value={r.rating} />
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{r.comment}</p>
+            <p className="mt-3 text-sm leading-relaxed text-text whitespace-pre-wrap">{r.comment}</p>
           </article>
         ))}
       </div>
@@ -307,18 +307,18 @@ export default function ProductReviews({ itemId }) {
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={loading || page <= 1}
-            className="h-10 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+            className="h-10 rounded-2xl border border-border-strong bg-surface px-4 text-sm font-semibold text-text transition hover:bg-surface-muted disabled:opacity-50"
           >
             Prev
           </button>
-          <span className="text-sm font-semibold text-slate-500">
+          <span className="text-sm font-semibold text-muted">
             Page {page} of {totalPages}
           </span>
           <button
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={loading || page >= totalPages}
-            className="h-10 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+            className="h-10 rounded-2xl border border-border-strong bg-surface px-4 text-sm font-semibold text-text transition hover:bg-surface-muted disabled:opacity-50"
           >
             Next
           </button>

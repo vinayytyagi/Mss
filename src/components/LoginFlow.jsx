@@ -85,20 +85,20 @@ function SocialAuth() {
   return (
     <div className="mt-8 space-y-6">
       <div className="relative flex items-center">
-        <div className="h-px flex-1 bg-slate-200" />
-        <span className="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">Or</span>
-        <div className="h-px flex-1 bg-slate-200" />
+        <div className="h-px flex-1 bg-border-strong" />
+        <span className="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-border-strong">Or</span>
+        <div className="h-px flex-1 bg-border-strong" />
       </div>
     </div>
   )
 }
 
 const INPUT_CLASS =
-  "h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-[#ff4f86]";
+  "h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary";
 const PRIMARY_BTN_CLASS =
-  "h-11 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white transition hover:bg-[#ff3d79] disabled:opacity-60";
+  "h-11 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60";
 const SECONDARY_BTN_CLASS =
-  "h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50";
+  "h-11 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted";
 
 export default function LoginFlow({ initialSteps = [] }) {
   const router = useRouter();
@@ -107,6 +107,19 @@ export default function LoginFlow({ initialSteps = [] }) {
   const [loading, setLoading] = useState(false);
   const [devOtp, setDevOtp] = useState("");
   const [verificationToken, setVerificationToken] = useState("");
+  // Remember the redirect target across re-renders so the "Sign up"
+  // link can pass it along (otherwise the customer signs up and lands
+  // on /journey/venue instead of the page they were originally trying
+  // to reach, e.g. /cart).
+  const [redirectTo, setRedirectTo] = useState("");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    setRedirectTo(sp.get("redirect") || sp.get("returnTo") || "");
+  }, []);
+  const signupHref = redirectTo
+    ? `/signup?redirect=${encodeURIComponent(redirectTo)}`
+    : "/signup";
   const [form, setForm] = useState({
     phone: "",
     password: "",
@@ -157,9 +170,12 @@ export default function LoginFlow({ initialSteps = [] }) {
       toast.success("Login successful.");
       
       const searchParams = new URLSearchParams(window.location.search);
-      const returnTo = searchParams.get("returnTo");
-      if (returnTo) {
-        router.push(returnTo);
+      // Accept either `redirect` (new canonical name) or `returnTo`
+      // (older name still used by some links). Pages that gate behind
+      // auth should send `?redirect=/wherever`.
+      const redirectTo = searchParams.get("redirect") || searchParams.get("returnTo");
+      if (redirectTo) {
+        router.push(redirectTo);
         return;
       }
 
@@ -284,15 +300,15 @@ export default function LoginFlow({ initialSteps = [] }) {
     >
       <div className="space-y-6">
         {mode === "resetOtp" && devOtp ? (
-          <p className="rounded-2xl bg-slate-100 px-4 py-3 text-center text-sm font-semibold text-slate-700">
-            Dev OTP: <span className="font-bold text-slate-900">{devOtp}</span>
+          <p className="rounded-2xl bg-surface-muted px-4 py-3 text-center text-sm font-semibold text-text">
+            Dev OTP: <span className="font-bold text-text-strong">{devOtp}</span>
           </p>
         ) : null}
 
         {mode === "login" ? (
           <form className="space-y-5" onSubmit={handleLogin}>
             <div className="relative flex items-center">
-              <span className="absolute left-6 text-md font-semibold text-slate-400">+91</span>
+              <span className="absolute left-6 text-md font-semibold text-subtle">+91</span>
               <input
                 type="tel"
                 inputMode="numeric"
@@ -300,7 +316,7 @@ export default function LoginFlow({ initialSteps = [] }) {
                 placeholder="Enter your phone number"
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: normalizeIndianPhone(e.target.value) }))}
-                className={`${INPUT_CLASS} pl-14 placeholder:text-slate-300`}
+                className={`${INPUT_CLASS} pl-14 placeholder:text-border-strong`}
                 required
               />
             </div>
@@ -312,7 +328,7 @@ export default function LoginFlow({ initialSteps = [] }) {
                 placeholder="Enter your password"
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                className={`${INPUT_CLASS} pl-12 placeholder:text-slate-300`}
+                className={`${INPUT_CLASS} pl-12 placeholder:text-border-strong`}
                 required
               />
             </div>
@@ -332,16 +348,16 @@ export default function LoginFlow({ initialSteps = [] }) {
                 setDevOtp("");
                 setMode("resetRequest");
               }}
-              className="mx-auto block cursor-pointer text-sm font-bold text-[#ff4f86] hover:underline"
+              className="mx-auto block cursor-pointer text-sm font-bold text-primary hover:underline"
             >
               Forgot password?
             </button>
             
             <SocialAuth />
 
-            <div className="pt-2 text-center text-sm font-medium text-slate-600">
+            <div className="pt-2 text-center text-sm font-medium text-muted">
               Don&apos;t have an account?{" "}
-              <Link href="/signup" className="text-[#ff4f86]! font-bold!">
+              <Link href={signupHref} className="text-primary! font-bold!">
                 Sign up
               </Link>
             </div>
@@ -351,7 +367,7 @@ export default function LoginFlow({ initialSteps = [] }) {
         {mode === "resetRequest" ? (
           <form className="space-y-5" onSubmit={handleRequestResetOtp}>
              <div className="relative flex items-center">
-              <span className="absolute left-6 text-md font-semibold text-slate-400">+91</span>
+              <span className="absolute left-6 text-md font-semibold text-subtle">+91</span>
               <input
                 type="tel"
                 inputMode="numeric"

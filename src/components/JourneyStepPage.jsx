@@ -31,6 +31,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { addToCart, useCartState, updateCartQuantity, removeFromCart } from "@/lib/cartStore";
+import Pagination from "@/components/Pagination";
+import ItemCardV2 from "@/components/ItemCardV2";
+
+// Customer journey page items grid pagination — 24 fits a 4-col grid in 6 rows.
+const JOURNEY_PAGE_SIZE = 24;
 
 function categoryUrlSegment(c) {
   if (!c) return "";
@@ -38,11 +43,110 @@ function categoryUrlSegment(c) {
   return s || c.category_id || "";
 }
 
+/**
+ * Fallback nature lookup when a journey step doc doesn't carry `nature`
+ * yet (mirrors `mss-admin/src/lib/constants/journeySteps.js`).
+ */
+const STEP_NATURE_BY_SLUG = {
+  venue: "product",
+  shopping: "product",
+  gifting: "product",
+  streedhan: "product",
+  decor: "package",
+  catering: "package",
+  photography: "package",
+  "makeup-and-mehndi": "package",
+  "wedding-invitation": "package",
+  pagfera: "package",
+  honeymoon: "package",
+};
+
+function resolveStepNature(step) {
+  const explicit = String(step?.nature || "").trim().toLowerCase();
+  if (explicit === "product" || explicit === "package") return explicit;
+  const slug = String(step?.slug || "").trim().toLowerCase();
+  return STEP_NATURE_BY_SLUG[slug] || null;
+}
+
+/**
+ * Per-step bullet recipes for the item card. Each recipe receives the
+ * item.attributes object + the item itself, returns at most 2-3 short
+ * strings. Render order: first non-empty wins.
+ *
+ * The map is intentionally inline + small — when we add more steps we
+ * add entries here; falls back gracefully when a step is missing.
+ */
+function highlightsForItem(step, item) {
+  const a = item?.attributes || {};
+  const slug = String(step?.slug || "").trim().toLowerCase();
+  const out = [];
+  function add(label, value) {
+    if (value == null || value === "") return;
+    out.push(`${label}: ${value}`);
+  }
+
+  switch (slug) {
+    case "shopping":
+      add("Fabric", a.fabric || a.material);
+      add("Color", a.color);
+      add("Occasion", a.occasion);
+      break;
+    case "streedhan":
+      add("Capacity", a.capacity);
+      add("Warranty", a.warranty_years ? `${a.warranty_years}y` : a.warranty);
+      add("Brand", a.brand);
+      break;
+    case "gifting":
+      add("Type", a.gift_type || a.category);
+      add("Pack of", a.pack_size);
+      break;
+    case "venue":
+      add("Capacity", a.capacity || a.max_guests);
+      add("Type", a.venue_type);
+      break;
+    case "photography":
+      add("Coverage", a.coverage_hours ? `${a.coverage_hours}h coverage` : a.coverage);
+      add("Outfits", a.outfit_changes);
+      add("Includes", a.deliverables);
+      break;
+    case "decor":
+      add("Theme", a.theme);
+      add("Includes", a.inclusions);
+      break;
+    case "catering":
+      add("Menu", a.menu_type);
+      add("Per plate", a.per_plate_price ? `Rs ${a.per_plate_price}` : null);
+      add("Min guests", a.min_guests);
+      break;
+    case "makeup-and-mehndi":
+      add("Looks", a.looks_count);
+      add("Includes", a.includes || a.deliverables);
+      break;
+    case "wedding-invitation":
+      add("Format", a.format);
+      add("Qty", a.quantity);
+      break;
+    case "pagfera":
+      add("Inclusions", a.inclusions || (a.pandit_included ? "Pandit + Samagri included" : null));
+      add("Duration", a.duration_hours ? `${a.duration_hours}h` : a.duration);
+      break;
+    case "honeymoon":
+      add("Nights", a.nights);
+      add("Destination", a.destination);
+      add("Includes", a.inclusions);
+      break;
+    default:
+      break;
+  }
+  return out.slice(0, 3);
+}
+
 function buildJourneyHref(
   slug,
   {
     categorySlug,
     subcategorySlug,
+    subSubcategorySlug,
     search: searchTerm,
     budget,
     capOff,
@@ -56,6 +160,7 @@ function buildJourneyHref(
   const qs = new URLSearchParams();
   if (categorySlug) qs.set("category", categorySlug);
   if (subcategorySlug) qs.set("subcategory", subcategorySlug);
+  if (subSubcategorySlug) qs.set("subSubcategory", subSubcategorySlug);
   if (searchTerm && String(searchTerm).trim()) qs.set("search", String(searchTerm).trim());
   if (capOff === true) {
     qs.set("cap", "off");
@@ -89,7 +194,7 @@ function StarRating({ value = 4 }) {
         <Star
           key={index}
           className={`h-3.5 w-3.5 ${
-            index < value ? "fill-[#ffbb28] text-[#ffbb28]" : "fill-slate-200 text-slate-200"
+            index < value ? "fill-warning text-warning" : "fill-border-strong text-border-strong"
           }`}
         />
       ))}
@@ -106,7 +211,104 @@ function formatAmount(value) {
 }
 
 const MAX_BUDGET_PER_STEP = 10000000;
-const BUDGET_STEP = 50000;
+// Sliders now move in ₹1,000 increments — a much finer drag than the
+// old 50k step, while still keeping the slider thumb usable across the
+// full ₹0..₹1 crore range.
+const BUDGET_STEP = 1000;
+
+/**
+ * BudgetStatusStrip — slim "Plan / In basket / Remaining" status row
+ * rendered at the top of the BudgetModal. Tints red when the basket is
+ * over plan, green otherwise. When the basket has items for this step
+ * we also surface a one-line "biggest category" summary so the user
+ * can see where the spend went without leaving the planner.
+ */
+function BudgetStatusStrip({
+  stepTitle,
+  planRupees,
+  spentRupees,
+  remainingRupees,
+  quotationItemsForStep = [],
+}) {
+  const plan = planRupees != null ? Number(planRupees) || 0 : null;
+  const spent = Number(spentRupees) || 0;
+  const remaining = remainingRupees != null ? Number(remainingRupees) || 0 : null;
+  const overBudget = plan != null && spent > plan;
+  const pct = plan && plan > 0 ? Math.min(100, Math.round((spent / plan) * 100)) : 0;
+
+  // Group basket items by category so we can show the biggest spender.
+  const byCategory = (quotationItemsForStep || []).reduce((acc, it) => {
+    const key = it?.category_label || it?.subcategory_label || "Other";
+    if (!acc[key]) acc[key] = 0;
+    acc[key] += (Number(it?.final_price ?? it?.price ?? 0)) * Number(it?.quantity || 1);
+    return acc;
+  }, {});
+  const top = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
+
+  return (
+    <div className="mb-5 rounded-2xl border border-border bg-surface-muted/40 px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
+          {stepTitle} basket vs plan
+        </p>
+        <p className="text-xs font-medium text-muted">
+          {plan != null ? `${formatCurrency(spent)} of ${formatCurrency(plan)}` : `${formatCurrency(spent)} committed`}
+        </p>
+      </div>
+
+      {plan != null ? (
+        <>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface">
+            <div
+              className={`h-full rounded-full ${overBudget ? "bg-danger" : "bg-success"}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted">Plan</div>
+              <div className="font-bold text-text-strong">{formatCurrency(plan)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted">In basket</div>
+              <div className="font-bold text-text-strong">{formatCurrency(spent)}</div>
+            </div>
+            <div>
+              <div
+                className={`text-[10px] font-bold uppercase tracking-wider ${
+                  overBudget ? "text-danger" : "text-success"
+                }`}
+              >
+                {overBudget ? "Over by" : "Remaining"}
+              </div>
+              <div className={`font-bold ${overBudget ? "text-danger" : "text-success"}`}>
+                {overBudget ? formatCurrency(spent - plan) : formatCurrency(remaining || 0)}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <p className="mt-1.5 text-xs text-muted">
+          No plan set yet — pick an amount below and the strip will start tracking.
+        </p>
+      )}
+
+      {top ? (
+        <p className="mt-2 text-[11px] text-muted">
+          Biggest line in your basket:{" "}
+          <span className="font-semibold text-text">{top[0]}</span>
+          <span className="text-muted"> ({formatCurrency(top[1])})</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+// The old `BudgetSummaryButton` + `BudgetSummaryDialog` (a separate
+// summary card mounted under the filter row) lived here. They were
+// removed once the same data started rendering inside BudgetModal via
+// BudgetStatusStrip — keep that pattern; don't reintroduce a
+// standalone summary surface.
 
 function BudgetModal({
   onClose,
@@ -118,6 +320,14 @@ function BudgetModal({
   onboarding = {},
   onApply,
   onClearCap,
+  // Live "what's in the basket vs the plan" summary — used to live in a
+  // separate card below the filter row; now rendered at the top of this
+  // modal so the user sees plan/spent/remaining in the same place where
+  // they edit it.
+  planRupees = null,
+  spentRupees = 0,
+  remainingRupees = null,
+  quotationItemsForStep = [],
 }) {
   const [amount, setAmount] = useState(() => Number(seedAmount ?? defaultBudget) || 0);
   const [error, setError] = useState("");
@@ -147,7 +357,7 @@ function BudgetModal({
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/45 p-4"
+      className="fixed inset-0 flex items-center justify-center p-4 z-100 bg-text-strong/45"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -156,31 +366,41 @@ function BudgetModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="budget-modal-title"
-        className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="mb-5 flex items-center justify-between">
-          <h3 id="budget-modal-title" className="text-lg font-semibold text-slate-800">
+        <div className="flex items-center justify-between mb-5">
+          <h3 id="budget-modal-title" className="text-lg font-semibold text-text-strong">
             {stepTitle} budget planner
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="cursor-pointer rounded-full p-2 transition-colors hover:bg-slate-100"
+            className="p-2 transition-colors rounded-full cursor-pointer hover:bg-surface-muted"
             aria-label="Close"
           >
-            <X className="h-4 w-4 text-slate-400" />
+            <X className="w-4 h-4 text-subtle" />
           </button>
         </div>
 
+        {/* Live status row — plan vs basket vs remaining for THIS step.
+            Tints red when the basket is over plan; green otherwise. */}
+        <BudgetStatusStrip
+          stepTitle={stepTitle}
+          planRupees={planRupees}
+          spentRupees={spentRupees}
+          remainingRupees={remainingRupees}
+          quotationItemsForStep={quotationItemsForStep}
+        />
+
         <div className="space-y-5">
           {planPreview.hasSavedPlan ? (
-            <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Estimated full plan total</p>
-              <p className="mt-1 text-xl font-semibold text-slate-800">{formatCurrency(planPreview.projectedTotal)}</p>
+            <div className="px-4 py-3 border rounded-xl border-border bg-surface-muted">
+              <p className="text-xs font-semibold tracking-wide uppercase text-subtle">Estimated full plan total</p>
+              <p className="mt-1 text-xl font-semibold text-text-strong">{formatCurrency(planPreview.projectedTotal)}</p>
               {planPreview.delta !== 0 ? (
                 <p
-                  className={`mt-1 text-sm font-semibold ${planPreview.delta > 0 ? "text-amber-700" : "text-emerald-700"}`}
+                  className={`mt-1 text-sm font-semibold ${planPreview.delta > 0 ? "text-warning-strong" : "text-success"}`}
                 >
                   {planPreview.delta > 0 ? (
                     <ArrowUp className="mr-1 inline-block h-4 w-4 align-[-2px]" aria-hidden="true" />
@@ -190,19 +410,19 @@ function BudgetModal({
                   {formatCurrency(Math.abs(planPreview.delta))} from your saved plan
                 </p>
               ) : (
-                <p className="mt-1 text-xs text-slate-500">Matches your saved plan total</p>
+                <p className="mt-1 text-xs text-muted">Matches your saved plan total</p>
               )}
             </div>
           ) : null}
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">This step</label>
-              <div className="text-sm font-semibold text-slate-800">{formatCurrency(amount)}</div>
+              <label className="text-xs font-semibold tracking-wide uppercase text-muted">This step</label>
+              <div className="text-sm font-semibold text-text-strong">{formatCurrency(amount)}</div>
             </div>
 
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">Rs</span>
+              <span className="absolute text-sm font-semibold -translate-y-1/2 left-4 top-1/2 text-subtle">Rs</span>
               <input
                 type="number"
                 min="0"
@@ -212,7 +432,7 @@ function BudgetModal({
                 onChange={(e) =>
                   setAmount(Math.max(0, Math.min(effectiveMaxBudget, Number(e.target.value) || 0)))
                 }
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm font-semibold text-slate-700 outline-none focus:border-[#ff4f86]"
+                className="w-full pl-10 pr-4 text-sm font-semibold border outline-none h-11 rounded-xl border-border-strong bg-surface text-text focus:border-primary"
                 autoFocus
               />
             </div>
@@ -225,21 +445,21 @@ function BudgetModal({
                 step={BUDGET_STEP}
                 value={amount}
                 onChange={(e) => setAmount(Number(e.target.value))}
-                className="h-2 w-full cursor-pointer accent-[#ff4f86]"
+                className="w-full h-2 cursor-pointer accent-primary"
               />
-              <div className="mt-2 flex justify-between text-[11px] text-slate-500">
+              <div className="mt-2 flex justify-between text-[11px] text-muted">
                 <span>Min</span>
                 <span>Max {formatAmount(effectiveMaxBudget)}</span>
               </div>
             </div>
-            <p className="text-xs leading-relaxed text-slate-500">
+            <p className="text-xs leading-relaxed text-muted">
               Choose how much you want to spend on this part of the wedding. We’ll narrow the list to ideas that fit —
               adjust anytime.
             </p>
           </div>
 
           {error ? (
-            <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
+            <div className="px-3 py-2 text-sm border rounded-xl border-danger/30 bg-danger/10 text-danger">{error}</div>
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -249,7 +469,7 @@ function BudgetModal({
                 onClearCap?.();
                 onClose();
               }}
-              className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-[#ff4f86] hover:underline"
+              className="text-xs font-semibold text-muted underline-offset-2 hover:text-primary hover:underline"
             >
               Show everything (no price limit)
             </button>
@@ -259,14 +479,14 @@ function BudgetModal({
             <button
               type="button"
               onClick={onClose}
-              className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="h-10 px-4 text-sm font-medium border rounded-xl border-border-strong text-muted hover:bg-surface-muted"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleApply}
-              className="h-10 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white hover:bg-[#ff3d79]"
+              className="h-10 px-4 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover"
             >
               Apply
             </button>
@@ -300,7 +520,7 @@ function PriceFilterModal({ onClose, seedCap, summaryLine, onApply, onClearUrl }
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/45 p-4"
+      className="fixed inset-0 flex items-center justify-center p-4 z-100 bg-text-strong/45"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -309,32 +529,23 @@ function PriceFilterModal({ onClose, seedCap, summaryLine, onApply, onClearUrl }
         role="dialog"
         aria-modal="true"
         aria-labelledby="price-filter-title"
-        className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 id="price-filter-title" className="text-lg font-semibold text-slate-800">
+        <div className="flex items-center justify-between mb-4">
+          <h3 id="price-filter-title" className="text-lg font-semibold text-text-strong">
             Product budget
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="cursor-pointer rounded-full p-2 transition-colors hover:bg-slate-100"
+            className="p-2 transition-colors rounded-full cursor-pointer hover:bg-surface-muted"
             aria-label="Close"
           >
-            <X className="h-4 w-4 text-slate-400" />
+            <X className="w-4 h-4 text-subtle" />
           </button>
         </div>
-        <p className="mb-2 text-sm text-slate-500">
-          Starts the same as your step budget. Change it here to filter listings by maximum offer price (after
-          discount). Step budget still drives your plan row above.
-        </p>
-        {summaryLine ? (
-          <p className="mb-4 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold leading-snug text-slate-700 ring-1 ring-slate-100">
-            {summaryLine}
-          </p>
-        ) : null}
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <label className="block mb-1 text-xs font-semibold tracking-wide uppercase text-subtle">
           Max offer price (₹)
         </label>
         <input
@@ -344,11 +555,11 @@ function PriceFilterModal({ onClose, seedCap, summaryLine, onApply, onClearUrl }
           onChange={(e) => setCapS(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
           placeholder="e.g. 500000"
-          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-[#ff4f86]"
+          className="w-full px-3 text-sm font-semibold border outline-none h-11 rounded-xl border-border-strong bg-surface-muted text-text-strong focus:border-primary"
           aria-label="Maximum offer price"
         />
-        {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
+        {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
+        <div className="flex flex-wrap items-center justify-between gap-2 mt-6">
           {onClearUrl ? (
             <button
               type="button"
@@ -356,7 +567,7 @@ function PriceFilterModal({ onClose, seedCap, summaryLine, onApply, onClearUrl }
                 onClearUrl();
                 onClose();
               }}
-              className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+              className="text-xs font-semibold text-muted underline-offset-2 hover:text-text-strong hover:underline"
             >
               Match step budget again (remove product override)
             </button>
@@ -367,14 +578,14 @@ function PriceFilterModal({ onClose, seedCap, summaryLine, onApply, onClearUrl }
             <button
               type="button"
               onClick={onClose}
-              className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="h-10 px-4 text-sm font-medium border rounded-xl border-border-strong text-muted hover:bg-surface-muted"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={submit}
-              className="h-10 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white hover:bg-[#ff3d79]"
+              className="h-10 px-4 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover"
             >
               Apply
             </button>
@@ -419,7 +630,7 @@ function GuestFilterModal({ onClose, seedCount, onApplyUrl, onSaveToProfile, onF
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/45 p-4"
+      className="fixed inset-0 flex items-center justify-center p-4 z-100 bg-text-strong/45"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -428,26 +639,26 @@ function GuestFilterModal({ onClose, seedCount, onApplyUrl, onSaveToProfile, onF
         role="dialog"
         aria-modal="true"
         aria-labelledby="guest-filter-title"
-        className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 id="guest-filter-title" className="text-lg font-semibold text-slate-800">
+        <div className="flex items-center justify-between mb-4">
+          <h3 id="guest-filter-title" className="text-lg font-semibold text-text-strong">
             Guest count
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="cursor-pointer rounded-full p-2 transition-colors hover:bg-slate-100"
+            className="p-2 transition-colors rounded-full cursor-pointer hover:bg-surface-muted"
             aria-label="Close"
           >
-            <X className="h-4 w-4 text-slate-400" />
+            <X className="w-4 h-4 text-subtle" />
           </button>
         </div>
-        <p className="mb-3 text-sm text-slate-500">
+        <p className="mb-3 text-sm text-muted">
           Venues with a listed capacity are filtered so the space can reasonably host your party size.
         </p>
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <label className="block mb-1 text-xs font-semibold tracking-wide uppercase text-subtle">
           Expected guests
         </label>
         <input
@@ -457,20 +668,20 @@ function GuestFilterModal({ onClose, seedCount, onApplyUrl, onSaveToProfile, onF
           onChange={(e) => setVal(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && applyUrl()}
           placeholder="e.g. 250"
-          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-[#ff4f86]"
+          className="w-full px-3 text-sm font-semibold border outline-none h-11 rounded-xl border-border-strong bg-surface-muted text-text-strong focus:border-primary"
         />
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+        <div className="flex flex-col gap-2 mt-6 sm:flex-row sm:flex-wrap sm:justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className="h-10 px-4 text-sm font-medium border rounded-xl border-border-strong text-muted hover:bg-surface-muted"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={applyUrl}
-            className="h-10 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white hover:bg-[#ff3d79]"
+            className="h-10 px-4 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover"
           >
             Apply for this page
           </button>
@@ -479,7 +690,7 @@ function GuestFilterModal({ onClose, seedCount, onApplyUrl, onSaveToProfile, onF
               type="button"
               disabled={saving}
               onClick={saveProfile}
-              className="h-10 rounded-xl border border-pink-200 bg-pink-50 px-4 text-sm font-semibold text-[#ff4f86] hover:bg-pink-100 disabled:opacity-50"
+              className="h-10 px-4 text-sm font-semibold border rounded-xl border-primary/40 bg-primary-soft text-primary hover:bg-primary-soft disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save to my account"}
             </button>
@@ -488,7 +699,7 @@ function GuestFilterModal({ onClose, seedCount, onApplyUrl, onSaveToProfile, onF
         {onFilterOff ? (
           <button
             type="button"
-            className="mt-4 w-full text-center text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+            className="w-full mt-4 text-xs font-semibold text-center text-muted underline-offset-2 hover:text-text-strong hover:underline"
             onClick={() => {
               onFilterOff();
               onClose();
@@ -538,7 +749,7 @@ function LocationFilterModal({ onClose, seedLabel, onApplyUrl, onSaveToProfile, 
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/45 p-4"
+      className="fixed inset-0 flex items-center justify-center p-4 z-100 bg-text-strong/45"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -547,23 +758,23 @@ function LocationFilterModal({ onClose, seedLabel, onApplyUrl, onSaveToProfile, 
         role="dialog"
         aria-modal="true"
         aria-labelledby="loc-filter-title"
-        className="w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 id="loc-filter-title" className="text-lg font-semibold text-slate-800">
+        <div className="flex items-center justify-between mb-4">
+          <h3 id="loc-filter-title" className="text-lg font-semibold text-text-strong">
             Wedding city &amp; state
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="cursor-pointer rounded-full p-2 transition-colors hover:bg-slate-100"
+            className="p-2 transition-colors rounded-full cursor-pointer hover:bg-surface-muted"
             aria-label="Close"
           >
-            <X className="h-4 w-4 text-slate-400" />
+            <X className="w-4 h-4 text-subtle" />
           </button>
         </div>
-        <p className="mb-4 text-sm text-slate-500">
+        <p className="mb-4 text-sm text-muted">
           Listings on venue, décor, and catering steps are matched to this area when the filter is on.
         </p>
         <CityStateDropdown
@@ -574,18 +785,18 @@ function LocationFilterModal({ onClose, seedLabel, onApplyUrl, onSaveToProfile, 
             setState(loc.state || "");
           }}
         />
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+        <div className="flex flex-col gap-2 mt-6 sm:flex-row sm:flex-wrap sm:justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className="h-10 px-4 text-sm font-medium border rounded-xl border-border-strong text-muted hover:bg-surface-muted"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={applyUrl}
-            className="h-10 rounded-xl bg-[#ff4f86] px-4 text-sm font-semibold text-white hover:bg-[#ff3d79]"
+            className="h-10 px-4 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover"
           >
             Apply for this page
           </button>
@@ -594,7 +805,7 @@ function LocationFilterModal({ onClose, seedLabel, onApplyUrl, onSaveToProfile, 
               type="button"
               disabled={saving}
               onClick={saveProfile}
-              className="h-10 rounded-xl border border-pink-200 bg-pink-50 px-4 text-sm font-semibold text-[#ff4f86] hover:bg-pink-100 disabled:opacity-50"
+              className="h-10 px-4 text-sm font-semibold border rounded-xl border-primary/40 bg-primary-soft text-primary hover:bg-primary-soft disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save to my account"}
             </button>
@@ -603,7 +814,7 @@ function LocationFilterModal({ onClose, seedLabel, onApplyUrl, onSaveToProfile, 
         {onFilterOff ? (
           <button
             type="button"
-            className="mt-4 w-full text-center text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+            className="w-full mt-4 text-xs font-semibold text-center text-muted underline-offset-2 hover:text-text-strong hover:underline"
             onClick={() => {
               onFilterOff();
               onClose();
@@ -641,8 +852,7 @@ function describeProductPriceCapLine(cap, customizedInUrl) {
   if (cap == null || !Number.isFinite(Number(cap))) return "Showing all offer prices";
   const n = Number(cap);
   if (n === 0) return "Showing listings with ₹0 offer price only";
-  const suffix = customizedInUrl ? " (your product budget)" : " (same as step budget)";
-  return `Showing listings up to ${formatCurrency(n)}${suffix}`;
+  return `${formatCurrency(n)}`;
 }
 
 function describeGuestFilterLine(count, filterOff) {
@@ -674,8 +884,10 @@ export default function JourneyStepPage({
   items,
   selectedCategoryId = "",
   selectedSubcategoryId = "",
+  selectedSubSubcategoryId = "",
   selectedCategorySlug = "",
   selectedSubcategorySlug = "",
+  selectedSubSubcategorySlug = "",
   search = "",
   appliedBudgetCap = null,
   budgetQueryValue = undefined,
@@ -701,9 +913,12 @@ export default function JourneyStepPage({
   const [searchQuery, setSearchQuery] = useState(search);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
   const [subcategoryMenuOpen, setSubcategoryMenuOpen] = useState(false);
+  const [subSubcategoryMenuOpen, setSubSubcategoryMenuOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
   const [subcategorySearch, setSubcategorySearch] = useState("");
+  const [subSubcategorySearch, setSubSubcategorySearch] = useState("");
   const filtersWrapRef = useRef(null);
+  const stepNature = useMemo(() => resolveStepNature(step), [step]);
 
   const capOrBudgetQs = capOffActive
     ? { capOff: true }
@@ -715,6 +930,7 @@ export default function JourneyStepPage({
     const merged = {
       categorySlug: selectedCategorySlug,
       subcategorySlug: selectedSubcategorySlug || undefined,
+      subSubcategorySlug: selectedSubSubcategorySlug || undefined,
       search: searchQuery.trim(),
       matchLocOff,
       matchGuestsOff,
@@ -724,6 +940,9 @@ export default function JourneyStepPage({
     };
     if (merged.subcategorySlug === null || merged.subcategorySlug === "") {
       delete merged.subcategorySlug;
+    }
+    if (merged.subSubcategorySlug === null || merged.subSubcategorySlug === "") {
+      delete merged.subSubcategorySlug;
     }
     return buildJourneyHref(step.slug, merged);
   }
@@ -753,7 +972,8 @@ export default function JourneyStepPage({
       isGuestModalOpen ||
       isLocationModalOpen ||
       categoryMenuOpen ||
-      subcategoryMenuOpen;
+      subcategoryMenuOpen ||
+      subSubcategoryMenuOpen;
     if (!lock) return undefined;
     const html = document.documentElement;
     const body = document.body;
@@ -772,6 +992,7 @@ export default function JourneyStepPage({
     isLocationModalOpen,
     categoryMenuOpen,
     subcategoryMenuOpen,
+    subSubcategoryMenuOpen,
   ]);
 
   useEffect(() => {
@@ -779,16 +1000,21 @@ export default function JourneyStepPage({
   }, [subcategoryMenuOpen]);
 
   useEffect(() => {
-    if (!categoryMenuOpen && !subcategoryMenuOpen) return;
+    if (subSubcategoryMenuOpen) setSubSubcategorySearch("");
+  }, [subSubcategoryMenuOpen]);
+
+  useEffect(() => {
+    if (!categoryMenuOpen && !subcategoryMenuOpen && !subSubcategoryMenuOpen) return;
     function onDocMouseDown(e) {
       if (filtersWrapRef.current && !filtersWrapRef.current.contains(e.target)) {
         setCategoryMenuOpen(false);
         setSubcategoryMenuOpen(false);
+        setSubSubcategoryMenuOpen(false);
       }
     }
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, [categoryMenuOpen, subcategoryMenuOpen]);
+  }, [categoryMenuOpen, subcategoryMenuOpen, subSubcategoryMenuOpen]);
 
   const activeIndex = Math.max(
     0,
@@ -797,14 +1023,80 @@ export default function JourneyStepPage({
   const progress = Math.round(((activeIndex + 1) / Math.max(steps.length, 1)) * 100);
 
   const topCategories = categories.filter((category) => !category.parent_category_id);
+  const stepHasCategories = topCategories.length > 0;
   const selectedCategory =
     topCategories.find((category) => category.category_id === selectedCategoryId) || topCategories[0] || null;
   const selectedSubcategory = selectedSubcategoryId
     ? categories.find((c) => c.category_id === selectedSubcategoryId) || null
     : null;
+  const selectedSubSubcategory = selectedSubSubcategoryId
+    ? categories.find((c) => c.category_id === selectedSubSubcategoryId) || null
+    : null;
 
-  const visibleItems = Array.isArray(items) ? items : [];
+  // Apply the guest + venue-city filters client-side. The server returns
+  // every item for the step + category; the URL params `guestCount` and
+  // `venueLoc` get applied here so the result set actually shrinks when
+  // the user picks "Match capacity" or "Match my city". The "off" toggles
+  // bypass the predicate entirely so the user can clear with one click.
+  const baseItems = Array.isArray(items) ? items : [];
+  const guestNeed = matchGuestsOff ? 0 : Number(effectiveGuestCount) || 0;
+  const cityNeed = matchLocOff
+    ? ""
+    : String(effectiveVenueLocation || "").trim().toLowerCase();
+
+  function itemMatchesGuests(item) {
+    if (guestNeed <= 0) return true;
+    const attrs = item?.attributes || {};
+    const capacity = Number(
+      attrs.max_guests ?? attrs.guest_capacity ?? attrs.capacity ?? item?.capacity ?? 0,
+    );
+    // Items without a capacity should still appear — we only filter OUT
+    // venues whose declared max is smaller than what the customer needs.
+    if (!Number.isFinite(capacity) || capacity <= 0) return true;
+    return capacity >= guestNeed;
+  }
+
+  function itemMatchesCity(item) {
+    if (!cityNeed) return true;
+    // `effectiveVenueLocation` is a "City, State" label. Match on either
+    // segment so "Mumbai" picks up "Mumbai, Maharashtra" items + vice-
+    // versa.
+    const haystack = [item?.location_city, item?.location_state]
+      .filter(Boolean)
+      .map((s) => String(s).toLowerCase());
+    if (!haystack.length) return false;
+    const needleParts = cityNeed.split(",").map((s) => s.trim()).filter(Boolean);
+    return needleParts.some((part) => haystack.some((h) => h.includes(part)));
+  }
+
+  // Audience (bride/groom) filter was removed per ask — shoppers
+  // see every item that passes the guest + city predicates. The
+  // `item.audience` field is still written by admin/vendor forms and
+  // can be re-surfaced later if the UX brings the pill row back.
+  const visibleItems = baseItems.filter(
+    (item) => itemMatchesGuests(item) && itemMatchesCity(item),
+  );
   const hasVisibleItems = visibleItems.length > 0;
+
+  // Pagination — client-side slice. Resets to page 1 whenever the filtered
+  // set's identity changes (filter pills, search, category change).
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [
+    visibleItems.length,
+    selectedCategoryId,
+    selectedSubcategoryId,
+    selectedSubSubcategoryId,
+    searchQuery,
+  ]);
+  const totalItems = visibleItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / JOURNEY_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedItems = visibleItems.slice(
+    (currentPage - 1) * JOURNEY_PAGE_SIZE,
+    currentPage * JOURNEY_PAGE_SIZE
+  );
 
   const quotationTotalThisStep = useMemo(() => {
     const sid = String(step.step_id || "");
@@ -884,12 +1176,23 @@ export default function JourneyStepPage({
     ? topCategories.filter((c) => (c.name || "").toLowerCase().includes(categorySearchLower))
     : topCategories;
 
-  const subsForSelectedCategory = categories.filter((c) => c.parent_category_id === selectedCategoryId);
+  const subsForSelectedCategory = categories.filter(
+    (c) => c.parent_category_id === (selectedCategory?.category_id || "")
+  );
   const hasSubcategoryOptions = subsForSelectedCategory.length > 0;
   const subSearchLower = subcategorySearch.trim().toLowerCase();
   const filteredSubs = subSearchLower
     ? subsForSelectedCategory.filter((c) => (c.name || "").toLowerCase().includes(subSearchLower))
     : subsForSelectedCategory;
+
+  const subSubsForSelectedSubcategory = selectedSubcategory
+    ? categories.filter((c) => c.parent_category_id === selectedSubcategory.category_id)
+    : [];
+  const hasSubSubcategoryOptions = subSubsForSelectedSubcategory.length > 0;
+  const subSubSearchLower = subSubcategorySearch.trim().toLowerCase();
+  const filteredSubSubs = subSubSearchLower
+    ? subSubsForSelectedSubcategory.filter((c) => (c.name || "").toLowerCase().includes(subSubSearchLower))
+    : subSubsForSelectedSubcategory;
 
   const searchPlaceholder = step.slug === "venues" ? "Search Venue" : `Search ${step.title}`;
 
@@ -898,37 +1201,48 @@ export default function JourneyStepPage({
   }
 
   return (
-    <div className="mx-auto w-full px-4 py-8 sm:px-6 lg:px-20 overflow-hidden">
-      <div className="flex justify-center">
-        <div className="inline-flex items-center overflow-x-auto rounded-full bg-white px-1 py-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-slate-100 no-scrollbar">
+    <div className="w-full px-4 py-8 mx-auto sm:px-6 lg:px-20">
+      {/*
+        Step strip — fully responsive:
+        • Each pill sizes to its own label width via `whitespace-nowrap` so
+          long titles like "Wedding invitation" / "Makeup & Mehndi" never
+          wrap inside the pill.
+        • Outer container allows horizontal scroll on small screens; on
+          wide screens the whole row fits comfortably. No `overflow-hidden`
+          on the parent — that was clipping the right edge.
+        • Connector between pills shrinks to `w-4` on small screens so the
+          11-step row fits more compactly without losing the visual link.
+      */}
+      <div className="w-full overflow-x-auto no-scrollbar">
+        <div className="inline-flex min-w-full items-center justify-start rounded-full bg-surface px-1 py-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border md:justify-center">
           <div className="flex items-center">
             {steps.map((item, index) => {
-              const active = item.step_id === step.step_id;
               const isLast = index === steps.length - 1;
 
               return (
                 <div key={item.step_id} className="flex items-center">
                   <a
                     href={`/journey/${item.slug}`}
-                    className={`flex items-center gap-2 rounded-full px-4 py-1 transition-all duration-300 shrink-0 transform active:scale-95 cursor-pointer ${
-                      index<=activeIndex ? "bg-[#fff1f6]" : "hover:bg-slate-50"
+                    title={item.title}
+                    className={`flex items-center gap-2 rounded-full px-3 py-1 transition-all duration-300 shrink-0 transform active:scale-95 cursor-pointer ${
+                      index<=activeIndex ? "bg-primary-soft" : "hover:bg-surface-muted"
                     }`}
                   >
                     <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all shadow-sm ${
-                      (index <= activeIndex) 
-                        ? "bg-[#ff4f86] text-white" 
-                        : "bg-[#d98fa3] text-white"
+                      (index <= activeIndex)
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-primary-accent text-primary-foreground"
                     }`}>
-                      {(index <= activeIndex) ? <Check className="h-3 w-3" strokeWidth={4} /> : <LockKeyhole className="h-3.5 w-3.5" strokeWidth={3} />}
+                      {(index <= activeIndex) ? <Check className="w-3 h-3" strokeWidth={4} /> : <LockKeyhole className="h-3.5 w-3.5" strokeWidth={3} />}
                     </div>
-                    <span className={`text-sm font-semibold transition-colors duration-300 ${
-                      index<=activeIndex ? "text-slate-800" : "text-slate-400"
+                    <span className={`whitespace-nowrap text-sm font-semibold transition-colors duration-300 ${
+                      index<=activeIndex ? "text-text-strong" : "text-subtle"
                     }`}>
                       {item.title}
                     </span>
                   </a>
                   {!isLast && (
-                    <div className="h-[4px] w-6 bg-linear-to-r from-pink-100 via-pink-500 to-pink-100 shrink-0" />
+                    <div className="h-1 w-4 lg:w-6 bg-linear-to-r from-primary-soft via-primary to-primary-soft shrink-0" />
                   )}
                 </div>
               );
@@ -937,38 +1251,42 @@ export default function JourneyStepPage({
         </div>
       </div>
 
-      <div className="mx-auto mt-4 max-w-4xl">
-        <div className="rounded-full bg-white/80 px-2 py-1 shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
+      <div className="max-w-4xl mx-auto mt-4">
+        <div className="rounded-full bg-surface/80 px-2 py-1 shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
           <div className="flex items-center gap-3">
-            <div className="h-4 flex-1 overflow-hidden rounded-full bg-slate-100">
+            <div className="flex-1 h-4 overflow-hidden rounded-full bg-surface-muted">
               <div
-                className="h-full rounded-full bg-[#ff4f86] shadow-[0_10px_20px_rgba(255,79,134,0.35)]"
+                className="h-full rounded-full bg-primary shadow-[0_10px_20px_rgba(255,79,134,0.35)]"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <span className="text-sm font-semibold text-slate-500">{progress}% Completed</span>
+            <span className="text-sm font-semibold text-muted">{progress}% Completed</span>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto mt-10 max-w-4xl px-6 py-6 text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-700 sm:text-4xl">{step.title}</h1>
-        <p className="mt-3 text-sm text-slate-500">{step.subtitle || "Select the perfect option for your special day."}</p>
+      <div className="max-w-4xl px-6 py-6 mx-auto mt-10 text-center">
+        <h1 className="text-3xl font-bold tracking-tight text-text sm:text-4xl">{step.title}</h1>
+        <p className="mt-3 text-sm text-muted">{step.subtitle || "Select the perfect option for your special day."}</p>
       </div>
 
-      <div className="mt-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-center">
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {/* Budget Section */}
+      {/* Filter row — restored chunky tile buttons (icon + label + value)
+          we had before the pill experiment, but the row is now a
+          horizontally scrollable strip. Filter chips never wrap to a
+          second line — when there's no room they slide off-screen and
+          you scroll left/right. */}
+      <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-center">
+        <div className="-mx-4 flex items-stretch gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-6 sm:pb-1 [scrollbar-width:thin] lg:overflow-visible lg:px-0">
           <div
             onClick={() => setIsBudgetModalOpen(true)}
-            className="flex cursor-pointer select-none items-center gap-3 rounded-xl bg-white px-4 py-3 text-slate-700 shadow-sm ring-1 ring-slate-100 transition-all hover:bg-slate-50"
+            className="flex shrink-0 cursor-pointer select-none items-center gap-3 rounded-xl bg-surface px-4 py-3 text-text shadow-sm ring-1 ring-border transition-all hover:bg-surface-muted"
           >
-            <div className="rounded-lg bg-pink-50 p-2 text-pink-500">
+            <div className="rounded-lg bg-primary-soft p-2 text-primary">
               <SlidersHorizontal className="h-4 w-4" />
             </div>
-            <div className="text-sm font-medium whitespace-nowrap">
+            <div className="whitespace-nowrap text-sm font-medium">
               {step.title} Budget:{" "}
-              <span className="font-bold text-slate-900 leading-none">
+              <span className="font-bold leading-none text-text-strong">
                 <BudgetBadge
                   noLimit={capOffActive}
                   effectiveCap={appliedBudgetCap}
@@ -976,7 +1294,7 @@ export default function JourneyStepPage({
                 />
               </span>
             </div>
-            <button className="ml-1 p-1 text-slate-300 pointer-events-none">
+            <button className="ml-1 p-1 text-border-strong pointer-events-none">
               <Pencil className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -984,17 +1302,19 @@ export default function JourneyStepPage({
           <button
             type="button"
             onClick={() => setIsPriceModalOpen(true)}
-            className={`flex max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
+            className={`flex shrink-0 max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
               productPriceCap != null
-                ? "bg-[#fff1f6] text-[#ff4f86] ring-pink-200"
-                : "bg-white text-slate-700 ring-slate-100 hover:bg-slate-50"
+                ? "bg-primary-soft text-primary ring-primary/40"
+                : "bg-surface text-text ring-border hover:bg-surface-muted"
             }`}
           >
             <span className="flex items-center gap-2">
               <IndianRupee className="h-4 w-4 shrink-0" aria-hidden />
               <span className="whitespace-nowrap">Product budget</span>
             </span>
-            <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-slate-600">{priceFilterSummary}</span>
+            <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-muted">
+              {priceFilterSummary}
+            </span>
           </button>
 
           {showSignupLocFilter ? (
@@ -1002,17 +1322,19 @@ export default function JourneyStepPage({
               type="button"
               onClick={() => setIsLocationModalOpen(true)}
               aria-pressed={!matchLocOff}
-              className={`flex max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
+              className={`flex shrink-0 max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
                 !matchLocOff
-                  ? "bg-[#fff1f6] text-[#ff4f86] ring-pink-200"
-                  : "bg-white text-slate-600 ring-slate-100 hover:bg-slate-50"
+                  ? "bg-primary-soft text-primary ring-primary/40"
+                  : "bg-surface text-muted ring-border hover:bg-surface-muted"
               }`}
             >
               <span className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="whitespace-nowrap">Your area</span>
+                <span className="whitespace-nowrap">Your dream destination</span>
               </span>
-              <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-slate-600">{areaFilterSummary}</span>
+              <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-muted">
+                {areaFilterSummary}
+              </span>
             </button>
           ) : null}
 
@@ -1021,56 +1343,60 @@ export default function JourneyStepPage({
               type="button"
               onClick={() => setIsGuestModalOpen(true)}
               aria-pressed={!matchGuestsOff}
-              className={`flex max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
+              className={`flex shrink-0 max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
                 !matchGuestsOff
-                  ? "bg-[#fff1f6] text-[#ff4f86] ring-pink-200"
-                  : "bg-white text-slate-600 ring-slate-100 hover:bg-slate-50"
+                  ? "bg-primary-soft text-primary ring-primary/40"
+                  : "bg-surface text-muted ring-border hover:bg-surface-muted"
               }`}
             >
               <span className="flex items-center gap-2">
                 <Users className="h-4 w-4 shrink-0" aria-hidden />
                 <span className="whitespace-nowrap">Guest size</span>
               </span>
-              <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-slate-600">{guestFilterSummary}</span>
+              <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-muted">
+                {guestFilterSummary}
+              </span>
             </button>
           ) : null}
         </div>
 
+        {stepHasCategories ? (
         <div
           ref={filtersWrapRef}
-          className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-stretch lg:w-auto lg:justify-center"
+          className="flex flex-col w-full gap-3 sm:flex-row sm:flex-wrap sm:items-stretch lg:w-auto lg:justify-center"
         >
           {/* Category — own button + popover */}
-          <div className="relative z-30 w-full sm:min-w-[200px] sm:flex-1 lg:w-auto lg:max-w-xs lg:flex-none">
+          <div className="relative z-30 w-full sm:min-w-50 sm:flex-1 lg:w-auto lg:max-w-xs lg:flex-none">
             <button
               type="button"
               onClick={() => {
                 setSubcategoryMenuOpen(false);
+                setSubSubcategoryMenuOpen(false);
                 setCategoryMenuOpen((open) => !open);
               }}
               aria-expanded={categoryMenuOpen}
               aria-haspopup="listbox"
-              className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-white px-5 py-4 text-left text-sm font-bold text-slate-700 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-slate-100 ring-inset transition-all hover:bg-slate-50"
+              className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-surface px-5 py-4 text-left text-sm font-bold text-text shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border ring-inset transition-all hover:bg-surface-muted"
             >
-              <div className={`text-slate-400 transition-colors ${categoryMenuOpen ? "text-[#ff4f86]" : ""}`}>
-                <LayoutGrid className="h-5 w-5" />
+              <div className={`text-subtle transition-colors ${categoryMenuOpen ? "text-primary" : ""}`}>
+                <LayoutGrid className="w-5 h-5" />
               </div>
-              <span className="min-w-0 flex-1 truncate">{selectedCategory ? selectedCategory.name : "Category"}</span>
+              <span className="flex-1 min-w-0 truncate">{selectedCategory ? selectedCategory.name : "Category"}</span>
             </button>
             {categoryMenuOpen && topCategories.length > 0 ? (
               <div
-                className="absolute left-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),360px)] overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_25px_80px_rgba(16,24,40,0.15)] sm:min-w-[280px]"
+                className="absolute left-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),360px)] overflow-hidden rounded-3xl border border-border bg-surface shadow-[0_25px_80px_rgba(16,24,40,0.15)] sm:min-w-70"
                 role="presentation"
                 onWheel={(e) => e.stopPropagation()}
               >
-                <div className="border-b border-slate-100 p-2">
+                <div className="p-2 border-b border-border">
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Search className="absolute w-4 h-4 -translate-y-1/2 pointer-events-none left-3 top-1/2 text-subtle" />
                     <input
                       value={categorySearch}
                       onChange={(e) => setCategorySearch(e.target.value)}
                       placeholder="Search categories…"
-                      className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#ff4f86]"
+                      className="w-full h-10 pr-3 text-sm border outline-none rounded-xl border-border-strong bg-surface-muted pl-9 text-text placeholder:text-subtle focus:border-primary"
                       onClick={(e) => e.stopPropagation()}
                       aria-label="Search categories"
                     />
@@ -1078,7 +1404,7 @@ export default function JourneyStepPage({
                 </div>
                 <div className="scrollbar-themed max-h-[min(280px,50vh)] touch-pan-y overflow-y-auto overscroll-contain p-2" role="listbox">
                   {filteredCategories.length === 0 ? (
-                    <p className="px-3 py-4 text-center text-sm text-slate-500">No categories match your search.</p>
+                    <p className="px-3 py-4 text-sm text-center text-muted">No categories match your search.</p>
                   ) : (
                     <div className="grid gap-1">
                       {filteredCategories.map((category) => {
@@ -1089,6 +1415,7 @@ export default function JourneyStepPage({
                             href={makeJourneyHref({
                               categorySlug: categoryUrlSegment(category),
                               subcategorySlug: undefined,
+                              subSubcategorySlug: undefined,
                               search: searchQuery.trim(),
                             })}
                             onClick={() => {
@@ -1096,7 +1423,7 @@ export default function JourneyStepPage({
                               setCategorySearch("");
                             }}
                             className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
-                              active ? "bg-[#fff1f6] text-[#ff4f86]" : "text-slate-600 hover:bg-slate-50"
+                              active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
                             }`}
                             role="option"
                             aria-selected={active}
@@ -1114,38 +1441,39 @@ export default function JourneyStepPage({
 
           {/* Subcategory — separate button + popover (only if this category has subs) */}
           {hasSubcategoryOptions ? (
-            <div className="relative z-30 w-full sm:min-w-[200px] sm:flex-1 lg:w-auto lg:max-w-xs lg:flex-none">
+            <div className="relative z-30 w-full sm:min-w-50 sm:flex-1 lg:w-auto lg:max-w-xs lg:flex-none">
               <button
                 type="button"
                 onClick={() => {
                   setCategoryMenuOpen(false);
+                  setSubSubcategoryMenuOpen(false);
                   setSubcategoryMenuOpen((open) => !open);
                 }}
                 aria-expanded={subcategoryMenuOpen}
                 aria-haspopup="listbox"
-                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-white px-5 py-4 text-left text-sm font-bold text-slate-700 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-slate-100 ring-inset transition-all hover:bg-slate-50"
+                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-surface px-5 py-4 text-left text-sm font-bold text-text shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border ring-inset transition-all hover:bg-surface-muted"
               >
-                <div className={`text-slate-400 transition-colors ${subcategoryMenuOpen ? "text-[#ff4f86]" : ""}`}>
-                  <Tags className="h-5 w-5" />
+                <div className={`text-subtle transition-colors ${subcategoryMenuOpen ? "text-primary" : ""}`}>
+                  <Tags className="w-5 h-5" />
                 </div>
-                <span className="min-w-0 flex-1 truncate">
+                <span className="flex-1 min-w-0 truncate">
                   {selectedSubcategory ? selectedSubcategory.name : "All types"}
                 </span>
               </button>
               {subcategoryMenuOpen ? (
                 <div
-                  className="absolute left-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),360px)] overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-[0_25px_80px_rgba(16,24,40,0.15)] sm:min-w-[280px]"
+                  className="absolute left-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),360px)] overflow-hidden rounded-3xl border border-border bg-surface shadow-[0_25px_80px_rgba(16,24,40,0.15)] sm:min-w-70"
                   role="presentation"
                   onWheel={(e) => e.stopPropagation()}
                 >
-                  <div className="border-b border-slate-100 p-2">
+                  <div className="p-2 border-b border-border">
                     <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Search className="absolute w-4 h-4 -translate-y-1/2 pointer-events-none left-3 top-1/2 text-subtle" />
                       <input
                         value={subcategorySearch}
                         onChange={(e) => setSubcategorySearch(e.target.value)}
                         placeholder="Search types…"
-                        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#ff4f86]"
+                        className="w-full h-10 pr-3 text-sm border outline-none rounded-xl border-border-strong bg-surface-muted pl-9 text-text placeholder:text-subtle focus:border-primary"
                         onClick={(e) => e.stopPropagation()}
                         aria-label="Search subcategories"
                       />
@@ -1161,6 +1489,7 @@ export default function JourneyStepPage({
                         href={makeJourneyHref({
                           categorySlug: selectedCategorySlug,
                           subcategorySlug: undefined,
+                          subSubcategorySlug: undefined,
                           search: searchQuery.trim(),
                         })}
                         onClick={() => {
@@ -1168,14 +1497,14 @@ export default function JourneyStepPage({
                           setSubcategorySearch("");
                         }}
                         className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
-                          !selectedSubcategoryId ? "bg-[#fff1f6] text-[#ff4f86]" : "text-slate-600 hover:bg-slate-50"
+                          !selectedSubcategoryId ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
                         }`}
                         role="option"
                       >
                         All in category
                       </Link>
                       {filteredSubs.length === 0 ? (
-                        <p className="px-2 py-3 text-center text-xs text-slate-500">No match</p>
+                        <p className="px-2 py-3 text-xs text-center text-muted">No match</p>
                       ) : (
                         filteredSubs.map((sub) => {
                           const active = sub.category_id === selectedSubcategoryId;
@@ -1185,6 +1514,7 @@ export default function JourneyStepPage({
                               href={makeJourneyHref({
                                 categorySlug: selectedCategorySlug,
                                 subcategorySlug: categoryUrlSegment(sub),
+                                subSubcategorySlug: undefined,
                                 search: searchQuery.trim(),
                               })}
                               onClick={() => {
@@ -1192,7 +1522,7 @@ export default function JourneyStepPage({
                                 setSubcategorySearch("");
                               }}
                               className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
-                                active ? "bg-[#fff1f6] text-[#ff4f86]" : "text-slate-600 hover:bg-slate-50"
+                                active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
                               }`}
                               role="option"
                               aria-selected={active}
@@ -1208,57 +1538,133 @@ export default function JourneyStepPage({
               ) : null}
             </div>
           ) : null}
+
+          {/* Sub-subcategory — 3rd level, shown only when this subcategory has children */}
+          {hasSubcategoryOptions && hasSubSubcategoryOptions ? (
+            <div className="relative z-30 w-full sm:min-w-50 sm:flex-1 lg:w-auto lg:max-w-xs lg:flex-none">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryMenuOpen(false);
+                  setSubcategoryMenuOpen(false);
+                  setSubSubcategoryMenuOpen((open) => !open);
+                }}
+                aria-expanded={subSubcategoryMenuOpen}
+                aria-haspopup="listbox"
+                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-surface px-5 py-4 text-left text-sm font-bold text-text shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border ring-inset transition-all hover:bg-surface-muted"
+              >
+                <div className={`text-subtle transition-colors ${subSubcategoryMenuOpen ? "text-primary" : ""}`}>
+                  <Tags className="w-5 h-5" />
+                </div>
+                <span className="flex-1 min-w-0 truncate">
+                  {selectedSubSubcategory ? selectedSubSubcategory.name : "All sub-types"}
+                </span>
+              </button>
+              {subSubcategoryMenuOpen ? (
+                <div
+                  className="absolute left-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),360px)] overflow-hidden rounded-3xl border border-border bg-surface shadow-[0_25px_80px_rgba(16,24,40,0.15)] sm:min-w-70"
+                  role="presentation"
+                  onWheel={(e) => e.stopPropagation()}
+                >
+                  <div className="p-2 border-b border-border">
+                    <div className="relative">
+                      <Search className="absolute w-4 h-4 -translate-y-1/2 pointer-events-none left-3 top-1/2 text-subtle" />
+                      <input
+                        value={subSubcategorySearch}
+                        onChange={(e) => setSubSubcategorySearch(e.target.value)}
+                        placeholder="Search sub-types…"
+                        className="w-full h-10 pr-3 text-sm border outline-none rounded-xl border-border-strong bg-surface-muted pl-9 text-text placeholder:text-subtle focus:border-primary"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Search sub-subcategories"
+                      />
+                    </div>
+                  </div>
+                  <div
+                    className="scrollbar-themed max-h-[min(280px,50vh)] touch-pan-y overflow-y-auto overscroll-contain p-2"
+                    role="listbox"
+                    aria-label="Sub-subcategories"
+                  >
+                    <div className="grid gap-1">
+                      <Link
+                        href={makeJourneyHref({
+                          categorySlug: selectedCategorySlug,
+                          subcategorySlug: selectedSubcategorySlug,
+                          subSubcategorySlug: undefined,
+                          search: searchQuery.trim(),
+                        })}
+                        onClick={() => {
+                          setSubSubcategoryMenuOpen(false);
+                          setSubSubcategorySearch("");
+                        }}
+                        className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
+                          !selectedSubSubcategoryId ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
+                        }`}
+                        role="option"
+                      >
+                        All in sub-type
+                      </Link>
+                      {filteredSubSubs.length === 0 ? (
+                        <p className="px-2 py-3 text-xs text-center text-muted">No match</p>
+                      ) : (
+                        filteredSubSubs.map((ss) => {
+                          const active = ss.category_id === selectedSubSubcategoryId;
+                          return (
+                            <Link
+                              key={ss.category_id}
+                              href={makeJourneyHref({
+                                categorySlug: selectedCategorySlug,
+                                subcategorySlug: selectedSubcategorySlug,
+                                subSubcategorySlug: categoryUrlSegment(ss),
+                                search: searchQuery.trim(),
+                              })}
+                              onClick={() => {
+                                setSubSubcategoryMenuOpen(false);
+                                setSubSubcategorySearch("");
+                              }}
+                              className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
+                                active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
+                              }`}
+                              role="option"
+                              aria-selected={active}
+                            >
+                              {ss.name}
+                            </Link>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
+        ) : null}
 
         {/* Search Section */}
-        <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white p-1.5 pl-6 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-slate-100 lg:max-w-xl">
+        <div className="flex flex-1 items-center gap-3 rounded-2xl bg-surface p-1.5 pl-6 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border lg:max-w-xl">
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-slate-600 outline-none placeholder:text-slate-400"
+            className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-muted outline-none placeholder:text-subtle"
             placeholder={searchPlaceholder}
           />
           <div className="flex items-center gap-1.5 pr-1">
             <button 
               onClick={handleSearch}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ff4f86] text-white transition-all active:scale-95 hover:bg-[#ff3d79]"
+              className="flex items-center justify-center transition-all h-11 w-11 rounded-2xl bg-primary text-primary-foreground active:scale-95 hover:bg-primary-hover"
             >
-              <Search className="h-5 w-5" />
+              <Search className="w-5 h-5" />
             </button>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto mt-6 flex w-full max-w-[1600px] justify-center px-4 sm:px-6">
-        <div className="w-full max-w-3xl rounded-2xl border border-pink-100/90 bg-linear-to-br from-pink-50/90 to-white px-4 py-3 text-sm text-slate-700 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-pink-50/80">
-          <p className="text-xs font-bold uppercase tracking-wide text-pink-600/90">This step</p>
-          {stepPlanRupees != null ? (
-            <div className="mt-1 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-4 sm:gap-y-1">
-              <span>
-                <span className="text-slate-500">Plan </span>
-                <span className="font-bold text-slate-900">{formatCurrency(stepPlanRupees)}</span>
-              </span>
-              <span>
-                <span className="text-slate-500">In quotation </span>
-                <span className="font-bold text-slate-900">{formatCurrency(quotationTotalThisStep)}</span>
-              </span>
-              <span>
-                <span className="text-slate-500">Remaining </span>
-                <span className="font-bold text-[#ff4f86]">{formatCurrency(stepRemainingRupees)}</span>
-              </span>
-            </div>
-          ) : (
-            <p className="mt-1 leading-relaxed">
-              <span className="font-semibold text-slate-900">{formatCurrency(quotationTotalThisStep)}</span>
-              <span className="text-slate-600"> in your quotation basket for this step.</span>
-              <span className="mt-1 block text-xs text-slate-500">
-                Set a step budget (tap budget above) or save allocations in your profile to track what’s left.
-              </span>
-            </p>
-          )}
-        </div>
-      </div>
+      {/* The "Plan / In quotation / Remaining" summary used to live
+          here as its own button. It now sits inside the BudgetModal
+          itself (opened by the "<Step> Budget" filter chip above), so
+          the journey strip stays focused on filters + items. */}
 
       {isBudgetModalOpen ? (
         <BudgetModal
@@ -1270,6 +1676,12 @@ export default function JourneyStepPage({
           maxBudget={step.max_budget || MAX_BUDGET_PER_STEP}
           seedAmount={budgetModalSeed}
           onboarding={authUser?.onboarding || {}}
+          planRupees={stepPlanRupees}
+          spentRupees={quotationTotalThisStep}
+          remainingRupees={stepRemainingRupees}
+          quotationItemsForStep={(cartState?.quotation || []).filter(
+            (c) => String(c?.journey_step_id || "") === String(step.step_id),
+          )}
           onApply={(amount) => {
             router.replace(
               makeJourneyHref({
@@ -1322,154 +1734,57 @@ export default function JourneyStepPage({
         />
       ) : null}
 
-      <div className="mt-10 flex w-full max-w-[1600px] mx-auto items-start gap-4 md:gap-6">
+      <div className="mt-10 flex w-full max-w-400 mx-auto items-start gap-4 md:gap-6">
         {/* Left Phase Control — top-aligned so row height follows content only */}
         <a
           href={activeIndex > 0 ? `/journey/${steps[activeIndex - 1].slug}` : "#"}
-          className={`group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white shadow-xl ring-1 ring-slate-100 transition-all hover:bg-[#fff1f6] hover:shadow-2xl active:scale-90 md:flex ${
+          className={`group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-surface shadow-xl ring-1 ring-border transition-all hover:bg-primary-soft hover:shadow-2xl active:scale-90 md:flex ${
             activeIndex === 0 ? "pointer-events-none opacity-10" : "cursor-pointer"
           }`}
           aria-label="Previous Phase"
         >
-          <ChevronLeft className="h-6 w-6 text-[#ff4f86] transition-colors group-hover:text-[#ff3d79]" />
+          <ChevronLeft className="w-6 h-6 transition-colors text-primary group-hover:text-primary-hover" />
         </a>
 
-        <div className="min-w-0 flex-1">
+        <div className="flex-1 min-w-0 pb-20">
           {hasVisibleItems ? (
-            <div className="grid gap-6 sm:grid-cols-2 sm:gap-8 xl:grid-cols-4 pb-20">
-              {visibleItems.map((item, index) => {
-                const image = item.images?.[0] || fallbackImages[index % fallbackImages.length];
+            <>
+            <div className="grid gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3 xl:grid-cols-4">
+              {pagedItems.map((item, index) => {
+                const whiteLabelOn = !item.vendor_id;
+                const vendorName = whiteLabelOn
+                  ? "MyShaadiStore"
+                  : item.vendor_business_name || item.vendor_name || "Vendor";
                 const subForItem = item.subcategory_id
                   ? categories.find((c) => c.category_id === item.subcategory_id)
                   : null;
-                const label = subForItem?.name || selectedCategory?.name || step.title;
-
+                const categoryLabel = subForItem?.name || selectedCategory?.name || step.title;
+                const v2Highlights = stepNature ? highlightsForItem(step, item) : [];
                 return (
-                  <article key={item.item_id} className="group flex h-full min-w-0 flex-col">
-                    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.08)] transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-[0_16px_40px_rgba(255,79,134,0.2)]">
-                      <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden rounded-[24px] bg-linear-to-br from-slate-100 to-slate-50">
-                        <div
-                          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
-                          style={{ backgroundImage: safeCssUrl(image) }}
-                          aria-label={item.name}
-                          role="img"
-                        />
-                        <div className="absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                        <span className="absolute bottom-3 left-3 rounded-full bg-[#ffbb28]/95 px-3 py-1.5 text-xs font-bold text-slate-800 backdrop-blur-sm">
-                          {label}
-                        </span>
-                        <button
-                          type="button"
-                          className="absolute top-3 right-3 rounded-full bg-white/90 p-2 text-slate-400 backdrop-blur-sm transition-all duration-300 hover:bg-[#fff1f6] hover:text-[#ff4f86] opacity-0 group-hover:opacity-100"
-                          aria-label="Add to wishlist"
-                        >
-                          <Heart className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="mt-4 flex min-h-0 flex-1 flex-col space-y-3 px-1 pb-1">
-                        <div className="flex items-center justify-between">
-                          <StarRating value={item.is_discount_active ? 5 : 4} />
-                          {item.is_discount_active && (
-                            <span className="rounded-full bg-[#fff1f6] px-2.5 py-1 text-xs font-bold text-[#ff4f86]">
-                              {item.discount_percentage}% OFF
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="min-w-0 space-y-2">
-                          <h3 className="text-lg font-bold leading-snug text-slate-700 line-clamp-2 sm:text-xl">
-                            {item.name}
-                          </h3>
-                          <div className="flex items-center gap-2 text-xs text-slate-400">
-                            <MapPin className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">
-                              {[item.location_city, item.location_state].filter(Boolean).join(", ") ||
-                                item.location ||
-                                "Available for service"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="mt-auto space-y-3">
-                          <div className="flex items-end justify-between">
-                            <div>
-                              <div className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400">Starting from</div>
-                              <div className="text-xl font-black text-[#ff4f86]">
-                                {formatCurrency(item.final_price || item.price)}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {(() => {
-                            const inCart = cartState.quotation.find((c) => c.item_id === item.item_id);
-                            if (inCart) {
-                              return (
-                                <div className="flex h-[46px] items-center justify-between gap-2 overflow-hidden rounded-2xl bg-linear-to-r from-[#ff4f86] to-[#ff6ba8] p-1 shadow-[0_8px_20px_rgba(255,79,134,0.3)] transition-all duration-300">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (inCart.quantity > 1) {
-                                        updateCartQuantity("quotation", item.item_id, inCart.quantity - 1);
-                                      } else {
-                                        removeFromCart("quotation", item.item_id);
-                                        toast.error("Removed from basket");
-                                      }
-                                    }}
-                                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-white transition-all hover:bg-white/30 active:scale-90"
-                                  >
-                                    <Minus className="h-4 w-4" />
-                                  </button>
-                                  <span className="min-w-6 text-center text-base font-black text-white">
-                                    {inCart.quantity}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      updateCartQuantity("quotation", item.item_id, inCart.quantity + 1);
-                                    }}
-                                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-white transition-all hover:bg-white/30 active:scale-90"
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              );
-                            }
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  addToCart('quotation', {
-                                    ...item,
-                                    image,
-                                    category_label: selectedCategory?.name || step.title,
-                                    subcategory_label: subForItem?.name || "",
-                                    journey_title: step.title,
-                                    journey_step_id: step.step_id,
-                                    source: "journey",
-                                  }, 1);
-                                  toast.success("Added to basket! 🎉");
-                                }}
-                                className="group/btn relative w-full overflow-hidden rounded-2xl bg-linear-to-r from-[#ff4f86] to-[#ff6ba8] px-4 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(255,79,134,0.3)] transition-all duration-300 hover:shadow-[0_12px_28px_rgba(255,79,134,0.45)] active:scale-[0.98]"
-                              >
-                                <span className="relative z-10 flex items-center justify-center gap-2">
-                                  <Plus className="h-4 w-4" />
-                                  Add to Basket
-                                </span>
-                                <div className="absolute inset-0 bg-linear-to-r from-[#ff6ba8] to-[#ff4f86] opacity-0 transition-opacity duration-300 group-hover/btn:opacity-100" />
-                              </button>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                  </article>
+                  <ItemCardV2
+                    key={item.item_id}
+                    item={item}
+                    vendorName={vendorName}
+                    whiteLabelOn={whiteLabelOn}
+                    step={step}
+                    fallbackImage={fallbackImages[index % fallbackImages.length]}
+                    highlights={v2Highlights}
+                    categoryLabel={categoryLabel}
+                    cartKind="quotation"
+                  />
                 );
               })}
             </div>
+            <Pagination
+              page={currentPage}
+              pageSize={JOURNEY_PAGE_SIZE}
+              total={totalItems}
+              onPageChange={setPage}
+            />
+            </>
           ) : (
-            <div className="rounded-[28px] border border-slate-100 bg-white px-6 py-40 text-center shadow-[0_28px_60px_rgba(15,23,42,0.06)]">
-              <p className="text-base font-semibold text-slate-700">
+            <div className="px-6 text-center border rounded-[28px] border-border bg-surface py-40 shadow-[0_28px_60px_rgba(15,23,42,0.06)]">
+              <p className="text-base font-semibold text-text">
                 {productPriceCap != null
                   ? "No items within this product budget"
                   : search
@@ -1478,7 +1793,7 @@ export default function JourneyStepPage({
                       ? "No items in this category yet"
                       : "No items in this step yet"}
               </p>
-              <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+              <p className="max-w-md mx-auto mt-2 text-sm text-muted">
                 {productPriceCap != null
                   ? "Try raising the max price in Product budget, or remove the product override to follow your step budget again."
                   : search
@@ -1489,7 +1804,7 @@ export default function JourneyStepPage({
                 <button
                   type="button"
                   onClick={clearPriceFilter}
-                  className="mt-6 rounded-xl bg-[#ff4f86] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#ff3d79]"
+                  className="mt-6 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary-hover"
                 >
                   Match step budget again
                 </button>
@@ -1500,12 +1815,12 @@ export default function JourneyStepPage({
 
         <a
           href={activeIndex < steps.length - 1 ? `/journey/${steps[activeIndex + 1].slug}` : "#"}
-          className={`group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 bg-[#ff4f86] items-center justify-center rounded-xl ring-1 ring-slate-100 transition-all hover:bg-[#ff1f86] hover:shadow-2xl active:scale-90 md:flex ${
+          className={`group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 bg-primary items-center justify-center rounded-xl ring-1 ring-border transition-all hover:bg-primary hover:shadow-2xl active:scale-90 md:flex ${
             activeIndex === steps.length - 1 ? "pointer-events-none opacity-10" : "cursor-pointer"
           }`}
           aria-label="Next Phase"
         >
-          <ChevronRight className="h-6 w-6 text-white transition-colors" />        </a>
+          <ChevronRight className="w-6 h-6 transition-colors text-primary-foreground" />        </a>
       </div>
 
       <div>

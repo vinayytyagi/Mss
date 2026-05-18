@@ -3,11 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useAuthUser, getAuthToken, saveAuthCookies } from "@/lib/authCookies";
-import { updateMyProfile } from "@/lib/api";
+import { useAuthUser, getAuthToken, saveAuthCookies, clearAuthCookies } from "@/lib/authCookies";
+import { useRouter } from "next/navigation";
+import { updateMyProfile, deleteMyAccount } from "@/lib/api";
 import ImageUpload from "@/components/ImageUpload";
 import CityStateDropdown from "@/components/CityStateDropdown";
 import { formatLakhs } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   Check,
   Heart,
@@ -16,6 +18,8 @@ import {
   Package,
   Pencil,
   Plus,
+  Settings,
+  Trash2,
   UserRound,
   X,
   ArrowRight,
@@ -54,6 +58,10 @@ function PlusIcon() {
   return <Plus className="h-4 w-4" />;
 }
 
+function SettingsIcon() {
+  return <Settings className="h-4 w-4" />;
+}
+
 /* ── Helpers ────────────────────────────────────────── */
 function formatDate(dateStr) {
   if (!dateStr) return "—";
@@ -65,7 +73,7 @@ function formatCurrency(amount) {
 }
 
 const MAX_BUDGET_PER_STEP = 5000000;
-const BUDGET_STEP = 50000;
+const BUDGET_STEP = 1000;
 
 function getInitials(name) {
   if (!name) return "?";
@@ -74,8 +82,11 @@ function getInitials(name) {
 
 /* ── Main Component ────────────────────────────────── */
 export default function ProfileClient({ initialProfile = null, initialOrders = [], hasServerSession = false }) {
+  const router = useRouter();
   const user = useAuthUser(initialProfile || null);
   const [profile, setProfile] = useState(initialProfile);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [orders] = useState(initialOrders);
   const [loading] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
@@ -213,15 +224,15 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
   if (!user && !hasServerSession) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
-        <div className="rounded-3xl border border-slate-100 bg-white/80 px-8 py-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-[#ff4f86] to-[#ff8fb1] text-white shadow-[0_20px_50px_rgba(255,79,134,0.3)]">
+        <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-primary to-primary-accent text-primary-foreground shadow-[0_20px_50px_rgba(255,79,134,0.3)]">
             <UserIcon />
           </div>
-          <h1 className="mt-4 text-2xl font-extrabold text-slate-700">My Profile</h1>
-          <p className="mt-2 text-slate-500">Please log in to view your profile.</p>
+          <h1 className="mt-4 text-2xl font-extrabold text-text">My Profile</h1>
+          <p className="mt-2 text-muted">Please log in to view your profile.</p>
           <Link
             href="/login"
-            className="mt-6 inline-block rounded-2xl bg-[#ff4f86] px-8 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-[#ff3d79]"
+            className="mt-6 inline-block rounded-2xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-primary-hover"
           >
             Login
           </Link>
@@ -234,7 +245,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
     return (
       <main className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
         <div className="flex items-center justify-center py-20">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#ff4f86] border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       </main>
     );
@@ -246,6 +257,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
     { id: "wedding", label: "Wedding details", icon: <HeartIcon /> },
     { id: "budget", label: "Budget", icon: <IndianRupee className="h-4 w-4" /> },
     { id: "addresses", label: "Addresses", icon: <LocationIcon /> },
+    { id: "settings", label: "Settings", icon: <SettingsIcon /> },
   ];
 
   const onboarding = profile?.onboarding || {};
@@ -256,13 +268,13 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Hero / Avatar section */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-linear-to-br from-[#ff4f86]/5 via-white to-[#fff1f6] p-6 shadow-[0_8px_40px_rgba(0,0,0,0.04)] sm:p-8">
-        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[#ff4f86]/5 blur-3xl" />
-        <div className="absolute -left-10 bottom-0 h-32 w-32 rounded-full bg-[#ff8fb1]/10 blur-3xl" />
+      <div className="relative overflow-hidden rounded-3xl border border-border bg-linear-to-br from-primary/5 via-white to-primary-soft p-6 shadow-[0_8px_40px_rgba(0,0,0,0.04)] sm:p-8">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -left-10 bottom-0 h-32 w-32 rounded-full bg-primary-accent/10 blur-3xl" />
         <div className="relative flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           {/* Avatar */}
           <div className="relative shrink-0">
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-linear-to-br from-[#ff4f86] to-[#ff8fb1] text-2xl font-extrabold text-white shadow-[0_20px_50px_rgba(255,79,134,0.3)]">
+            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-linear-to-br from-primary to-primary-accent text-2xl font-extrabold text-primary-foreground shadow-[0_20px_50px_rgba(255,79,134,0.3)]">
               {profile?.image_url ? (
                 <Image
                   src={profile.image_url}
@@ -290,20 +302,20 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   });
                 });
               }}
-              className="absolute -bottom-1 -right-1 rounded-full border-2 border-white bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#ff4f86] shadow-md transition hover:bg-[#fff5f9]"
+              className="absolute -bottom-1 -right-1 rounded-full border-2 border-primary-foreground bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary shadow-md transition hover:bg-primary-soft"
             >
               {profile?.image_url ? "Edit" : "Photo"}
             </button>
           </div>
           <div className="text-center sm:text-left">
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-700">
+            <h1 className="text-2xl font-extrabold tracking-tight text-text">
               {profile?.name || "User"}
             </h1>
-            <p className="mt-0.5 text-sm text-slate-800">+91 {profile?.phone || user.phone || ""}</p>
-            {profile?.email && <p className="text-sm text-slate-800">{profile.email}</p>}
-            <p className="mt-1 text-xs text-slate-600">Member since {formatDate(profile?.created_at)}</p>
+            <p className="mt-0.5 text-sm text-text-strong">+91 {profile?.phone || user.phone || ""}</p>
+            {profile?.email && <p className="text-sm text-text-strong">{profile.email}</p>}
+            <p className="mt-1 text-xs text-muted">Member since {formatDate(profile?.created_at)}</p>
           </div>
-          <div className="sm:ml-auto rounded-xl border border-[#ffd9e6] bg-white/80 px-3 py-2 text-xs font-medium text-[#ff4f86]">
+          <div className="sm:ml-auto rounded-xl border border-primary-soft bg-surface/80 px-3 py-2 text-xs font-medium text-primary">
             Account dashboard
           </div>
         </div>
@@ -311,21 +323,21 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
       {/* Success message */}
       {saveMsg && (
-        <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-600 animate-in fade-in duration-300">
+        <div className="mt-4 rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-center text-sm font-medium text-success animate-in fade-in duration-300">
           {saveMsg}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="mt-6 flex gap-1 overflow-x-auto rounded-2xl border border-slate-100 bg-white/80 p-1 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+      <div className="mt-6 flex gap-1 overflow-x-auto rounded-2xl border border-border bg-surface/80 p-1 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === tab.id
-                ? "bg-[#ff4f86] text-white shadow-[0_8px_20px_rgba(255,79,134,0.25)]"
-                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                ? "bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(255,79,134,0.25)]"
+                : "text-muted hover:bg-surface-muted hover:text-text"
             }`}
           >
             {tab.icon} {tab.label}
@@ -337,13 +349,13 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
       <div className="mt-6">
         {/* ── Profile Tab ──────────────────────────────────── */}
         {activeTab === "profile" && (
-          <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+          <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-700">Personal information</h2>
+              <h2 className="text-base font-semibold text-text">Personal information</h2>
               {!editingBasic && (
                 <button
                   onClick={() => setEditingBasic(true)}
-                  className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-[#ff4f86] transition hover:bg-[#fff1f6]"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary-soft"
                 >
                   <PencilIcon /> Edit
                 </button>
@@ -353,32 +365,32 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             {editingBasic ? (
               <div className="mt-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400">Name</label>
+                  <label className="block text-xs font-semibold uppercase tracking-widest text-subtle">Name</label>
                   <input
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
+                    className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring focus:ring-primary/20"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400">Email</label>
+                  <label className="block text-xs font-semibold uppercase tracking-widest text-subtle">Email</label>
                   <input
                     type="email"
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
+                    className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring focus:ring-primary/20"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400">Phone</label>
+                  <label className="block text-xs font-semibold uppercase tracking-widest text-subtle">Phone</label>
                   <input
                     type="text"
                     value={`+91 ${profile?.phone || ""}`}
                     disabled
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400"
+                    className="mt-1 w-full rounded-xl border border-border-strong bg-surface-muted px-4 py-3 text-sm text-subtle"
                   />
-                  <p className="mt-1 text-xs text-slate-400">Phone number cannot be changed</p>
+                  <p className="mt-1 text-xs text-subtle">Phone number cannot be changed</p>
                 </div>
                 <div id="profile-photo-upload" className="pt-2">
                   <ImageUpload
@@ -386,7 +398,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                     initialUrl={editImage}
                     onUploadComplete={(url) => setEditImage(url)}
                   />
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-muted">
                     We resize photos for upload. If cloud storage is offline, a JPEG preview is saved on your profile for this device.
                   </p>
                 </div>
@@ -394,9 +406,9 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   <button
                     onClick={handleSaveBasic}
                     disabled={saving}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#ff4f86] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:bg-[#ff3d79] disabled:opacity-60"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:bg-primary-hover disabled:opacity-60"
                   >
-                    {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <CheckIcon />}
+                    {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> : <CheckIcon />}
                     Save
                   </button>
                   <button
@@ -406,7 +418,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                       setEditEmail(profile?.email || "");
                       setEditImage(profile?.image_url || "");
                     }}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-50"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-border-strong px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
                   >
                     <XIcon /> Cancel
                   </button>
@@ -414,41 +426,41 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
               </div>
             ) : (
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl bg-slate-50/80 px-5 py-4">
-                  <p className="text-xs text-slate-400">Full Name</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">{profile?.name || "—"}</p>
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Full Name</p>
+                  <p className="mt-1 text-sm font-bold text-text">{profile?.name || "—"}</p>
                 </div>
-                <div className="rounded-2xl bg-slate-50/80 px-5 py-4">
-                  <p className="text-xs text-slate-400">Phone</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">+91 {profile?.phone || "—"}</p>
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Phone</p>
+                  <p className="mt-1 text-sm font-bold text-text">+91 {profile?.phone || "—"}</p>
                 </div>
-                <div className="rounded-2xl bg-slate-50/80 px-5 py-4">
-                  <p className="text-xs text-slate-400">Email</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">{profile?.email || "Not provided"}</p>
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Email</p>
+                  <p className="mt-1 text-sm font-bold text-text">{profile?.email || "Not provided"}</p>
                 </div>
-                <div className="rounded-2xl bg-slate-50/80 px-5 py-4">
-                  <p className="text-xs text-slate-400">Account Status</p>
-                  <p className="mt-1 text-sm font-bold text-emerald-600">{profile?.status || "Active"}</p>
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Account Status</p>
+                  <p className="mt-1 text-sm font-bold text-success">{profile?.status || "Active"}</p>
                 </div>
-                <div className="rounded-2xl bg-slate-50/80 px-5 py-4">
-                  <p className="text-xs text-slate-400">Saved Addresses</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">{addresses.length}</p>
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Saved Addresses</p>
+                  <p className="mt-1 text-sm font-bold text-text">{addresses.length}</p>
                 </div>
-                <div className="rounded-2xl bg-slate-50/80 px-5 py-4">
-                  <p className="text-xs text-slate-400">Orders Placed</p>
-                  <p className="mt-1 flex items-center gap-2 text-sm font-bold text-slate-700">
-                    <Package className="h-4 w-4 text-[#ff4f86]" />
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Orders Placed</p>
+                  <p className="mt-1 flex items-center gap-2 text-sm font-bold text-text">
+                    <Package className="h-4 w-4 text-primary" />
                     {orders.length}
                   </p>
                 </div>
-                <div className="rounded-2xl bg-slate-50/80 px-5 py-4">
-                  <p className="text-xs text-slate-400">Wedding Month</p>
-                  <p className="mt-1 text-sm font-bold text-slate-700">{onboarding.wedding_month || "—"}</p>
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Wedding Month</p>
+                  <p className="mt-1 text-sm font-bold text-text">{onboarding.wedding_month || "—"}</p>
                 </div>
-                <div className="rounded-2xl bg-slate-50/80 px-5 py-4">
-                  <p className="text-xs text-slate-400">Current Budget</p>
-                  <p className="mt-1 flex items-center gap-2 text-sm font-bold text-slate-700">
-                    <IndianRupee className="h-4 w-4 text-[#ff4f86]" />
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Current Budget</p>
+                  <p className="mt-1 flex items-center gap-2 text-sm font-bold text-text">
+                    <IndianRupee className="h-4 w-4 text-primary" />
                     {onboarding.budget_total ? formatCurrency(onboarding.budget_total) : "—"}
                   </p>
                 </div>
@@ -461,10 +473,10 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
         {activeTab === "orders" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-700">
+              <h2 className="text-base font-semibold text-text">
                 Recent Orders ({orders.length})
               </h2>
-              <Link href="/orders" className="text-sm font-semibold text-[#ff4f86] transition hover:text-[#ff3d79]">
+              <Link href="/orders" className="text-sm font-semibold text-primary transition hover:text-primary-hover">
                 <span className="inline-flex items-center gap-2">
                   View All
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -473,10 +485,10 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             </div>
 
             {orders.length === 0 ? (
-              <div className="rounded-3xl border border-slate-100 bg-white/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+              <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
                 <PackageIcon />
-                <p className="mt-3 text-sm text-slate-500">No orders yet</p>
-                <Link href="/" className="mt-4 inline-block rounded-xl bg-[#ff4f86] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#ff3d79]">
+                <p className="mt-3 text-sm text-muted">No orders yet</p>
+                <Link href="/" className="mt-4 inline-block rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover">
                   Start Shopping
                 </Link>
               </div>
@@ -485,22 +497,22 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                 <Link
                   key={order._id}
                   href={`/orders/${order._id}`}
-                  className="group block rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:border-[#ff4f86]/30 hover:shadow-[0_8px_30px_rgba(255,79,134,0.08)]"
+                  className="group block rounded-2xl border border-border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:border-primary/30 hover:shadow-[0_8px_30px_rgba(255,79,134,0.08)]"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p className="font-bold text-slate-700">{order.order_number}</p>
-                      <p className="text-xs text-slate-400">{formatDate(order.created_at)}</p>
+                      <p className="font-bold text-text">{order.order_number}</p>
+                      <p className="text-xs text-subtle">{formatDate(order.created_at)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-                        order.status === "Paid" ? "border-emerald-200 bg-emerald-50 text-emerald-700" :
-                        order.status === "Cancelled" ? "border-red-200 bg-red-50 text-red-600" :
-                        "border-amber-200 bg-amber-50 text-amber-700"
+                        order.status === "Paid" ? "border-success/40 bg-success/10 text-success" :
+                        order.status === "Cancelled" ? "border-danger/30 bg-danger/10 text-danger" :
+                        "border-warning/40 bg-warning/15 text-warning-strong"
                       }`}>
                         {order.status}
                       </span>
-                      <span className="font-bold text-slate-700">{formatCurrency(order.total_amount)}</span>
+                      <span className="font-bold text-text">{formatCurrency(order.total_amount)}</span>
                     </div>
                   </div>
                 </Link>
@@ -511,13 +523,13 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
         {/* ── Wedding Details Tab ─────────────────────────── */}
         {activeTab === "wedding" && (
-          <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+          <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-700">Wedding details</h2>
+              <h2 className="text-base font-semibold text-text">Wedding details</h2>
               {!editingWedding && (
                 <button
                   onClick={() => setEditingWedding(true)}
-                  className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-[#ff4f86] transition hover:bg-[#fff1f6]"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary-soft"
                 >
                   <PencilIcon /> Edit
                 </button>
@@ -528,25 +540,25 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
               <div className="mt-6 space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400">Wedding Date</label>
+                    <label className="block text-xs font-semibold uppercase tracking-widest text-subtle">Wedding Date</label>
                     <input
                       type="date"
                       value={editWeddingDate?.split("T")[0] || ""}
                       onChange={(e) => setEditWeddingDate(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
+                      className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring focus:ring-primary/20"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400">Guest Count</label>
+                    <label className="block text-xs font-semibold uppercase tracking-widest text-subtle">Guest Count</label>
                     <input
                       type="number"
                       value={editGuestsCount}
                       onChange={(e) => setEditGuestsCount(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#ff4f86] focus:ring focus:ring-[#ff4f86]/20"
+                      className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring focus:ring-primary/20"
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400">Venue Location</label>
+                    <label className="block text-xs font-semibold uppercase tracking-widest text-subtle">Venue Location</label>
                     <div className="mt-1">
                       <CityStateDropdown
                         value={editVenueLocation}
@@ -559,17 +571,17 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-pink-100 bg-pink-50/60 px-4 py-3 text-sm text-slate-600">
-                  Budget allocations are managed in the <span className="font-bold text-[#ff4f86]">Budget</span> tab.
+                <div className="rounded-2xl border border-primary/30 bg-primary-soft/60 px-4 py-3 text-sm text-muted">
+                  Budget allocations are managed in the <span className="font-bold text-primary">Budget</span> tab.
                 </div>
 
-                <div className="flex items-center gap-3 pt-4 border-t border-slate-50">
+                <div className="flex items-center gap-3 pt-4 border-t border-border">
                   <button
                     onClick={handleSaveWedding}
                     disabled={saving}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#ff4f86] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_30_rgba(255,79,134,0.25)] transition hover:bg-[#ff3d79] disabled:opacity-60"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_30_rgba(255,79,134,0.25)] transition hover:bg-primary-hover disabled:opacity-60"
                   >
-                    {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <CheckIcon />}
+                    {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> : <CheckIcon />}
                     Save Wedding Details
                   </button>
                   <button
@@ -580,7 +592,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                       setEditGuestsCount(currentOnboarding.guests_count || "");
                       setEditVenueLocation(currentOnboarding.venue_location || "");
                     }}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-50"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-border-strong px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
                   >
                     <XIcon /> Cancel
                   </button>
@@ -589,24 +601,24 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             ) : (
               <>
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-linear-to-br from-[#fff1f6] to-white px-5 py-4 border border-pink-50">
-                    <p className="text-xs text-slate-400">Wedding Date</p>
-                    <p className="mt-1 text-sm font-bold text-slate-700">
+                  <div className="rounded-2xl bg-linear-to-br from-primary-soft to-white px-5 py-4 border border-primary/20">
+                    <p className="text-xs text-subtle">Wedding Date</p>
+                    <p className="mt-1 text-sm font-bold text-text">
                       {onboarding.wedding_date ? formatDate(onboarding.wedding_date) :
                        onboarding.wedding_month || "Not set"}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-linear-to-br from-[#fff1f6] to-white px-5 py-4 border border-pink-50">
-                    <p className="text-xs text-slate-400">Venue Location</p>
-                    <p className="mt-1 text-sm font-bold text-slate-700">{onboarding.venue_location || "—"}</p>
+                  <div className="rounded-2xl bg-linear-to-br from-primary-soft to-white px-5 py-4 border border-primary/20">
+                    <p className="text-xs text-subtle">Venue Location</p>
+                    <p className="mt-1 text-sm font-bold text-text">{onboarding.venue_location || "—"}</p>
                   </div>
-                  <div className="rounded-2xl bg-linear-to-br from-[#fff1f6] to-white px-5 py-4 border border-pink-50">
-                    <p className="text-xs text-slate-400">Guest Count</p>
-                    <p className="mt-1 text-sm font-bold text-slate-700">{onboarding.guests_count || "—"}</p>
+                  <div className="rounded-2xl bg-linear-to-br from-primary-soft to-white px-5 py-4 border border-primary/20">
+                    <p className="text-xs text-subtle">Guest Count</p>
+                    <p className="mt-1 text-sm font-bold text-text">{onboarding.guests_count || "—"}</p>
                   </div>
-                  <div className="rounded-2xl bg-linear-to-br from-[#fff1f6] to-white px-5 py-4 border border-pink-50">
-                    <p className="text-xs text-slate-400">Total Budget</p>
-                    <p className="mt-1 text-sm font-bold text-slate-700">
+                  <div className="rounded-2xl bg-linear-to-br from-primary-soft to-white px-5 py-4 border border-primary/20">
+                    <p className="text-xs text-subtle">Total Budget</p>
+                    <p className="mt-1 text-sm font-bold text-text">
                       {onboarding.budget_total ? formatCurrency(onboarding.budget_total) : "—"}
                     </p>
                   </div>
@@ -618,22 +630,22 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
         )}
 
         {activeTab === "budget" && (
-          <div className="rounded-3xl border border-slate-100 bg-white/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+          <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-700">Budget planner</h2>
+              <h2 className="text-base font-semibold text-text">Budget planner</h2>
               {!editingBudget && (
                 <button
                   onClick={() => setEditingBudget(true)}
-                  className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-[#ff4f86] transition hover:bg-[#fff1f6]"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary-soft"
                 >
                   <PencilIcon /> Edit
                 </button>
               )}
             </div>
 
-            <div className="mt-5 rounded-2xl border border-pink-100 bg-linear-to-br from-[#fff1f6] to-white px-5 py-4">
-              <p className="text-xs uppercase tracking-widest text-slate-400">Total Budget</p>
-              <p className="mt-1 text-2xl font-black text-[#ff4f86]">
+            <div className="mt-5 rounded-2xl border border-primary/30 bg-linear-to-br from-primary-soft to-white px-5 py-4">
+              <p className="text-xs uppercase tracking-widest text-subtle">Total Budget</p>
+              <p className="mt-1 text-2xl font-black text-primary">
                 {formatCurrency(editingBudget ? editableBudgetTotal : onboarding.budget_total || 0)}
               </p>
             </div>
@@ -641,15 +653,15 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             {editingBudget ? (
               <div className="mt-6 space-y-4">
                 {editBudgetAllocations.length === 0 ? (
-                  <p className="rounded-2xl bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
+                  <p className="rounded-2xl bg-surface-muted px-4 py-5 text-center text-sm text-muted">
                     No budget breakdown found yet. Update journey step budgets first.
                   </p>
                 ) : (
                   editBudgetAllocations.map((alloc, idx) => (
-                    <div key={`${alloc.step_id || alloc.slug || "step"}-${idx}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                    <div key={`${alloc.step_id || alloc.slug || "step"}-${idx}`} className="rounded-2xl border border-border bg-surface-muted/60 p-4">
                       <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-bold text-slate-700">{alloc.title || alloc.slug || "Step"}</div>
-                        <div className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-700">
+                        <div className="text-sm font-bold text-text">{alloc.title || alloc.slug || "Step"}</div>
+                        <div className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-text">
                           {formatCurrency(alloc.amount)}
                         </div>
                       </div>
@@ -667,7 +679,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                               prev.map((item, i) => (i === idx ? { ...item, amount: value } : item))
                             );
                           }}
-                          className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none focus:border-[#ff4f86]"
+                          className="h-11 rounded-xl border border-border-strong bg-surface px-4 text-sm font-semibold text-text outline-none focus:border-primary"
                         />
                         <input
                           type="range"
@@ -681,7 +693,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                               prev.map((item, i) => (i === idx ? { ...item, amount: value } : item))
                             );
                           }}
-                          className="w-full cursor-pointer accent-[#ff4f86]"
+                          className="w-full cursor-pointer accent-primary"
                         />
                       </div>
                     </div>
@@ -692,9 +704,9 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   <button
                     onClick={handleSaveBudget}
                     disabled={saving}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#ff4f86] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:bg-[#ff3d79] disabled:opacity-60"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:bg-primary-hover disabled:opacity-60"
                   >
-                    {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <CheckIcon />}
+                    {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> : <CheckIcon />}
                     Save Budget
                   </button>
                   <button
@@ -702,7 +714,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                       setEditingBudget(false);
                       setEditBudgetAllocations(profile?.onboarding?.budget_allocations || []);
                     }}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-50"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-border-strong px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
                   >
                     <XIcon /> Cancel
                   </button>
@@ -711,14 +723,14 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             ) : (
               <div className="mt-6 space-y-2">
                 {budgetAllocations.length === 0 ? (
-                  <p className="rounded-2xl bg-slate-50 px-4 py-5 text-center text-sm text-slate-500">
+                  <p className="rounded-2xl bg-surface-muted px-4 py-5 text-center text-sm text-muted">
                     No budget allocations found yet.
                   </p>
                 ) : (
                   budgetAllocations.map((alloc, i) => (
-                    <div key={`${alloc.step_id || alloc.slug || "step"}-${i}`} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-4 py-3">
-                      <span className="text-sm font-medium text-slate-600">{alloc.title || alloc.slug || "Step"}</span>
-                      <span className="text-sm font-bold text-slate-800">{formatCurrency(alloc.amount)}</span>
+                    <div key={`${alloc.step_id || alloc.slug || "step"}-${i}`} className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
+                      <span className="text-sm font-medium text-muted">{alloc.title || alloc.slug || "Step"}</span>
+                      <span className="text-sm font-bold text-text-strong">{formatCurrency(alloc.amount)}</span>
                     </div>
                   ))
                 )}
@@ -731,12 +743,12 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
         {activeTab === "addresses" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-700">
+              <h2 className="text-base font-semibold text-text">
                 Saved Addresses ({addresses.length})
               </h2>
               <button
                 onClick={() => setShowAddForm(true)}
-                className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#ff4f86] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(255,79,134,0.25)] transition hover:bg-[#ff3d79]"
+                className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_8px_20px_rgba(255,79,134,0.25)] transition hover:bg-primary-hover"
               >
                 <PlusIcon /> Add Address
               </button>
@@ -744,29 +756,29 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
             {/* Address cards */}
             {addresses.length === 0 && !showAddForm && (
-              <div className="rounded-3xl border border-slate-100 bg-white/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+              <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
                 <LocationIcon />
-                <p className="mt-3 text-sm text-slate-500">No saved addresses</p>
-                <p className="text-xs text-slate-400">Add an address so you can check out faster!</p>
+                <p className="mt-3 text-sm text-muted">No saved addresses</p>
+                <p className="text-xs text-subtle">Add an address so you can check out faster!</p>
               </div>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               {addresses.map((addr, i) => (
-                <div key={i} className="rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur">
+                <div key={i} className="rounded-2xl border border-border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur">
                   <div className="flex items-center justify-between">
-                    <span className="rounded-lg bg-[#fff1f6] px-2.5 py-1 text-xs font-semibold text-[#ff4f86]">
+                    <span className="rounded-lg bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
                       {addr.label || "Address"}
                     </span>
                     <button
                       onClick={() => handleRemoveAddress(i)}
-                      className="cursor-pointer rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+                      className="cursor-pointer rounded-lg p-1.5 text-subtle transition hover:bg-danger/10 hover:text-danger"
                       title="Remove address"
                     >
                       <XIcon />
                     </button>
                   </div>
-                  <div className="mt-3 space-y-0.5 text-sm text-slate-600">
+                  <div className="mt-3 space-y-0.5 text-sm text-muted">
                     {addr.line1 && <p>{addr.line1}</p>}
                     {addr.line2 && <p>{addr.line2}</p>}
                     <p>{[addr.city, addr.state].filter(Boolean).join(", ")}</p>
@@ -778,15 +790,15 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
             {/* Add address form */}
             {showAddForm && (
-              <div className="rounded-3xl border border-[#ff4f86]/20 bg-white/90 p-6 shadow-[0_8px_40px_rgba(255,79,134,0.08)] backdrop-blur">
-                <h3 className="text-sm font-semibold text-slate-700">New Address</h3>
+              <div className="rounded-3xl border border-primary/20 bg-surface/90 p-6 shadow-[0_8px_40px_rgba(255,79,134,0.08)] backdrop-blur">
+                <h3 className="text-sm font-semibold text-text">New Address</h3>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400">Label</label>
+                    <label className="block text-xs font-semibold text-subtle">Label</label>
                     <select
                       value={newAddress.label}
                       onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#ff4f86]"
+                      className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm outline-none focus:border-primary"
                     >
                       <option>Home</option>
                       <option>Work</option>
@@ -795,22 +807,22 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400">Pincode *</label>
+                    <label className="block text-xs font-semibold text-subtle">Pincode *</label>
                     <input type="text" maxLength={6} value={newAddress.pincode} onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value })}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#ff4f86]" placeholder="110001" />
+                      className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm outline-none focus:border-primary" placeholder="110001" />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-400">Address Line 1 *</label>
+                    <label className="block text-xs font-semibold text-subtle">Address Line 1 *</label>
                     <input type="text" value={newAddress.line1} onChange={(e) => setNewAddress({ ...newAddress, line1: e.target.value })}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#ff4f86]" placeholder="House no, Building, Street" />
+                      className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm outline-none focus:border-primary" placeholder="House no, Building, Street" />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-400">Address Line 2</label>
+                    <label className="block text-xs font-semibold text-subtle">Address Line 2</label>
                     <input type="text" value={newAddress.line2} onChange={(e) => setNewAddress({ ...newAddress, line2: e.target.value })}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[#ff4f86]" placeholder="Area, Landmark" />
+                      className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm outline-none focus:border-primary" placeholder="Area, Landmark" />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-400">City & State *</label>
+                    <label className="block text-xs font-semibold text-subtle">City & State *</label>
                     <div className="mt-1">
                       <CityStateDropdown
                         cityValue={newAddress.city}
@@ -825,17 +837,86 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                 </div>
                 <div className="mt-5 flex items-center gap-3">
                   <button onClick={handleAddAddress} disabled={saving}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#ff4f86] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:bg-[#ff3d79] disabled:opacity-60">
-                    {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <CheckIcon />}
+                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:bg-primary-hover disabled:opacity-60">
+                    {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> : <CheckIcon />}
                     Save Address
                   </button>
                   <button onClick={() => setShowAddForm(false)}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-50">
+                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-border-strong px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted">
                     <XIcon /> Cancel
                   </button>
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Settings Tab ───────────────────────────────── */}
+        {activeTab === "settings" && (
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-border bg-surface p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)]">
+              <h2 className="text-base font-semibold text-text">Account settings</h2>
+              <p className="mt-1 text-sm text-muted">
+                Manage your sign-in details from <Link href="/profile" className="text-primary underline">Profile</Link>.
+                If you want to walk through the wedding wizard again, use{" "}
+                <span className="font-semibold text-text">Restart my journey</span> from the
+                avatar menu in the header.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-danger/30 bg-danger/5 p-6">
+              <div className="flex items-start gap-3">
+                <Trash2 className="mt-0.5 h-5 w-5 shrink-0 text-danger" />
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-semibold text-danger">Delete my account</h2>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    Closes your account permanently. Past orders and refunds stay on file
+                    for ledger integrity (admins still need them), but your profile,
+                    addresses and wedding details are erased and you won&apos;t be able to
+                    sign in again with this phone number.
+                  </p>
+
+                  <div className="mt-4 space-y-2">
+                    <label className="block text-xs font-semibold text-text">
+                      Type <span className="font-mono">DELETE</span> below to confirm
+                    </label>
+                    <input
+                      type="text"
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                      placeholder="DELETE"
+                      className="h-10 w-full max-w-xs rounded-md border border-border-strong bg-surface px-3 text-sm font-medium text-text outline-none focus:border-danger"
+                    />
+                    <button
+                      type="button"
+                      disabled={deletingAccount || deleteConfirmText.trim() !== "DELETE"}
+                      onClick={async () => {
+                        const token = getAuthToken();
+                        if (!token) {
+                          router.push("/login");
+                          return;
+                        }
+                        setDeletingAccount(true);
+                        try {
+                          await deleteMyAccount(token);
+                          toast.success("Account deleted.");
+                          clearAuthCookies();
+                          router.replace("/");
+                          router.refresh();
+                        } catch (err) {
+                          toast.error(err?.message || "Couldn't delete your account.");
+                          setDeletingAccount(false);
+                        }
+                      }}
+                      className="mt-2 inline-flex h-10 items-center gap-2 rounded-md bg-danger px-4 text-sm font-semibold text-primary-foreground transition hover:bg-danger/90 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deletingAccount ? "Deleting…" : "Delete my account"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -113,7 +113,7 @@ export default function ImageUpload({ onUploadComplete, initialUrl = "", label =
 
   return (
     <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-text mb-1">{label}</label>
       
       <div className="flex items-start gap-4">
         {url && (
@@ -128,10 +128,10 @@ export default function ImageUpload({ onUploadComplete, initialUrl = "", label =
             accept="image/*"
             onChange={handleFileChange}
             disabled={loading}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+            className="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-info/10 file:text-info hover:file:bg-info/20 disabled:opacity-50"
           />
-          {loading && <p className="text-xs text-blue-600 mt-2">Uploading...</p>}
-          {errorMsg && <p className="text-xs text-red-600 mt-2">{errorMsg}</p>}
+          {loading && <p className="text-xs text-info mt-2">Uploading...</p>}
+          {errorMsg && <p className="text-xs text-danger mt-2">{errorMsg}</p>}
         </div>
       </div>
     </div>
