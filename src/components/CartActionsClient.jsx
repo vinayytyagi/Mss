@@ -119,8 +119,9 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
           item_id: c.item_id,
           quantity: Number(c.quantity) || 1,
         }));
+        const apiBase = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000/api/v1").replace(/\/$/, "");
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/v1/checkout/shipping-quote`,
+          `${apiBase}/checkout/shipping-quote`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

@@ -1,14 +1,12 @@
 import { fetchJson as fetchJsonWrapped, postJson as postJsonWrapped } from "../fetchWrapper";
 
-export const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://localhost:5000";
-
-export function getApiV1Url() {
-  return `${API_BASE.replace(/\/$/, "")}/api/v1`;
-}
+export const API_BASE = (
+  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE) ||
+  "http://localhost:5000/api/v1"
+).replace(/\/$/, "");
 
 export async function apiFetch(path, { cacheMode = "revalidate", revalidateSeconds = 60, headers, method = "GET", body, signal } = {}) {
-  return fetchJsonWrapped(`${getApiV1Url()}${path}`, {
+  return fetchJsonWrapped(`${API_BASE}${path}`, {
     cacheMode,
     revalidateSeconds,
     headers,
@@ -19,7 +17,7 @@ export async function apiFetch(path, { cacheMode = "revalidate", revalidateSecon
 }
 
 export async function apiPost(path, { payload, headers, idempotencyKey, cacheMode = "no-store", revalidateSeconds = 60 } = {}) {
-  return postJsonWrapped(`${getApiV1Url()}${path}`, {
+  return postJsonWrapped(`${API_BASE}${path}`, {
     payload,
     headers,
     idempotencyKey,

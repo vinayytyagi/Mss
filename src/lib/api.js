@@ -1,4 +1,4 @@
-export { API_BASE, getApiV1Url, apiFetch, apiPost, withAuthHeaders } from "./api/apiClient";
+export { API_BASE, apiFetch, apiPost, withAuthHeaders } from "./api/apiClient";
 
 export {
   fetchJourneySteps,
