@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthScene from "@/components/AuthScene";
 import CityStateDropdown from "@/components/CityStateDropdown";
 import { getAuthToken, getAuthUser, saveAuthCookies } from "@/lib/authCookies";
@@ -105,18 +105,14 @@ function trimSignupName(raw) {
 
 export default function SignupWizard({ step }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   // Pick up a `?redirect=…` if the user landed here from a gated page
   // (e.g. /cart). On successful registration we send them there instead
   // of the default /journey/venue. We also propagate it on the back-to-
   // login link so the round-trip survives a mid-signup change of mind.
-  const [redirectTo, setRedirectTo] = useState("");
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const sp = new URLSearchParams(window.location.search);
-    setRedirectTo(sp.get("redirect") || sp.get("returnTo") || "");
-  }, []);
+  const redirectTo = searchParams.get("redirect") || searchParams.get("returnTo") || "";
   const loginHref = redirectTo
     ? `/login?redirect=${encodeURIComponent(redirectTo)}`
     : "/login";
@@ -415,7 +411,7 @@ export default function SignupWizard({ step }) {
       if (!name) throw new Error("Name is required.");
       const phone = normalizeIndianPhone(form.phone);
       if (!isValidIndianPhone(phone)) {
-        toast.error("Session expired. Please start again.");
+        toast.error("Phone number is missing. Please complete sign up from the beginning.");
         router.replace(STEP_TO_PATH.signup);
         return;
       }
@@ -453,8 +449,9 @@ export default function SignupWizard({ step }) {
   async function saveAfterLogin(nextDbStep, onboardingPatch) {
     const token = getAuthToken();
     if (!token) {
-      toast.error("Session expired. Please login again.");
-      router.replace("/login");
+      const returnTo = redirectTo || STEP_TO_PATH[step] || "/signup/engaged";
+      toast.error("Login required to continue onboarding.");
+      router.replace(`/login?redirect=${encodeURIComponent(returnTo)}`);
       return false;
     }
 

@@ -20,6 +20,7 @@ import {
   ArrowDown,
   IndianRupee,
   Users,
+  Receipt,
 } from "lucide-react";
 import { useAuthUser, getAuthToken, saveAuthCookies } from "@/lib/authCookies";
 import { updateMyProfile } from "@/lib/api";
@@ -1194,7 +1195,25 @@ export default function JourneyStepPage({
     ? subSubsForSelectedSubcategory.filter((c) => (c.name || "").toLowerCase().includes(subSubSearchLower))
     : subSubsForSelectedSubcategory;
 
-  const searchPlaceholder = step.slug === "venues" ? "Search Venue" : `Search ${step.title}`;
+  // Step-specific search hints — use the provider/product noun the customer
+  // actually types ("photographers", not "Photography"). Falls back to the
+  // step title if a step isn't in the map.
+  const SEARCH_HINTS = {
+    venue: "Search venues by name or city…",
+    venues: "Search venues by name or city…",
+    decor: "Search decorators or themes…",
+    catering: "Search caterers or cuisines…",
+    photography: "Search photographers…",
+    "makeup-and-mehndi": "Search makeup & mehndi artists…",
+    "wedding-invitation": "Search invitations…",
+    shopping: "Search products, brands or categories…",
+    gifting: "Search gifts and hampers…",
+    streedhan: "Search streedhan items…",
+    pagfera: "Search pagfera services…",
+    honeymoon: "Search honeymoon destinations…",
+  };
+  const searchPlaceholder =
+    SEARCH_HINTS[step.slug] || `Search ${step.title?.toLowerCase() || "items"}…`;
 
   function handleSearch() {
     router.push(makeJourneyHref({ search: searchQuery.trim() }));
@@ -1813,14 +1832,26 @@ export default function JourneyStepPage({
           )}
         </div>
 
-        <a
-          href={activeIndex < steps.length - 1 ? `/journey/${steps[activeIndex + 1].slug}` : "#"}
-          className={`group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 bg-primary items-center justify-center rounded-xl ring-1 ring-border transition-all hover:bg-primary hover:shadow-2xl active:scale-90 md:flex ${
-            activeIndex === steps.length - 1 ? "pointer-events-none opacity-10" : "cursor-pointer"
-          }`}
-          aria-label="Next Phase"
-        >
-          <ChevronRight className="w-6 h-6 transition-colors text-primary-foreground" />        </a>
+        {(() => {
+          const isLast = activeIndex === steps.length - 1;
+          const href = isLast
+            ? "/cart?tab=quotation"
+            : `/journey/${steps[activeIndex + 1].slug}`;
+          return (
+            <a
+              href={href}
+              className="group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-primary ring-1 ring-border transition-all hover:bg-primary hover:shadow-2xl active:scale-90 md:flex"
+              aria-label={isLast ? "Review quote basket" : "Next Phase"}
+              title={isLast ? "Review your quote basket" : "Next step"}
+            >
+              {isLast ? (
+                <Receipt className="h-6 w-6 text-primary-foreground transition-colors" strokeWidth={2} />
+              ) : (
+                <ChevronRight className="h-6 w-6 text-primary-foreground transition-colors" />
+              )}
+            </a>
+          );
+        })()}
       </div>
 
       <div>

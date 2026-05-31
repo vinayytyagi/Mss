@@ -1,284 +1,287 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
+import { ArrowLeft, AlertTriangle, Info, ShieldAlert } from "lucide-react";
+import JsonLd from "@/components/JsonLd";
+import { webPageSchema, breadcrumbSchema } from "@/lib/jsonld";
+import { LEGAL_DOCS, LEGAL_LINKS, COMPANY_NAME, COMPANY_ADDRESS, SUPPORT_HOURS } from "@/lib/legalDocs";
+import PolicySidebar from "@/components/legal/PolicySidebar";
+import PolicyMobileNav from "@/components/legal/PolicyMobileNav";
 
-const DOCS = {
-  "privacy-policy": {
-    title: "Privacy Policy",
-    badge: "Your Privacy",
-    tagline:
-      "A clear overview of what we collect, why we collect it, and how you can control your information on MyShaadiStore.",
-    effectiveDate: "Effective from 30 March 2026",
-    sections: [
-      {
-        heading: "1) Information we collect",
-        paragraphs: [
-          "When you use MyShaadiStore, we may collect personal information such as your name, phone number, email address, and order-related details.",
-          "We may also collect non-personal information like device type, browser details, IP address, and aggregated usage analytics to help us improve the website."
-        ],
-      },
-      {
-        heading: "2) How we use your information",
-        paragraphs: [
-          "To provide and manage services (including booking/order processing).",
-          "To communicate with you about your order, updates, and support requests.",
-          "To improve user experience, troubleshoot issues, and measure performance."
-        ],
-      },
-      {
-        heading: "3) Sharing and disclosures",
-        paragraphs: [
-          "We may share information with trusted service providers who help us run the website and deliver services (for example, payment processors, hosting providers, and support tools).",
-          "We may also disclose information if required by law, to protect rights, safety, or to comply with valid legal processes."
-        ],
-      },
-      {
-        heading: "4) Cookies & similar technologies",
-        paragraphs: [
-          "We may use cookies to remember preferences, enable essential features, and understand website usage. You can control cookies through your browser settings."
-        ],
-      },
-      {
-        heading: "5) Security",
-        paragraphs: [
-          "We take reasonable administrative, technical, and physical measures to help protect your personal information from unauthorized access, alteration, disclosure, or destruction.",
-          "However, no method of transmission or storage is 100% secure. Please use caution when sharing sensitive information."
-        ],
-      },
-      {
-        heading: "6) Your choices and rights",
-        paragraphs: [
-          "Depending on applicable law, you may be able to request access, correction, or deletion of your data, or object to certain processing.",
-          "For assistance, contact us via the WhatsApp link available in the website footer."
-        ],
-      },
-      {
-        heading: "7) Changes to this policy",
-        paragraphs: [
-          "We may update this Privacy Policy from time to time. Any changes will be reflected on this page with the updated effective date."
-        ],
-        callout:
-          "Note: This page is a general policy summary. Final details may vary based on your order type and current legal requirements."
-      },
-    ],
-  },
-  "terms-of-service": {
-    title: "Terms of Service",
-    badge: "Agreement",
-    tagline:
-      "By using MyShaadiStore, you agree to these terms. If you have any questions, contact us via WhatsApp from the website footer.",
-    effectiveDate: "Effective from 30 March 2026",
-    sections: [
-      {
-        heading: "1) Acceptance of terms",
-        paragraphs: [
-          "These Terms of Service (“Terms”) govern your access to and use of MyShaadiStore.",
-          "By using the website, you agree to comply with these Terms and all applicable laws."
-        ],
-      },
-      {
-        heading: "2) Eligibility",
-        paragraphs: [
-          "You must be legally capable of entering into a binding agreement to use the services on this website.",
-          "If you are using the service on behalf of someone else, you confirm you have the authority to do so."
-        ],
-      },
-      {
-        heading: "3) Orders, payments, and service fulfillment",
-        paragraphs: [
-          "When you place an order, you agree to provide accurate information and to follow instructions related to the order.",
-          "Prices and availability may change. Any confirmed order is subject to our fulfillment and verification processes.",
-          "Refunds and cancellations are handled as per our Refund Policy."
-        ],
-      },
-      {
-        heading: "4) User responsibility",
-        paragraphs: [
-          "You are responsible for maintaining the confidentiality of any account credentials (if applicable) and for all activities under your profile.",
-          "Do not attempt to interfere with the website, security, or user experience."
-        ],
-      },
-      {
-        heading: "5) Intellectual property",
-        paragraphs: [
-          "All content, features, and functionality on MyShaadiStore are owned by us or our licensors and are protected by intellectual property laws.",
-          "You may not copy, modify, distribute, or create derivative works from our content without permission."
-        ],
-      },
-      {
-        heading: "6) Limitation of liability",
-        paragraphs: [
-          "To the maximum extent permitted by law, MyShaadiStore is not liable for indirect, incidental, special, or consequential damages arising out of your use of the website.",
-          "We strive to provide accurate information, but we do not guarantee that the site will be error-free or uninterrupted."
-        ],
-      },
-      {
-        heading: "7) Termination and changes",
-        paragraphs: [
-          "We may suspend or terminate access to the website if we believe you have violated these Terms.",
-          "We may update the Terms. Continued use after updates constitutes acceptance."
-        ],
-        callout:
-          "Note: These terms are intended as a general template. Specific arrangements may apply for different services or order types."
-      },
-    ],
-  },
-  "refund-policy": {
-    title: "Refund Policy",
-    badge: "Cancellations & Refunds",
-    tagline:
-      "Refund and cancellation rules depend on your order type and payment status. Use this page for the general process and contact details.",
-    effectiveDate: "Effective from 30 March 2026",
-    sections: [
-      {
-        heading: "1) When refunds may be available",
-        paragraphs: [
-          "Refund availability depends on the stage of your order (for example: before fulfillment begins, in-progress, or after processing has started).",
-          "Some charges may be non-refundable if specific vendor/partner arrangements have already been initiated."
-        ],
-      },
-      {
-        heading: "2) Cancellation requests",
-        paragraphs: [
-          "If you want to cancel, please check your order status in `My Orders`.",
-          "For help with an existing order, contact us via WhatsApp from the website footer so we can review your case."
-        ],
-      },
-      {
-        heading: "3) Refund processing timeline",
-        paragraphs: [
-          "If a refund is approved, it will be processed to the original payment method.",
-          "Processing time can vary based on your bank/payment provider. In many cases, it may take several business days to reflect."
-        ],
-      },
-      {
-        heading: "4) Partial refunds",
-        paragraphs: [
-          "In certain situations, we may offer partial refunds based on work completed, vendor costs, or non-cancellable charges related to your order."
-        ],
-      },
-      {
-        heading: "5) Non-refundable cases (examples)",
-        paragraphs: [
-          "Customized/non-transferable services where work has already started.",
-          "Orders where cancellation is requested after a defined milestone and vendor costs cannot be recovered (case-by-case)."
-        ],
-      },
-      {
-        heading: "6) How to request a refund",
-        paragraphs: [
-          "Open `My Orders` to locate your order details.",
-          "If you need support, reach out on WhatsApp so our team can review and guide you."
-        ],
-      },
-      {
-        heading: "7) Changes to this policy",
-        paragraphs: [
-          "We may update this Refund Policy. Any updates will appear on this page with the effective date."
-        ],
-      },
-    ],
-  },
-};
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://myshaadistore.com";
+const serif = "font-[family-name:var(--font-playfair),ui-serif,Georgia,serif]";
 
-function renderPolicySection({ heading, paragraphs = [], callout }) {
+// ─── Metadata per slug ────────────────────────────────────────────────────
+export async function generateMetadata({ params }) {
+  const { slug } = await params;
+  const doc = LEGAL_DOCS[slug];
+  if (!doc) return { title: "Legal" };
+
+  return {
+    title: `${doc.title} | MyShaadiStore`,
+    description: doc.tagline,
+    alternates: { canonical: `${SITE_URL}/legal/${slug}` },
+    openGraph: {
+      title: `${doc.title} | MyShaadiStore`,
+      description: doc.tagline,
+      url: `${SITE_URL}/legal/${slug}`,
+      type: "article",
+    },
+  };
+}
+
+export function generateStaticParams() {
+  return Object.keys(LEGAL_DOCS).map((slug) => ({ slug }));
+}
+
+// ─── Block renderer ──────────────────────────────────────────────────────
+function Block({ block }) {
+  if (!block) return null;
+  switch (block.type) {
+    case "p":
+      return (
+        <p className={`text-[15px] leading-relaxed ${block.lead ? "text-text-strong" : "text-text"}`}>
+          {block.text}
+        </p>
+      );
+
+    case "subheading":
+      return (
+        <h3 className={`${serif} mt-8 text-xl font-semibold text-text-strong`}>
+          {block.text}
+        </h3>
+      );
+
+    case "list":
+      return (
+        <ul className="space-y-2 text-[15px] leading-relaxed text-text">
+          {block.items.map((item, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      );
+
+    case "table":
+      return (
+        <div className="overflow-x-auto rounded-2xl border border-border bg-surface">
+          <table className="min-w-full divide-y divide-border text-sm">
+            <thead>
+              <tr className="bg-primary-soft">
+                {block.headers.map((h, i) => (
+                  <th
+                    key={i}
+                    className={`${serif} px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-secondary sm:px-5 sm:py-3.5`}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {block.rows.map((row, ri) => (
+                <tr key={ri} className={ri % 2 === 0 ? "bg-surface" : "bg-surface-muted/30"}>
+                  {row.map((cell, ci) => (
+                    <td
+                      key={ci}
+                      className="whitespace-pre-line px-4 py-3 align-top text-[13px] leading-relaxed text-text sm:px-5 sm:py-4 sm:text-sm"
+                    >
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+
+    case "callout": {
+      const tone = block.tone || "info";
+      const toneClass = {
+        info:   "border-primary/30 bg-primary-soft",
+        warn:   "border-warning/40 bg-warning/10",
+        danger: "border-danger/30 bg-danger/10",
+      }[tone];
+      const Icon = { info: Info, warn: AlertTriangle, danger: ShieldAlert }[tone];
+      const iconColor = { info: "text-primary", warn: "text-warning-strong", danger: "text-danger" }[tone];
+      return (
+        <div className={`rounded-2xl border ${toneClass} p-4 sm:p-5`}>
+          <div className="flex items-start gap-3">
+            <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${iconColor}`} aria-hidden />
+            <div className="min-w-0 flex-1">
+              {block.title ? (
+                <p className="text-sm font-bold text-text-strong">{block.title}</p>
+              ) : null}
+              <p className={`${block.title ? "mt-1.5" : ""} text-sm leading-relaxed text-text`}>
+                {block.body}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    case "spacer":
+      return <div className="h-4" aria-hidden />;
+
+    default:
+      return null;
+  }
+}
+
+function slugify(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function PolicySection({ heading, blocks = [] }) {
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold text-text-strong">{heading}</h2>
-      <div className="mt-3 space-y-3 text-sm sm:text-base leading-relaxed text-text">
-        {paragraphs.map((p) => (
-          <p key={p}>{p}</p>
+    // scroll-mt-36 on mobile = SiteHeader (88) + mobile sticky bar (~50)
+    // scroll-mt-24 on lg+    = SiteHeader (88) only
+    <section className="space-y-4 scroll-mt-36 lg:scroll-mt-24" id={slugify(heading)}>
+      <h2 className={`${serif} text-xl font-bold text-text-strong sm:text-2xl lg:text-3xl`}>
+        {heading}
+      </h2>
+      <div className="space-y-4">
+        {blocks.map((b, i) => (
+          <Block key={i} block={b} />
         ))}
       </div>
-      {callout ? (
-        <div className="mt-4 rounded-2xl border border-primary/20 bg-primary-soft px-4 py-3 text-sm leading-relaxed text-text">
-          {callout}
-        </div>
-      ) : null}
     </section>
   );
 }
 
-export function generateStaticParams() {
-  return [
-    { slug: "privacy-policy" },
-    { slug: "terms-of-service" },
-    { slug: "refund-policy" },
-  ];
-}
-
+// ─── Page ────────────────────────────────────────────────────────────────
 export default async function LegalPage({ params }) {
   const { slug } = await params;
 
+  // Friendly aliases
   if (slug === "privacy") redirect("/legal/privacy-policy");
-  if (slug === "terms") redirect("/legal/terms-of-service");
-  if (slug === "refund") redirect("/legal/refund-policy");
+  if (slug === "terms")   redirect("/legal/terms-of-service");
+  if (slug === "refund")  redirect("/legal/refund-policy");
+  if (slug === "cookies") redirect("/legal/cookie-policy");
 
-  const doc = DOCS[slug];
-  if (!doc) {
-    notFound();
-  }
+  const doc = LEGAL_DOCS[slug];
+  if (!doc) notFound();
 
-  const legalLinks = [
-    { slug: "privacy-policy", label: "Privacy Policy" },
-    { slug: "terms-of-service", label: "Terms of Service" },
-    { slug: "refund-policy", label: "Refund Policy" },
-  ];
+  const pageUrl = `${SITE_URL}/legal/${slug}`;
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div className="w-full lg:max-w-2xl">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+    <>
+      <JsonLd
+        data={[
+          webPageSchema({
+            title: `${doc.title} | MyShaadiStore`,
+            description: doc.tagline,
+            url: pageUrl,
+          }),
+          breadcrumbSchema([
+            { name: "Home", url: `${SITE_URL}/` },
+            { name: "Legal", url: `${SITE_URL}/legal/${slug}` },
+            { name: doc.title, url: pageUrl },
+          ]),
+        ]}
+      />
+
+      {/* ── HERO ─────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden bg-primary-soft">
+        <div aria-hidden className="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -left-20 bottom-0 h-64 w-64 rounded-full bg-secondary/10 blur-3xl" />
+
+        <div className="relative mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-20 lg:px-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-secondary transition hover:text-primary sm:text-xs"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
             Back to home
           </Link>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center rounded-full border border-border-strong bg-surface/70 px-3 py-1 text-xs font-semibold text-text shadow-sm">
+
+          <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-5 sm:gap-3">
+            <span className="inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-foreground sm:px-3 sm:py-1 sm:text-[11px] sm:tracking-[0.18em]">
               {doc.badge}
             </span>
-            <span className="text-xs font-medium text-muted">{doc.effectiveDate}</span>
+            <span className="text-[11px] font-medium text-muted sm:text-xs">{doc.effectiveDate}</span>
           </div>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-text-strong">{doc.title}</h1>
-          <p className="mt-3 text-base leading-relaxed text-text">{doc.tagline}</p>
-        </div>
 
-        <aside className="w-full lg:w-72">
-          <div className="rounded-3xl border border-border bg-surface/70 p-4 shadow-sm backdrop-blur">
-            <p className="text-sm font-semibold text-text-strong">Legal pages</p>
-            <div className="mt-3 space-y-1">
-              {legalLinks.map((l) => {
-                const active = l.slug === slug;
-                return (
-                  <Link
-                    key={l.slug}
-                    href={`/legal/${l.slug}`}
-                    className={`block rounded-2xl px-3 py-2 text-sm font-semibold transition ${
-                      active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
-                    }`}
-                  >
-                    {l.label}
-                  </Link>
-                );
-              })}
-            </div>
-            <p className="mt-4 text-xs leading-relaxed text-muted">
-              Need help? Contact us via WhatsApp from the website footer.
-            </p>
-          </div>
-        </aside>
-      </div>
+          <h1 className={`${serif} mt-4 max-w-3xl text-3xl font-bold leading-tight text-text-strong sm:mt-5 sm:text-5xl lg:text-6xl`}>
+            {doc.title}
+          </h1>
 
-      <section className="mt-8 rounded-3xl border border-border bg-surface/75 p-6 shadow-sm backdrop-blur sm:p-7">
-        {doc.sections.map((s) => renderPolicySection(s))}
-        <div className="mt-10 rounded-3xl border border-border bg-surface-muted/60 p-4">
-          <p className="text-sm font-semibold text-text-strong">Disclaimer</p>
-          <p className="mt-2 text-sm leading-relaxed text-text">
-            This content is a general information summary. For specific scenarios related to your order,
-            please reach out on WhatsApp so our team can review your case.
+          <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted sm:mt-5 sm:text-lg">
+            {doc.tagline}
           </p>
+          {doc.intro ? (
+            <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted sm:mt-3 sm:text-sm">{doc.intro}</p>
+          ) : null}
         </div>
       </section>
-    </main>
+
+      {/* ── Body grid ──────────────────────────────────────────── */}
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+        {/* Mobile-only: doc-switcher pills + sticky 'On this page' bar */}
+        <PolicyMobileNav
+          links={LEGAL_LINKS}
+          currentSlug={slug}
+          sections={doc.sections.map((s) => ({ heading: s.heading }))}
+        />
+
+        <div className="grid gap-10 lg:grid-cols-[260px_1fr]">
+
+          {/* Sticky sidebar with scroll-spy TOC (desktop only) */}
+          <PolicySidebar
+            links={LEGAL_LINKS}
+            currentSlug={slug}
+            sections={doc.sections.map((s) => ({ heading: s.heading }))}
+          />
+
+          {/* Sections */}
+          <article className="min-w-0 space-y-10 sm:space-y-12">
+            {doc.sections.map((s) => (
+              <PolicySection key={s.heading} heading={s.heading} blocks={s.blocks} />
+            ))}
+
+            {/* Contact card — always at the bottom */}
+            <section className="overflow-hidden rounded-3xl border border-border bg-surface">
+              <div className="border-b border-border bg-primary-soft px-6 py-5 sm:px-8">
+                <p className={`${serif} text-xl font-bold text-secondary`}>Need help?</p>
+                <p className="mt-1 text-sm text-muted">Reach out — we respond {SUPPORT_HOURS}.</p>
+              </div>
+              <div className="grid gap-4 p-6 sm:grid-cols-2 sm:p-8">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-secondary">WhatsApp</p>
+                  <a
+                    href="https://wa.me/919568559915"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 block text-sm font-semibold text-primary underline-offset-2 hover:underline"
+                  >
+                    +91 95685 59915
+                  </a>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-secondary">Email</p>
+                  <a
+                    href="mailto:connect@myshaadistore.com"
+                    className="mt-1 block text-sm font-semibold text-primary underline-offset-2 hover:underline"
+                  >
+                    connect@myshaadistore.com
+                  </a>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-secondary">Registered office</p>
+                  <p className="mt-1 text-sm text-text">{COMPANY_NAME}</p>
+                  <p className="mt-1 text-sm text-muted">{COMPANY_ADDRESS}</p>
+                </div>
+              </div>
+            </section>
+          </article>
+        </div>
+      </main>
+    </>
   );
 }

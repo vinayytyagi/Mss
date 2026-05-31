@@ -2,41 +2,72 @@
 
 import Link from "next/link";
 import { useCartSummary } from "@/lib/cartStore";
+import { Receipt, ShoppingCart } from "lucide-react";
 
-function BasketIcon() {
+const QUOTE_COLOR = "#d4720a";
+
+export default function BasketButton({ floating = false, className = "" }) {
+  const { quotationCount, shoppingCount } = useCartSummary();
+
+  if (floating) {
+    return (
+      <div className="fixed bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-surface px-2 py-2 shadow-[0_20px_50px_rgba(15,23,42,0.16)]">
+        <Link
+          href="/cart?tab=quotation"
+          aria-label={`Quote cart — ${quotationCount} item${quotationCount !== 1 ? "s" : ""}`}
+          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 transition hover:bg-surface-muted"
+        >
+          <Receipt className="h-4 w-4 shrink-0" style={{ color: QUOTE_COLOR }} strokeWidth={2} />
+          <span className="text-xs font-semibold text-muted">Quote</span>
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white" style={{ backgroundColor: QUOTE_COLOR }}>
+            {quotationCount}
+          </span>
+        </Link>
+        <div className="h-5 w-px bg-border" aria-hidden="true" />
+        <Link
+          href="/cart?tab=shopping"
+          aria-label={`Shopping cart — ${shoppingCount} item${shoppingCount !== 1 ? "s" : ""}`}
+          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 transition hover:bg-surface-muted"
+        >
+          <ShoppingCart className="h-4 w-4 shrink-0 text-primary" strokeWidth={2} />
+          <span className="text-xs font-semibold text-muted">Shop</span>
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+            {shoppingCount}
+          </span>
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-      <path
-        d="M8 9V7a4 4 0 1 1 8 0v2m-11 0h14l-1.1 9.17A2 2 0 0 1 15.91 20H8.09a2 2 0 0 1-1.99-1.83L5 9Zm5 4v3m4-3v3"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-export default function BasketButton({ floating = false }) {
-  const { totalCount, quotationCount, shoppingCount } = useCartSummary();
-
-  return (
-    <Link
-      href="/cart"
-      className={
-        floating
-          ? "fixed bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full bg-surface px-5 py-3 text-sm font-semibold text-text shadow-[0_20px_50px_rgba(15,23,42,0.16)]"
-          : "inline-flex items-center gap-3 rounded-2xl border border-border-strong bg-surface px-4 py-2.5 text-sm font-semibold text-text transition hover:bg-surface-muted"
-      }
-    >
-      <span className="rounded-full bg-primary-soft p-2 text-primary">
-        <BasketIcon />
-      </span>
-      <span>Basket</span>
-      <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">{totalCount}</span>
-      <span className="hidden text-xs text-subtle md:inline">
-        Q {quotationCount} | S {shoppingCount}
-      </span>
-    </Link>
+    <div className={`flex items-center gap-2 ${className}`}>
+      <Link
+        href="/cart?tab=quotation"
+        aria-label={`Quote cart — ${quotationCount} items`}
+        title="Quote cart"
+        className="flex h-10 items-center gap-1.5 rounded-xl border border-border-strong px-3 text-text transition hover:bg-surface-muted"
+      >
+        <Receipt className="h-4 w-4 shrink-0" style={{ color: QUOTE_COLOR }} strokeWidth={2} />
+        <span className="text-xs font-semibold">Quote</span>
+        <span
+          className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${quotationCount > 0 ? "text-white" : "bg-surface-muted text-subtle"}`}
+          style={quotationCount > 0 ? { backgroundColor: QUOTE_COLOR } : undefined}
+        >
+          {quotationCount}
+        </span>
+      </Link>
+      <Link
+        href="/cart?tab=shopping"
+        aria-label={`Shopping cart — ${shoppingCount} items`}
+        title="Shopping cart"
+        className="flex h-10 items-center gap-1.5 rounded-xl border border-border-strong px-3 text-text transition hover:bg-surface-muted"
+      >
+        <ShoppingCart className="h-4 w-4 shrink-0 text-primary" strokeWidth={2} />
+        <span className="text-xs font-semibold">Shop</span>
+        <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${shoppingCount > 0 ? "bg-primary text-primary-foreground" : "bg-surface-muted text-subtle"}`}>
+          {shoppingCount}
+        </span>
+      </Link>
+    </div>
   );
 }

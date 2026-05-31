@@ -184,7 +184,7 @@ export default function WeddingJourney() {
 
       {/* Action Button */}
       <Link
-        href="/how-it-works"
+        href="/login"
         className="px-6 py-3 bg-linear-to-r from-primary-hover to-primary-accent text-primary-foreground rounded-full font-medium text-sm shadow-[0_20px_40px_rgba(255,79,134,0.35)] hover:shadow-[0_25px_50px_rgba(255,79,134,0.45)] hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-3 sm:px-8 sm:py-4 sm:text-base lg:px-10 lg:py-5 lg:text-lg"
       >
         <Sparkles className="w-4 h-4 sm:h-5 sm:w-5 text-primary-foreground" />

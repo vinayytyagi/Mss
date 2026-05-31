@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getAuthToken, getAuthUser } from "@/lib/authCookies";
 import { clearCart, useCartState, useCartSummary } from "@/lib/cartStore";
 import CityStateDropdown from "@/components/CityStateDropdown";
@@ -21,6 +21,8 @@ function normalizePhoneInput(phone) {
 
 export default function CartActionsClient({ activeCart = "shopping" }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const carts = useCartState();
   const { shoppingCount, shoppingTotal } = useCartSummary();
   const [savedAddresses, setSavedAddresses] = useState([]);
@@ -182,7 +184,10 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
       if (!getAuthUser()) {
         setSubmitState({ loading: false, error: "", success: "" });
         toast.info("Please login to submit quotation.");
-        router.push(`/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
+        // Preserve `?tab=quotation` so user lands back on the same tab after login.
+        const qs = searchParams.toString();
+        const returnTo = qs ? `${pathname}?${qs}` : pathname;
+        router.push(`/login?returnTo=${encodeURIComponent(returnTo)}`);
         return;
       }
       if (!quotationForm.name.trim()) throw new Error("Name is required for quotation.");
@@ -251,7 +256,10 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
     try {
       if (!getAuthUser()) {
         toast.info("Please login to continue checkout.");
-        router.push(`/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
+        // Preserve `?tab=shopping` so user lands back on the same tab after login.
+        const qs = searchParams.toString();
+        const returnTo = qs ? `${pathname}?${qs}` : pathname;
+        router.push(`/login?returnTo=${encodeURIComponent(returnTo)}`);
         return;
       }
       if (!checkoutForm.name.trim()) throw new Error("Name is required for checkout.");

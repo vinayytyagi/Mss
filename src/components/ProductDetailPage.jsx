@@ -410,12 +410,6 @@ export default function ProductDetailPage({ itemId }) {
       : item.vendor_business_name || item.vendor_name || "Vendor";
   }, [item, whiteLabelOn]);
 
-  const images = useMemo(() => {
-    if (!item) return [FALLBACK_IMAGE];
-    if (Array.isArray(item.images) && item.images.length) return item.images;
-    return [FALLBACK_IMAGE];
-  }, [item]);
-
   // Match the currently-picked option set to a concrete variant row. We
   // only match on options that actually exist for this item (e.g. if the
   // item has sizes but no colors, we ignore the color selection).
@@ -438,6 +432,22 @@ export default function ProductDetailPage({ itemId }) {
       }) || null
     );
   }, [variantsData, selectedVariant, hasSizes, hasColors, hasMaterials, hasVariants]);
+
+  // Image gallery — swaps to variant-specific images when a variant is
+  // selected and that variant has its own gallery. This is the
+  // Amazon/Flipkart pattern: pick a colour → product photos change.
+  // Falls back to item-level images when the variant has none.
+  const images = useMemo(() => {
+    if (matchedVariant?.images?.length) return matchedVariant.images;
+    if (!item) return [FALLBACK_IMAGE];
+    if (Array.isArray(item.images) && item.images.length) return item.images;
+    return [FALLBACK_IMAGE];
+  }, [item, matchedVariant]);
+
+  // Reset to the first image whenever the active gallery (item ↔ variant) swaps.
+  useEffect(() => {
+    setActiveImage(0);
+  }, [matchedVariant?.variant_id]);
 
   const hasDiscount =
     item?.is_discount_active && Number(item.discount_percentage) > 0;
@@ -484,19 +494,21 @@ export default function ProductDetailPage({ itemId }) {
       : "";
     return {
       ...item,
+      // `images` and `image` reflect the currently-selected variant when one
+      // is picked, so the cart row shows the right colour photo.
+      images,
       image: images[0],
       category_label: item.category_label || step?.title || "",
       subcategory_label: item.subcategory_label || "",
       journey_title: step?.title || "",
       journey_step_id: item.journey_step_id || step?.step_id || "",
       source: "pdp",
-      // Carry the picked variant so the cart/inquiry pages can show it.
-      // Price already reflects the variant's price via `final_price`.
       ...(matchedVariant
         ? {
             variant_id: matchedVariant.variant_id,
             variant_sku: matchedVariant.sku || null,
             variant_label: variantTag,
+            variant_images: matchedVariant.images || [],
             price: basePrice,
             final_price: finalPrice,
           }
@@ -676,7 +688,7 @@ export default function ProductDetailPage({ itemId }) {
     {
       icon: <Headphones className="h-5 w-5 text-primary" aria-hidden />,
       title: "Live support",
-      body: "9 AM – 9 PM, 7 days a week",
+      body: "10 AM – 8 PM, Monday to Saturday",
     },
     item.policies?.returnable
       ? {
@@ -869,6 +881,7 @@ export default function ProductDetailPage({ itemId }) {
             {hasVariants ? (
               <VariantSelector
                 options={variantOptions}
+                allVariants={variantsData?.variants || []}
                 selected={selectedVariant}
                 onChange={(patch) => setSelectedVariant((prev) => ({ ...prev, ...patch }))}
                 matched={matchedVariant}
@@ -1376,7 +1389,7 @@ export default function ProductDetailPage({ itemId }) {
                 ) : (
                   <ShoppingCart className="h-4 w-4" aria-hidden />
                 )}
-                {justAdded.shopping ? "Added!" : "Add to Cart"}
+                {justAdded.shopping ? "Added" : "Add to Cart"}
               </button>
             ) : null}
             <button
@@ -1395,7 +1408,7 @@ export default function ProductDetailPage({ itemId }) {
               ) : (
                 <ClipboardList className="h-4 w-4" aria-hidden />
               )}
-              {justAdded.quotation ? "Added!" : "Add to Inquiry"}
+              {justAdded.quotation ? "Added" : "Add to Inquiry"}
             </button>
           </div>
         )}
@@ -1439,7 +1452,7 @@ function AddButton({ onClick, icon, label, primary = true, justAdded = false }) 
       ) : (
         icon
       )}
-      {justAdded ? "Added!" : label}
+      {justAdded ? "Added" : label}
     </button>
   );
 }
@@ -1453,49 +1466,137 @@ function AddButton({ onClick, icon, label, primary = true, justAdded = false }) 
  * selection; we use it to print stock state + SKU below the chips so the
  * shopper understands what they're about to buy.
  */
-function VariantSelector({ options, selected, onChange, matched }) {
+/**
+ * Helpers for the variant selector.
+ *
+ * bestVariantForValue: when the user hovers/picks a single dimension's value,
+ * pick the most-relevant variant for that value while preserving the other
+ * dimensions if they're still compatible. Used to source the thumbnail
+ * image for the colour swatch and to detect whether a value is in stock.
+ */
+function bestVariantForValue(allVariants, dim, value, selection, allDims) {
+  const candidates = allVariants.filter((v) => v[dim] === value);
+  if (!candidates.length) return null;
+  // Score: prefer in-stock + matches as many other selected dimensions as possible
+  return candidates
+    .map((v) => {
+      let score = 0;
+      if ((v.stock_quantity ?? 0) > 0) score += 100;
+      for (const d of allDims) {
+        if (d !== dim && selection[d] && v[d] === selection[d]) score += 10;
+      }
+      return { v, score };
+    })
+    .sort((a, b) => b.score - a.score)[0]?.v;
+}
+
+function valueInStock(allVariants, dim, value) {
+  return allVariants.some((v) => v[dim] === value && (v.stock_quantity ?? 0) > 0);
+}
+
+function VariantSelector({ options, allVariants, selected, onChange, matched }) {
   const GROUPS = [
-    { key: "size", label: "Size", values: options.sizes || [] },
     { key: "color", label: "Colour", values: options.colors || [] },
+    { key: "size", label: "Size", values: options.sizes || [] },
     { key: "material", label: "Material", values: options.materials || [] },
   ].filter((g) => g.values.length > 0);
 
   if (GROUPS.length === 0) return null;
+
+  const dims = GROUPS.map((g) => g.key);
 
   const stock = matched ? Number(matched.stock_quantity || 0) : null;
   const outOfStock = matched && stock <= 0;
 
   return (
     <div className="mt-5 rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-      <div className="space-y-4">
+      <div className="space-y-5">
         {GROUPS.map((group) => (
           <div key={group.key}>
-            <div className="flex items-center justify-between text-xs">
+            <div className="mb-2 flex items-center justify-between text-xs">
               <span className="font-semibold uppercase tracking-wide text-muted">
-                {group.label}
+                {group.label}: <span className="text-text">{selected[group.key] || "Pick one"}</span>
               </span>
-              <span className="font-medium text-text">{selected[group.key] || "Pick one"}</span>
+              <span className="text-[11px] text-muted">{group.values.length} option{group.values.length === 1 ? "" : "s"}</span>
             </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {group.values.map((v) => {
-                const active = selected[group.key] === v;
-                return (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => onChange({ [group.key]: v })}
-                    aria-pressed={active}
-                    className={`inline-flex items-center justify-center rounded-md border px-3.5 py-2 text-sm font-semibold transition ${
-                      active
-                        ? "border-primary bg-primary-soft text-primary shadow-[0_0_0_1px_var(--primary)_inset]"
-                        : "border-border bg-surface text-text hover:border-border-strong"
-                    }`}
-                  >
-                    {v}
-                  </button>
-                );
-              })}
-            </div>
+
+            {group.key === "color" ? (
+              // Amazon/Flipkart-style colour swatches with thumbnails
+              <div className="flex flex-wrap gap-2.5">
+                {group.values.map((v) => {
+                  const active = selected[group.key] === v;
+                  const inStock = valueInStock(allVariants, group.key, v);
+                  const bestV = bestVariantForValue(allVariants, group.key, v, selected, dims);
+                  const thumb = bestV?.images?.[0];
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => onChange({ [group.key]: v })}
+                      disabled={!inStock}
+                      aria-pressed={active}
+                      title={v + (inStock ? "" : " (out of stock)")}
+                      className={`group relative flex flex-col items-center gap-1 ${!inStock ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <span
+                        className={`relative block size-14 overflow-hidden rounded-lg border-2 transition ${
+                          active
+                            ? "border-primary ring-2 ring-primary/30"
+                            : "border-border hover:border-border-strong"
+                        }`}
+                      >
+                        {thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={thumb} alt={v} className="size-full object-cover" />
+                        ) : (
+                          <span
+                            className="absolute inset-0"
+                            style={{
+                              backgroundColor: v.startsWith("#") ? v : undefined,
+                              backgroundImage: !v.startsWith("#")
+                                ? "linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)"
+                                : undefined,
+                            }}
+                          />
+                        )}
+                        {!inStock && (
+                          <span className="absolute inset-0 flex items-center justify-center bg-surface/70 text-[9px] font-bold uppercase tracking-wider text-danger">
+                            OOS
+                          </span>
+                        )}
+                      </span>
+                      <span className={`max-w-16 truncate text-[11px] font-medium ${active ? "text-primary" : "text-text"}`}>{v}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              // Pill buttons for size / material
+              <div className="flex flex-wrap gap-2">
+                {group.values.map((v) => {
+                  const active = selected[group.key] === v;
+                  const inStock = valueInStock(allVariants, group.key, v);
+                  return (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => onChange({ [group.key]: v })}
+                      disabled={!inStock}
+                      aria-pressed={active}
+                      className={`relative inline-flex min-w-[44px] items-center justify-center rounded-md border px-3.5 py-2 text-sm font-semibold transition ${
+                        active
+                          ? "border-primary bg-primary-soft text-primary shadow-[0_0_0_1px_var(--primary)_inset]"
+                          : inStock
+                          ? "border-border bg-surface text-text hover:border-border-strong"
+                          : "border-border bg-surface-muted text-muted line-through cursor-not-allowed"
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ))}
       </div>

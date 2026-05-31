@@ -25,11 +25,12 @@ function CartRow({ item, cartType, onRemove, onQuantityChange }) {
             <p className="mt-1 text-sm text-muted">
               {item.subcategory_label || item.category_label || item.journey_title || item.item_type}
             </p>
-            {cartType === "shopping" && (item.variant_size || item.variant_color || item.variant_material) ? (
-              <p className="mt-1 text-xs font-semibold text-muted">
-                {[item.variant_size ? `Size: ${item.variant_size}` : null, item.variant_color ? `Color: ${item.variant_color}` : null, item.variant_material ? `Material: ${item.variant_material}` : null]
-                  .filter(Boolean)
-                  .join(" • ")}
+            {item.variant_label || item.variant_size || item.variant_color || item.variant_material ? (
+              <p className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-primary-soft px-2 py-0.5 text-xs font-semibold text-primary">
+                {item.variant_label ||
+                  [item.variant_size ? `Size: ${item.variant_size}` : null, item.variant_color ? `Color: ${item.variant_color}` : null, item.variant_material ? `Material: ${item.variant_material}` : null]
+                    .filter(Boolean)
+                    .join(" • ")}
               </p>
             ) : null}
             {item.journey_title ? <p className="mt-1 text-xs font-medium text-primary">{item.journey_title}</p> : null}
