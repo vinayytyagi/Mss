@@ -39,7 +39,7 @@ export default function HomeWeddingOverwhelming() {
           Venues, guests, décor, outfits — it can feel like pressure from every direction. You are not alone.
         </p>
 
-        <div className="relative sm:px-6 lg:px-8 mx-auto mt-5 sm:mt-4 ml-14 w-full pl-6 sm:pl-24">
+        <div className="relative sm:px-6 lg:px-8 mx-auto mt-5 sm:mt-4 w-full pl-6 sm:pl-24">
           <div className="relative aspect-video w-full">
             <div className="absolute inset-0 z-0 flex items-center justify-center">
               <div className="relative aspect-square w-full">

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthScene from "@/components/AuthScene";
 import { getAuthToken, getAuthUser, saveAuthCookies } from "@/lib/authCookies";
 import {
@@ -102,6 +102,7 @@ const SECONDARY_BTN_CLASS =
 
 export default function LoginFlow({ initialSteps = [] }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [steps] = useState(initialSteps);
   const [mode, setMode] = useState("login");
   const [loading, setLoading] = useState(false);
@@ -111,12 +112,7 @@ export default function LoginFlow({ initialSteps = [] }) {
   // link can pass it along (otherwise the customer signs up and lands
   // on /journey/venue instead of the page they were originally trying
   // to reach, e.g. /cart).
-  const [redirectTo, setRedirectTo] = useState("");
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const sp = new URLSearchParams(window.location.search);
-    setRedirectTo(sp.get("redirect") || sp.get("returnTo") || "");
-  }, []);
+  const redirectTo = searchParams.get("redirect") || searchParams.get("returnTo") || "";
   const signupHref = redirectTo
     ? `/signup?redirect=${encodeURIComponent(redirectTo)}`
     : "/signup";
@@ -169,13 +165,12 @@ export default function LoginFlow({ initialSteps = [] }) {
       saveAuthCookies(data);
       toast.success("Login successful.");
       
-      const searchParams = new URLSearchParams(window.location.search);
       // Accept either `redirect` (new canonical name) or `returnTo`
       // (older name still used by some links). Pages that gate behind
       // auth should send `?redirect=/wherever`.
-      const redirectTo = searchParams.get("redirect") || searchParams.get("returnTo");
-      if (redirectTo) {
-        router.push(redirectTo);
+      const postLoginRedirect = searchParams.get("redirect") || searchParams.get("returnTo");
+      if (postLoginRedirect) {
+        router.push(postLoginRedirect);
         return;
       }
 

@@ -1,8 +1,9 @@
 import OrdersPageServer from "@/components/server/OrdersPageServer";
 
 export const metadata = {
-  title: "My Orders | MyShaadiStore",
-  description: "View and track all your MyShaadiStore orders",
+  title: "My Orders",
+  description: "All your MyShaadiStore wedding orders in one place — view status, download invoices, raise returns and track deliveries across vendors.",
+  robots: { index: false, follow: false },
 };
 
 export default async function OrdersPage() {

@@ -19,10 +19,10 @@ export default function HeroSection({ heroSlideshow = null }) {
   return (
     <div className="relative mx-auto w-full min-h-[calc(100vh-88px)] overflow-x-hidden px-4 pb-10 pt-4 sm:min-h-[calc(100vh-92px)] sm:px-8 sm:pt-0 lg:px-20">
       {/* Pink vertical strip on the far left edge */}
-      <div className="absolute left-0 top-[5%] z-0 h-[100px] w-2.5 rounded-r-2xl bg-primary sm:h-[120px] sm:w-3.5 xl:h-[135px] xl:w-4" />
+      <div className="absolute left-0 top-[5%] z-0 h-25 w-2.5 rounded-r-2xl bg-primary sm:h-30 sm:w-3.5 xl:h-33.75 xl:w-4" />
 
       {/* Top right striped circle decoration — clipped so it never causes horizontal scroll */}
-      <div className="pointer-events-none absolute -right-[20%] top-[-120px] z-0 h-[200px] w-[240px] overflow-hidden opacity-35 sm:-right-[8%] sm:top-[-80px] sm:h-[280px] sm:w-[280px] lg:right-10 lg:top-[-160px] lg:h-[360px] lg:w-[360px]">
+      <div className="pointer-events-none absolute -right-[20%] -top-30 z-0 h-50 w-60 overflow-hidden opacity-35 sm:-right-[8%] sm:-top-20 sm:h-70 sm:w-70 lg:right-10 lg:-top-40 lg:h-90 lg:w-90">
         <svg viewBox="0 0 100 100" className="w-full h-full text-primary">
           <pattern
             id="diagonalHatch"
@@ -60,10 +60,10 @@ export default function HeroSection({ heroSlideshow = null }) {
                 </svg>
               </span>
             </span>
-            Dream Wedding come true
+            Dream Wedding comes true
           </h1>
 
-          <p className="mt-8 text-[0.85rem] sm:text-[1.15rem] text-muted max-w-[420px] leading-[1.7] font-normal italic">
+          <p className="mt-8 text-[0.85rem] sm:text-[1.15rem] text-muted max-w-105 leading-[1.7] font-normal italic">
             &quot;Once in a while, right in the middle of an ordinary life,
             love gives us a fairy tale.&quot;
           </p>
@@ -71,7 +71,7 @@ export default function HeroSection({ heroSlideshow = null }) {
           {/* Search Box */}
           <form
             onSubmit={handleSearch}
-            className="mt-4 flex items-center bg-surface rounded-2xl shadow-[0_20px_50px_rgba(16,24,40,0.06)] w-full max-w-[550px] p-0 px-2 sm:p-2 transition-shadow focus-within:shadow-[0_25px_60px_rgba(255,79,134,0.12)]"
+            className="mt-4 flex items-center bg-surface rounded-2xl shadow-[0_20px_50px_rgba(16,24,40,0.06)] w-full max-w-137.5 p-0 px-2 sm:p-2 transition-shadow focus-within:shadow-[0_25px_60px_rgba(255,79,134,0.12)]"
           >
             <input
               type="text"
@@ -244,7 +244,7 @@ export default function HeroSection({ heroSlideshow = null }) {
           <span className="text-text-strong font-medium text-[0.5rem] tracking-[0.2em] -rotate-90">
             Scroll Down
           </span>
-          <div className="w-[30px] h-[48px] border-[3px] border-text-strong/70 rounded-[20px] flex justify-center p-1.5">
+          <div className="w-7.5 h-12 border-[3px] border-text-strong/70 rounded-[20px] flex justify-center p-1.5">
             <div className="w-1 h-4 mt-1 rounded-full bg-primary animate-bounce" />
           </div>
         </div>

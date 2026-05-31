@@ -1,8 +1,8 @@
 import LoginPageServer from "@/components/server/LoginPageServer";
 
 export const metadata = {
-  title: "Login | MyShaadiStore",
-  description: "Log in to view your profile, orders, and wedding journey.",
+  title: "Login",
+  description: "Sign in to MyShaadiStore to access your wedding planning journey, saved vendors, quotations, orders and personalised dashboard.",
 };
 
 export default async function LoginPage() {

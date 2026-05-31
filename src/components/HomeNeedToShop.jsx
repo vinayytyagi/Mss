@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 
 const serif = "font-[family-name:var(--font-playfair),ui-serif,Georgia,serif]";
 
@@ -61,13 +62,11 @@ export default function HomeNeedToShop({ ctaHref = "/#wedding-showcase" }) {
 
         <div className="mt-10 flex justify-center sm:mt-12">
           <Link
-            href={ctaHref}
+            href="/shopping"
             className="home-need-to-shop-cta inline-flex items-center gap-2 rounded-full bg-linear-to-r from-primary-accent via-primary to-primary-accent-2 px-8 py-3.5 text-sm font-semibold text-primary-foreground shadow-[0_14px_40px_rgba(233,30,144,0.45)] transition hover:brightness-[1.06] sm:px-10 sm:py-4 sm:text-base lg:px-12 lg:text-lg"
           >
             Start Shopping Now
-            <span className="text-lg font-light leading-none sm:text-xl" aria-hidden>
-              ›
-            </span>
+            <ArrowRight className="w-4 h-4 sm:h-6 sm:w-6 text-primary-foreground" />
           </Link>
         </div>
       </div>

@@ -135,7 +135,7 @@ export default function ItemCardV2({
 }) {
   const wishlistKind = wishlistKindFromCartKind(cartKind);
   const wishlisted = useIsWishlisted(wishlistKind, item?.item_id);
-  // Brief post-click "Added!" affordance on the basket button. Persists for
+  // Brief post-click "Added" affordance on the basket button. Persists for
   // ~1.6s, then reverts to the default label so the same card can be
   // re-added if the customer wants two of something.
   const [justAdded, setJustAdded] = useState(false);
@@ -144,6 +144,9 @@ export default function ItemCardV2({
   // Re-render once a minute so the sale-ends countdown stays fresh while
   // the user lingers on the grid. Cheap, only renders this card subtree.
   const [, setTick] = useState(0);
+  const [imageIndex, setImageIndex] = useState(0);
+  const hoverTimer = useRef(null);
+
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 60000);
     return () => clearInterval(t);
@@ -151,19 +154,17 @@ export default function ItemCardV2({
   useEffect(() => () => {
     if (justAddedTimer.current) clearTimeout(justAddedTimer.current);
   }, []);
+  useEffect(() => () => {
+    if (hoverTimer.current) clearInterval(hoverTimer.current);
+  }, []);
 
   if (!item) return null;
 
-  // Image gallery — when the card has >1 image we auto-cycle through
-  // them every 2s while the user hovers. Single-image listings stay
-  // static. Index resets to 0 on mouse-leave so the card always shows
-  // the cover when idle.
   const allImages =
     Array.isArray(item.images) && item.images.length
       ? item.images
       : [fallbackImage || FALLBACK_IMAGE];
-  const [imageIndex, setImageIndex] = useState(0);
-  const hoverTimer = useRef(null);
+
   function startCycle() {
     if (allImages.length <= 1) return;
     if (hoverTimer.current) clearInterval(hoverTimer.current);
@@ -178,9 +179,6 @@ export default function ItemCardV2({
     }
     setImageIndex(0);
   }
-  useEffect(() => () => {
-    if (hoverTimer.current) clearInterval(hoverTimer.current);
-  }, []);
 
   const image = allImages[imageIndex] || allImages[0];
   const href = `/items/${item.item_id}`;
@@ -225,7 +223,7 @@ export default function ItemCardV2({
     toast.success(isShoppingKind ? "Added to cart" : "Added to basket", {
       description: item.name,
     });
-    // Flash the in-button "Added!" state for a moment.
+    // Flash the in-button "Added" state for a moment.
     setJustAdded(true);
     if (justAddedTimer.current) clearTimeout(justAddedTimer.current);
     justAddedTimer.current = setTimeout(() => setJustAdded(false), 1600);
@@ -245,7 +243,7 @@ export default function ItemCardV2({
   }
 
   const addLabel = justAdded
-    ? "Added!"
+    ? "Added"
     : isShoppingKind
       ? "Add to cart"
       : "Add to basket";
@@ -398,18 +396,24 @@ export default function ItemCardV2({
           {/* Price + add-to-basket */}
           <div className="mt-auto flex items-end justify-between gap-3 pt-3">
             <div className="min-w-0">
-              <div className="flex items-baseline gap-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="text-lg font-bold text-text transition-colors duration-300 group-hover:text-primary-hover">
                   {formatRupees(finalPrice)}
                 </span>
-                {hasDiscount && basePrice > finalPrice ? (
+                {item.price_range && item.price_range.max > item.price_range.min ? (
+                  <span className="text-xs font-semibold text-muted">
+                    – {formatRupees(item.price_range.max)}
+                  </span>
+                ) : hasDiscount && basePrice > finalPrice ? (
                   <span className="text-xs text-muted line-through">
                     {formatRupees(basePrice)}
                   </span>
                 ) : null}
               </div>
               <div className="text-[10px] font-medium uppercase tracking-wider text-subtle">
-                Starting from
+                {item.price_range && item.price_range.max > item.price_range.min
+                  ? `${item.price_range.count} variants`
+                  : "Starting from"}
               </div>
             </div>
 

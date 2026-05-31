@@ -1,39 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import CartItemsClient from "@/components/CartItemsClient";
 import CartActionsClient from "@/components/CartActionsClient";
-import { useAuthUser } from "@/lib/authCookies";
 
 export default function CartPageExperienceClient() {
   const router = useRouter();
-  const user = useAuthUser();
-  // Auth check runs after mount to avoid an SSR-vs-hydration mismatch.
-  // While we don't know yet, render a placeholder; if the cookie is
-  // absent we redirect to /login with a redirect= back here so the
-  // customer lands on the cart again post-login/signup.
-  const [authChecked, setAuthChecked] = useState(false);
-  useEffect(() => {
-    setAuthChecked(true);
-  }, []);
-  useEffect(() => {
-    if (!authChecked) return;
-    if (!user) {
-      router.replace(`/login?redirect=${encodeURIComponent("/cart")}`);
-    }
-  }, [authChecked, user, router]);
+  const searchParams = useSearchParams();
 
-  const [activeCart, setActiveCart] = useState("shopping");
+  const tabParam = searchParams.get("tab");
+  const activeCart = tabParam === "quotation" ? "quotation" : "shopping";
 
-  if (!authChecked || !user) {
-    return (
-      <div className="mt-12 flex items-center justify-center gap-3 text-muted">
-        <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
-        <span className="text-sm">Loading your basket…</span>
-      </div>
-    );
+  function setActiveCart(tab) {
+    router.replace(`/cart?tab=${tab}`, { scroll: false });
   }
 
   return (

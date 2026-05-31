@@ -1,8 +1,9 @@
 import CartPageServer from "@/components/server/CartPageServer";
 
 export const metadata = {
-  title: "Cart | MyShaadiStore",
-  description: "Review your quotation and shopping cart and checkout securely.",
+  title: "Cart",
+  description: "Review your wedding quotation cart and shopping cart, compare vendor quotes, and check out securely with Razorpay — fast pan-India delivery.",
+  robots: { index: false, follow: false },
 };
 
 export default function CartPage() {

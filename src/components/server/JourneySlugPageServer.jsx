@@ -302,6 +302,9 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
   );
 
   /** Step budget is for plan / UI only — item price band comes only from Product price (?pmin / ?pmax). */
+  // 60s revalidate (was `no-store`) so navigating back/forth between journey
+  // steps within a minute feels instant instead of re-fetching the same data.
+  // Catalog changes still propagate within a minute.
   const itemsRes = await fetchItems(
     {
       journeyStepId: step.step_id,
@@ -312,7 +315,7 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
       ...(search ? { search } : {}),
       limit: 500,
     },
-    { cacheMode: "no-store" },
+    { cacheMode: "revalidate", revalidateSeconds: 60 },
   );
 
   const stepKind = resolveStepKind(step);

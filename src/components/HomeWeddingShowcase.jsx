@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Flower2, HandHeart, Landmark, ShoppingBag } from "lucide-react";
+import { Check, Flower2, HandHeart, Landmark, ShoppingBag, ArrowRight } from "lucide-react";
 import { Sparkles } from "lucide-react";
 
 const serif = "font-[family-name:var(--font-playfair),ui-serif,Georgia,serif]";
@@ -140,14 +140,12 @@ export default function HomeWeddingShowcase({ journeyHref = "/how-it-works" }) {
 
         <div className="relative z-20 mt-14 flex justify-center lg:mt-16">
           <Link
-            href={journeyHref}
+            href="/signup/engaged"
             className="showcase-journey-cta inline-flex items-center gap-2 rounded-full bg-linear-to-r from-primary-accent via-primary to-primary-accent-2 px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[0_14px_34px_rgba(233,30,144,0.35)] transition hover:brightness-[1.05] sm:px-8 sm:py-3.5 sm:text-base lg:px-10 lg:py-4 lg:text-lg"
           >
             <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
             Begin Your Wedding Journey
-            <span className="text-lg font-light leading-none sm:text-xl lg:text-2xl" aria-hidden>
-              ›
-            </span>
+            <ArrowRight className="w-4 h-4 sm:h-6 sm:w-6 text-primary-foreground" />
           </Link>
         </div>
       </div>

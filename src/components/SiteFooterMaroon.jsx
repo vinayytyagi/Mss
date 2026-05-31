@@ -4,7 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
-import { buildWhatsAppUrl, WA_CAREERS_MESSAGE, WA_DEFAULT_MESSAGE } from "@/lib/whatsapp";
+import { buildWhatsAppUrl, WA_DEFAULT_MESSAGE } from "@/lib/whatsapp";
+import { CookieSettingsButton } from "@/components/CookieConsent";
 
 function SocialButton({ href, label, children }) {
   return (
@@ -73,19 +74,17 @@ function LinkedInIcon() {
 
 export default function SiteFooterMaroon({ steps = [] }) {
   const pathname = usePathname();
-  const shoppingHref = useMemo(() => {
-    const shopping = steps.find((s) => s.slug === "shopping");
-    return shopping ? `/journey/${shopping.slug}` : "/shopping";
-  }, [steps]);
-  const budgetHref = useMemo(() => {
-    const budget = steps.find(
-      (s) =>
-        /budget/i.test(s.title || "") ||
-        /budget/i.test(s.slug || "") ||
-        /plan/i.test(s.slug || ""),
-    );
-    return budget ? `/journey/${budget.slug}` : steps[0] ? `/journey/${steps[0].slug}` : "/how-it-works";
-  }, [steps]);
+  const journeyHref = useMemo(
+    () => (slug, fallback) => {
+      const step = steps.find((s) => s.slug === slug);
+      return step ? `/journey/${step.slug}` : fallback;
+    },
+    [steps],
+  );
+  const venueHref = journeyHref("venue", "/journey/venue");
+  const decorHref = journeyHref("decor", "/journey/decor");
+  const photographyHref = journeyHref("photography", "/journey/photography");
+  const shoppingHref = journeyHref("shopping", "/shopping");
 
   if (pathname === "/login" || pathname === "/signup" || pathname.startsWith("/signup/")) {
     return null;
@@ -159,14 +158,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
                   <MaroonNavLink href="/join-as-vendor">Join as vendor</MaroonNavLink>
                 </li>
                 <li>
-                  <a
-                    href={buildWhatsAppUrl(WA_CAREERS_MESSAGE)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-sm font-normal text-primary-foreground/90 transition hover:text-primary-foreground hover:underline decoration-primary-foreground/40 underline-offset-4"
-                  >
-                    Careers
-                  </a>
+                  <MaroonNavLink href="/careers">Careers</MaroonNavLink>
                 </li>
                 <li>
                   <a
@@ -185,16 +177,16 @@ export default function SiteFooterMaroon({ steps = [] }) {
               <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-primary-foreground">Services</h3>
               <ul className="mt-5 space-y-3">
                 <li>
-                  <MaroonNavLink href={shoppingHref}>Vendors</MaroonNavLink>
+                  <MaroonNavLink href={venueHref}>Wedding Venues</MaroonNavLink>
                 </li>
                 <li>
-                  <MaroonNavLink href={budgetHref}>Budget Planner</MaroonNavLink>
+                  <MaroonNavLink href={decorHref}>Décor and Styling</MaroonNavLink>
                 </li>
                 <li>
-                  <MaroonNavLink href="/how-it-works">Honeymoon</MaroonNavLink>
+                  <MaroonNavLink href={photographyHref}>Wedding Services</MaroonNavLink>
                 </li>
                 <li>
-                  <MaroonNavLink href={shoppingHref}>Collections</MaroonNavLink>
+                  <MaroonNavLink href={shoppingHref}>Shopping</MaroonNavLink>
                 </li>
               </ul>
             </div>
@@ -210,6 +202,15 @@ export default function SiteFooterMaroon({ steps = [] }) {
                 </li>
                 <li>
                   <MaroonNavLink href="/legal/refund-policy">Refund Policy</MaroonNavLink>
+                </li>
+                <li>
+                  <MaroonNavLink href="/legal/cookie-policy">Cookie Policy</MaroonNavLink>
+                </li>
+                <li>
+                  <CookieSettingsButton
+                    showIcon={false}
+                    className="text-sm font-normal text-primary-foreground/90 transition hover:text-primary-foreground hover:underline decoration-primary-foreground/40 underline-offset-4"
+                  />
                 </li>
               </ul>
             </div>

@@ -294,3 +294,30 @@ input::placeholder {
 .scrollbar-themed::-webkit-scrollbar-thumb:hover {
   background: var(--primary-hover);
 }
+
+/* Subtle thin scrollbars (dropdowns / menus) */
+.scrollbar-soft {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 55%, transparent)
+    color-mix(in srgb, var(--surface-muted) 85%, transparent);
+}
+
+.scrollbar-soft::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-soft::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--surface-muted) 90%, transparent);
+  border-radius: 9999px;
+}
+
+.scrollbar-soft::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--surface-muted) 80%, transparent);
+}
+
+.scrollbar-soft::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted-strong) 60%, transparent);
+}

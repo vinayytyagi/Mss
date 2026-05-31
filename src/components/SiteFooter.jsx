@@ -11,15 +11,17 @@ import {
   Truck,
   User,
   Package,
-  MessageCircle,
   Phone,
   ArrowUpRight,
   Sparkles,
 } from "lucide-react";
 
-const WHATSAPP_HREF = "https://wa.me/919568559915?text=Hi%20MyShaadiStore";
-const PHONE_DISPLAY = "+91 95685 59915";
-const PHONE_HREF = "tel:+919568559915";
+import { buildWhatsAppUrl, WA_DISPLAY_NUMBER } from "@/lib/whatsapp";
+import WhatsAppIcon from "@/components/icons/WhatsAppIcon";
+
+const WHATSAPP_HREF = buildWhatsAppUrl();
+const PHONE_DISPLAY = WA_DISPLAY_NUMBER;
+const PHONE_HREF = `tel:${WA_DISPLAY_NUMBER.replace(/\s+/g, "")}`;
 
 function FooterLink({ href, children, external }) {
   const className =
@@ -214,7 +216,7 @@ export default function SiteFooter({ steps = [] }) {
                 className="inline-flex items-center gap-2 font-medium text-[#128C7E] transition hover:text-[#0d6f63]"
               >
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e8fff4] text-[#128C7E]">
-                  <MessageCircle className="h-4 w-4" />
+                  <WhatsAppIcon className="h-4 w-4" />
                 </span>
                 Chat on WhatsApp
               </a>
