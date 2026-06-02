@@ -77,6 +77,7 @@ import { safeCssUrl } from "@/lib/utils";
 import { resolveRating, formatCountdown } from "@/lib/itemUiHelpers";
 import BasketButton from "@/components/BasketButton";
 import ItemCardV2 from "@/components/ItemCardV2";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import ItemAttributesSpec from "@/components/ItemAttributesSpec";
 import ProductReviews from "@/components/ProductReviews";
 
@@ -409,6 +410,9 @@ export default function ProductDetailPage({ itemId }) {
       ? "MyShaadiStore"
       : item.vendor_business_name || item.vendor_name || "Vendor";
   }, [item, whiteLabelOn]);
+  // White-label = sold as MyShaadiStore (always verified). Otherwise
+  // honour the admin-set verified flag on the underlying vendor.
+  const isSellerVerified = whiteLabelOn || !!item?.vendor_is_verified;
 
   // Match the currently-picked option set to a concrete variant row. We
   // only match on options that actually exist for this item (e.g. if the
@@ -842,9 +846,10 @@ export default function ProductDetailPage({ itemId }) {
 
             <div className="mt-3 flex items-center gap-1.5 text-sm text-muted">
               <Store className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>
+              <span className="inline-flex items-center gap-1.5">
                 Sold by{" "}
                 <span className="font-semibold text-text">{vendorName}</span>
+                {isSellerVerified ? <VerifiedBadge size="sm" /> : null}
               </span>
             </div>
 
@@ -996,7 +1001,7 @@ export default function ProductDetailPage({ itemId }) {
                   primary={!supportsShoppingCart}
                   onClick={handleAddToInquiry}
                   icon={<ClipboardList className="h-4 w-4" aria-hidden />}
-                  label="Add to Inquiry"
+                  label="Add to Cart"
                   justAdded={justAdded.quotation}
                 />
               )}

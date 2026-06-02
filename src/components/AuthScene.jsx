@@ -19,9 +19,9 @@ export default function AuthScene({
       />
       <div className="absolute inset-0 bg-linear-to-br from-text-strong/65 via-text-strong/45 to-primary/20" />
 
-      <div className={`relative z-10 w-full px-4 ${hasStepper ? "max-w-6xl" : "max-w-[560px]"}`}>
+      <div className={`relative z-10 w-full px-4 ${hasStepper ? "max-w-6xl" : "max-w-140"}`}>
         {hasStepper ? (
-          <div className="grid items-center gap-8 lg:grid-cols-[1fr_1.25fr]">
+          <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
             <div className="hidden lg:block">
               <div className="mx-auto w-full max-w-md">
                 <div className="mb-6 flex h-32 w-32 items-center justify-center">

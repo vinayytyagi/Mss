@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AuthScene from "@/components/AuthScene";
 import CityStateDropdown from "@/components/CityStateDropdown";
 import { getAuthToken, getAuthUser, saveAuthCookies } from "@/lib/authCookies";
-import { fetchJourneySteps, registerWithPhonePassword } from "@/lib/api";
+import { fetchBudgetPresets, fetchJourneySteps, registerWithPhonePassword } from "@/lib/api";
 import { fetchMyProfile, updateMyProfile } from "@/lib/api/userApi";
 import { isValidEmail, isValidIndianPhone, normalizeIndianPhone, validatePasswordStrength } from "@/lib/authValidation";
 import { makeIdempotencyKey } from "@/lib/idempotencyKey";
@@ -175,8 +175,18 @@ export default function SignupWizard({ step }) {
       slug: a.slug,
       title: a.title,
       amount: Number(a.amount) || 0,
+      min_budget: Math.max(Number(a.min_budget) || 0, 0),
       max_budget: Math.max(Number(a.max_budget) || 0, Number(a.amount) || 0, 500000),
+      blurb: String(a.blurb || ""),
     }));
+  });
+
+  const [budgetPresets, setBudgetPresets] = useState([]);
+  const [selectedPresetSlug, setSelectedPresetSlug] = useState(() => {
+    if (typeof window === "undefined") return null;
+    const user = getAuthUser();
+    const slug = user?.onboarding?.budget_preset_slug;
+    return slug || null;
   });
   const totalAllocated = useMemo(
     () => budgetAllocations.reduce((sum, item) => sum + (Number(item.amount) || 0), 0),
@@ -189,10 +199,50 @@ export default function SignupWizard({ step }) {
       const next = [...prev];
       const entry = next[index];
       if (!entry) return prev;
+      const minBudget = Math.max(Number(entry.min_budget) || 0, 0);
       const maxBudget = Math.max(Number(entry.max_budget) || 0, Number(entry.amount) || 0, 500000);
-      const amount = Math.min(maxBudget || MAX_BUDGET_PER_STEP, Number(cleaned || 0));
+      const raw_n = Number(cleaned || 0);
+      const amount = Math.max(minBudget, Math.min(maxBudget || MAX_BUDGET_PER_STEP, raw_n));
       next[index] = { ...entry, amount };
       return next;
+    });
+  }
+
+  function applyPreset(presetSlug) {
+    const preset = budgetPresets.find((p) => p.slug === presetSlug);
+    if (!preset) return;
+    setSelectedPresetSlug(presetSlug);
+    const allocByStepId = new Map();
+    for (const a of preset.allocations || []) {
+      if (a?.step_id) allocByStepId.set(String(a.step_id), a);
+    }
+    setBudgetAllocations((prev) =>
+      prev.map((entry) => {
+        const presetAlloc = allocByStepId.get(String(entry.step_id));
+        if (!presetAlloc) return entry;
+        const min_budget = Math.max(Number(presetAlloc.min_amount) || 0, 0);
+        const max_budget = Math.max(
+          Number(presetAlloc.max_amount) || 0,
+          Number(entry.max_budget) || 0,
+          min_budget,
+        );
+        const amount = Math.max(min_budget, Math.min(max_budget, Number(presetAlloc.amount) || 0));
+        return {
+          ...entry,
+          amount,
+          min_budget,
+          max_budget,
+          blurb: presetAlloc.blurb || entry.blurb || "",
+        };
+      }),
+    );
+    // Auto-bump guests_count to the preset's lower bound if not already set
+    setForm((f) => {
+      const currentGuests = Number(f.guests_count) || 0;
+      if (currentGuests > 0) return f;
+      const min = Number(preset.min_guests) || 0;
+      if (min <= 0) return f;
+      return { ...f, guests_count: String(min) };
     });
   }
 
@@ -310,7 +360,9 @@ export default function SignupWizard({ step }) {
             slug: s.slug,
             title: s.title || s.slug,
             amount: Number(s.default_budget) || 0,
+            min_budget: 0,
             max_budget: Math.max(Number(s.max_budget) || 0, Number(s.default_budget) || 0, 500000),
+            blurb: "",
           }))
         );
       } catch {
@@ -321,6 +373,58 @@ export default function SignupWizard({ step }) {
       ignore = true;
     };
   }, [step, budgetAllocations.length]);
+
+  // Load admin-configured budget presets when the user reaches the budget step.
+  useEffect(() => {
+    if (step !== "budget") return;
+    let ignore = false;
+    (async () => {
+      try {
+        const res = await fetchBudgetPresets();
+        if (ignore) return;
+        const presets = Array.isArray(res?.presets) ? res.presets : Array.isArray(res) ? res : [];
+        setBudgetPresets(presets);
+      } catch {
+        // ignore — page still works without presets, sliders just won't be pre-filled
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [step]);
+
+  // Only show presets whose guest range covers the user's expected count.
+  // If the user's count falls outside every preset's range, we fall back to
+  // showing all presets so the customer is never stuck with zero options.
+  const userGuestsCount = Number(form.guests_count) || 0;
+  const visibleBudgetPresets = useMemo(() => {
+    if (!userGuestsCount) return budgetPresets;
+    const matches = budgetPresets.filter((p) => {
+      const lo = Number(p.min_guests) || 0;
+      const hi = Number(p.max_guests) || Number.POSITIVE_INFINITY;
+      return userGuestsCount >= lo && userGuestsCount <= hi;
+    });
+    return matches.length > 0 ? matches : budgetPresets;
+  }, [budgetPresets, userGuestsCount]);
+
+  // Auto-pick a preset:
+  //  - First visit / no prior selection → pre-select the first visible preset
+  //    (presets are already sorted by display_order by the API).
+  //  - User changes their guest count and the previously-picked preset is no
+  //    longer in the visible list → swap to the new first visible preset.
+  // Manual chip taps always win — once a visible preset is selected, this
+  // effect leaves it alone.
+  useEffect(() => {
+    if (step !== "budget") return;
+    if (visibleBudgetPresets.length === 0) return;
+    if (budgetAllocations.length === 0) return;
+    const isStillVisible =
+      selectedPresetSlug &&
+      visibleBudgetPresets.some((p) => p.slug === selectedPresetSlug);
+    if (isStillVisible) return;
+    applyPreset(visibleBudgetPresets[0].slug);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, visibleBudgetPresets, budgetAllocations.length, selectedPresetSlug]);
 
   // Persist local wizard state (never store passwords). Skip until hydrated so we
   // don't overwrite localStorage with the empty first-paint form on /signup/password.
@@ -946,91 +1050,162 @@ export default function SignupWizard({ step }) {
   }
 
   if (step === "budget") {
+    const formatBudget = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+    async function persistBudget(nextDbStep) {
+      return saveAfterLogin(nextDbStep, {
+        budget_total: totalAllocated,
+        budget_preset_slug: selectedPresetSlug || null,
+        budget_allocations: budgetAllocations.map((item) => ({
+          step_id: item.step_id,
+          slug: item.slug,
+          title: item.title,
+          amount: Number(item.amount) || 0,
+          min_budget: Number(item.min_budget) || 0,
+          max_budget: Number(item.max_budget) || MAX_BUDGET_PER_STEP,
+          blurb: item.blurb || "",
+        })),
+      });
+    }
+    async function finishBudget() {
+      const ok = await persistBudget("done");
+      if (!ok) return;
+      clearState();
+      router.push(redirectTo || "/journey/venue");
+    }
     return (
       <AuthScene
-        title="Budget"
-        subtitle="Set your estimated budget (step-wise)."
+        title="Budget planner"
+        subtitle="Set your estimated budget step-by-step."
         variant={9}
         stepLabels={showStepper ? stepLabels : []}
         activeStep={activeStep}
       >
         <div className="space-y-5">
-          <div className="rounded-xl bg-surface p-4 text-center">
-            <div className="text-xl font-semibold text-primary">₹{totalAllocated.toLocaleString("en-IN")}</div>
-            <div className="mt-1 text-[11px] font-medium text-subtle">Auto total</div>
-          </div>
-
-          <div className="space-y-2 rounded-xl bg-surface p-3">
-            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-              {budgetAllocations.map((item, index) => (
-                <div key={item.step_id || item.slug || index} className="rounded-lg border border-border bg-primary-soft px-3 py-2">
-                  <div className="grid grid-cols-[92px_1fr_92px] items-center gap-2">
-                    <div className="truncate text-xs font-semibold text-text">{item.title}</div>
-                    <input
-                      type="range"
-                      min="0"
-                      max={item.max_budget || MAX_BUDGET_PER_STEP}
-                      step="1000"
-                      value={item.amount || 0}
-                      onChange={(e) => updateBudgetAmount(index, e.target.value)}
-                      className="w-full cursor-pointer accent-primary"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      max={item.max_budget || MAX_BUDGET_PER_STEP}
-                      step="1000"
-                      value={item.amount || 0}
-                      onChange={(e) => updateBudgetAmount(index, e.target.value)}
-                      className="h-8 w-full rounded-md border border-border-strong bg-surface px-2 text-xs font-medium text-text outline-none"
-                    />
-                  </div>
-                  <div className="mt-1 text-right text-[10px] font-medium text-subtle">
-                    ₹{Number(item.amount || 0).toLocaleString("en-IN")} / Max ₹{Number(item.max_budget || MAX_BUDGET_PER_STEP).toLocaleString("en-IN")}
-                  </div>
-                </div>
-              ))}
-              {budgetAllocations.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border-strong bg-surface px-3 py-6 text-center text-sm font-medium text-muted">
-                  Loading journey steps…
-                </div>
-              ) : null}
+          {/* Quick-start preset chips — single-row horizontal carousel.
+              Chips don't shrink; the row scrolls if they overflow. Only
+              presets whose guest range covers the user's count appear. */}
+          {visibleBudgetPresets.length > 0 && (
+            <div>
+              <div className="mb-2 text-xs font-medium text-subtle">
+                Quick start — choose a budget range
+              </div>
+              <div
+                className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory"
+                style={{ scrollbarWidth: "thin" }}
+              >
+                {visibleBudgetPresets.map((preset) => {
+                  const isActive = selectedPresetSlug === preset.slug;
+                  return (
+                    <button
+                      key={preset.slug}
+                      type="button"
+                      onClick={() => applyPreset(preset.slug)}
+                      className={`flex w-35 shrink-0 snap-start flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition ${
+                        isActive
+                          ? "border-primary bg-primary-soft shadow-[0_0_0_1px_var(--color-primary)]"
+                          : "border-border bg-surface hover:border-primary/40 hover:bg-primary-soft/30"
+                      }`}
+                    >
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-strong">
+                        {preset.name}
+                      </span>
+                      {preset.short_label ? (
+                        <span className="text-[11px] font-bold text-primary">
+                          {preset.short_label}
+                        </span>
+                      ) : null}
+                      {preset.guest_range_label ? (
+                        <span className="text-[10px] font-medium text-subtle">
+                          {preset.guest_range_label}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1.5 text-center text-[10px] font-medium text-subtle">
+                Tap a preset to auto-fill, then adjust each slider.
+              </p>
             </div>
+          )}
+
+          {/* Total budget hero */}
+          <div className="flex items-center justify-between rounded-xl bg-primary-soft px-4 py-3 ring-1 ring-primary/15">
+            <span className="text-sm font-semibold text-text-strong">Your total budget</span>
+            <span className="text-lg font-bold tabular-nums text-primary">
+              {formatBudget(totalAllocated)}
+            </span>
           </div>
 
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => goto(STEP_TO_PATH.guests)}
-              className="h-11 flex-1 rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted"
-            >
-              Back
-            </button>
+          {/* Per-category sliders */}
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+            {budgetAllocations.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border-strong bg-surface px-3 py-6 text-center text-sm font-medium text-muted">
+                Loading journey steps…
+              </div>
+            ) : null}
+            {budgetAllocations.map((item, index) => {
+              const min = Math.max(Number(item.min_budget) || 0, 0);
+              const max = Math.max(
+                Number(item.max_budget) || 0,
+                Number(item.amount) || 0,
+                500000,
+                min,
+              );
+              const value = Math.max(min, Math.min(max, Number(item.amount) || 0));
+              return (
+                <div
+                  key={item.step_id || item.slug || index}
+                  className="rounded-xl border border-border bg-surface px-4 py-3"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-text-strong">{item.title}</span>
+                    <span className="text-sm font-bold tabular-nums text-primary">
+                      {formatBudget(value)}
+                    </span>
+                  </div>
+                  {item.blurb ? (
+                    <p className="mt-0.5 text-[11px] italic text-subtle">{item.blurb}</p>
+                  ) : null}
+                  <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    step="1000"
+                    value={value}
+                    onChange={(e) => updateBudgetAmount(index, e.target.value)}
+                    className="mt-2 w-full cursor-pointer accent-primary"
+                    aria-label={`${item.title} budget`}
+                  />
+                  <div className="mt-0.5 flex items-center justify-between text-[10px] font-medium text-subtle">
+                    <span>{formatBudget(min)}</span>
+                    <span>{formatBudget(max)}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {/* Extras hint, matches reference image */}
+            {/* <p className="px-1 pt-1 text-[11px] italic text-subtle">
+              + Makeup, Mehendi, Music &amp; more — set after you see vendor options.
+            </p> */}
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-2">
             <button
               type="button"
               disabled={loading}
-              onClick={async () => {
-                const ok = await saveAfterLogin("done", {
-                  budget_total: totalAllocated,
-                  budget_allocations: budgetAllocations.map((item) => ({
-                    step_id: item.step_id,
-                    slug: item.slug,
-                    title: item.title,
-                    amount: Number(item.amount) || 0,
-                    max_budget: Number(item.max_budget) || MAX_BUDGET_PER_STEP,
-                  })),
-                });
-                if (!ok) return;
-                clearState();
-                // End of wizard. Honour the original `redirect` if the
-                // user came in from a gated page (e.g. /cart), else send
-                // them into the journey at the Venue step — that's the
-                // natural first stop after onboarding.
-                router.push(redirectTo || "/journey/venue");
-              }}
-              className="h-11 flex-1 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
+              onClick={finishBudget}
+              className="h-11 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
             >
               {loading ? "Saving..." : "Finish"}
+            </button>
+            <button
+              type="button"
+              onClick={() => goto(STEP_TO_PATH.guests)}
+              className="h-11 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text transition hover:bg-surface-muted"
+            >
+              Back
             </button>
           </div>
         </div>

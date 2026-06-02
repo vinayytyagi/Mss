@@ -40,6 +40,7 @@ import {
 } from "@/lib/wishlistStore";
 import { safeCssUrl } from "@/lib/utils";
 import { resolveRating, formatCountdown } from "@/lib/itemUiHelpers";
+import VerifiedBadge from "@/components/VerifiedBadge";
 
 // Map a cartKind ("quotation" | "shopping") to a wishlist bucket
 // ("journey" | "shopping"). Wishlist intentionally uses different
@@ -197,6 +198,9 @@ export default function ItemCardV2({
 
   const soldByName =
     whiteLabelOn || !vendorName ? "MyShaadiStore" : vendorName;
+  // White-label listings are sold as MyShaadiStore (always verified).
+  // Otherwise show the badge only when the admin has verified this vendor.
+  const isSellerVerified = whiteLabelOn || !!item?.vendor_is_verified;
 
   const rating = resolveRating(item);
   const locationStr = [item.location_city, item.location_state]
@@ -347,9 +351,10 @@ export default function ItemCardV2({
 
           <div className="flex items-center gap-1.5 text-xs text-muted">
             <Store className="h-3 w-3 shrink-0" aria-hidden />
-            <span className="truncate">
+            <span className="inline-flex min-w-0 items-center gap-1 truncate">
               Sold by{" "}
-              <span className="font-medium text-text">{soldByName}</span>
+              <span className="font-medium text-text truncate">{soldByName}</span>
+              {isSellerVerified ? <VerifiedBadge size="xs" /> : null}
             </span>
           </div>
 

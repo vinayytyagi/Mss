@@ -1,10 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, ChevronsDown } from "lucide-react";
+import { ChevronRight, ChevronsDown, SlidersHorizontal } from "lucide-react";
 import BasketButton from "@/components/BasketButton";
 import ShoppingItemsGrid from "@/components/ShoppingItemsGrid";
 import ShoppingSidebar from "@/components/ShoppingSidebar";
 import { isProductItem } from "@/lib/shopUi";
+import { categoryIconPath } from "@/lib/categoryIcon";
 import ShoppingSearchBar from "@/components/ShoppingSearchBar";
 
 function itemFabric(item) {
@@ -31,10 +32,35 @@ function matchesPrice(item, minPrice, maxPrice) {
   return true;
 }
 
-function buildQuery(categoryId, subcategoryId, subSubcategoryId, search) {
+/** Client-side multi-sub filter. When more than one subcategory is picked
+ *  the server returns everything under the top category and we narrow
+ *  here — same pattern as fabric/price.
+ *
+ *  An item's `category_id` may be the picked sub OR one of its descendants
+ *  (sub-subcategory, sub-sub-sub, …). To match correctly we walk up the
+ *  parent chain via `parentByCategoryId` and return true if ANY ancestor
+ *  (or the category itself) is in the selected set. */
+function itemBelongsToAny(item, selectedSubcategoryIds, parentByCategoryId) {
+  if (!selectedSubcategoryIds?.length) return true;
+  const targetSet = new Set(selectedSubcategoryIds.map(String));
+  let cid = String(item?.category_id || item?.subcategory_id || "");
+  const seen = new Set();
+  while (cid && !seen.has(cid)) {
+    seen.add(cid);
+    if (targetSet.has(cid)) return true;
+    cid = String(parentByCategoryId.get(cid) || "");
+  }
+  return false;
+}
+
+/** Build a `/shopping?…` URL. `subcategoryIds` is a list — emitted as a
+ *  comma-separated value so multi-select survives a round-trip. */
+function buildQuery({ categoryId, subcategoryIds = [], subSubcategoryId, search }) {
   const qs = new URLSearchParams();
   if (categoryId) qs.set("category", categoryId);
-  if (subcategoryId) qs.set("subcategory", subcategoryId);
+  if (Array.isArray(subcategoryIds) && subcategoryIds.length > 0) {
+    qs.set("subcategory", subcategoryIds.join(","));
+  }
   if (subSubcategoryId) qs.set("subSubcategory", subSubcategoryId);
   if (search && String(search).trim()) qs.set("search", String(search).trim());
   const query = qs.toString();
@@ -46,7 +72,7 @@ export default function ShoppingCatalog({
   categories,
   items,
   selectedCategoryId = "",
-  selectedSubcategoryId = "",
+  selectedSubcategoryIds = [],
   selectedSubSubcategoryId = "",
   search = "",
   minPrice = null,
@@ -55,36 +81,82 @@ export default function ShoppingCatalog({
 }) {
   const productItems = items.filter(isProductItem);
   const topCategories = categories.filter((category) => !category.parent_category_id);
+  // category_id → parent_category_id lookup so the multi-sub filter can
+  // walk ancestors when an item lives in a sub-sub of a selected sub.
+  const parentByCategoryId = new Map();
+  for (const c of categories) {
+    parentByCategoryId.set(c.category_id, c.parent_category_id || null);
+  }
   const selectedCategory =
     topCategories.find((category) => category.category_id === selectedCategoryId) || null;
   const visibleSubcategories = selectedCategory
     ? categories.filter((category) => category.parent_category_id === selectedCategory.category_id)
     : [];
-  const selectedSubcategory =
-    visibleSubcategories.find((category) => category.category_id === selectedSubcategoryId) || null;
-  const visibleSubSubcategories = selectedSubcategory
-    ? categories.filter((category) => category.parent_category_id === selectedSubcategory.category_id)
+  // Multi-pick: any subcategory in the URL list that's still in the
+  // currently visible subs is considered selected.
+  const selectedSubcategories = visibleSubcategories.filter((sub) =>
+    selectedSubcategoryIds.includes(sub.category_id),
+  );
+  const singleSelectedSub =
+    selectedSubcategories.length === 1 ? selectedSubcategories[0] : null;
+  const visibleSubSubcategories = singleSelectedSub
+    ? categories.filter((category) => category.parent_category_id === singleSelectedSub.category_id)
     : [];
   const selectedSubSubcategory =
     visibleSubSubcategories.find((category) => category.category_id === selectedSubSubcategoryId) || null;
   const hasSubSubcategoryRow = visibleSubSubcategories.length > 0;
 
-  // Apply sidebar facets on top of what the API returned (category/sub
-  // filters happened server-side). The sidebar needs the unfiltered pool
-  // to derive its facet list (fabrics, price range), so we hand it
-  // `productItems` not `filteredItems`.
+  // Apply sidebar facets on top of what the API returned. With multi-sub
+  // we also narrow here. The sidebar still gets `productItems` (post-API)
+  // so its facet lists reflect the active top-category scope.
+  // Multi-sub narrowing always runs client-side. Even when the server
+  // already filtered (one sub picked), walking the chain here is cheap
+  // and keeps the rule in one place.
   const filteredItems = productItems
+    .filter((item) => itemBelongsToAny(item, selectedSubcategoryIds, parentByCategoryId))
     .filter((item) => matchesFabric(item, selectedFabrics))
     .filter((item) => matchesPrice(item, minPrice, maxPrice));
 
-  const showcaseCategories = topCategories.slice(0, 6);
+  // Render every top category — the strip itself scrolls horizontally
+  // once more than ~6 cards no longer fit on a typical desktop.
+  const showcaseCategories = topCategories;
   const filterSubcategories = visibleSubcategories.length
     ? visibleSubcategories
     : categories.filter((category) => !category.parent_category_id).slice(0, 6);
 
+  /** Toggle a subcategory in/out of the URL list. */
+  function buildToggleSubHref(subId) {
+    const next = selectedSubcategoryIds.includes(subId)
+      ? selectedSubcategoryIds.filter((id) => id !== subId)
+      : [...selectedSubcategoryIds, subId];
+    return `/shopping${buildQuery({
+      categoryId: selectedCategory?.category_id || "",
+      subcategoryIds: next,
+      subSubcategoryId: "", // changing sub picks clears the deeper filter
+      search,
+    })}`;
+  }
+
   return (
     <main className="mx-auto w-full px-4 pb-8 pt-5 sm:px-6 lg:px-8">
-      <section className="rounded-[28px] bg-primary-soft p-5 sm:p-7">
+      <section className="relative rounded-[28px] bg-shop-bg p-5 sm:p-7">
+        {/* Couple illustration is anchored to the SECTION (not the header)
+            so it can extend down past the title and the search bar, with
+            the feet visually overlapping the top of the brown strip — see
+            the Figma reference. The image is placed before its siblings
+            but positioned absolute; z-20 keeps it above the strip cards
+            while still sitting in the same flow. */}
+        <div className="pointer-events-none absolute right-2 top-2 z-20 hidden h-72 w-52 md:block lg:right-4 lg:top-2 lg:h-90 lg:w-96">
+          <Image
+            src="/shopping_header.webp"
+            alt="Bride and groom in traditional wedding attire"
+            fill
+            className="object-contain object-bottom-right"
+            sizes="(max-width: 1024px) 220px, 300px"
+            priority
+          />
+        </div>
+
         <div className="relative min-h-55">
           <h1 className="pt-8 text-center text-2xl font-medium leading-tight text-secondary sm:pt-12 sm:text-3xl">
             Shop Curated Essentials for
@@ -96,131 +168,151 @@ export default function ShoppingCatalog({
               <ShoppingSearchBar
                 initialValue={search}
                 category={selectedCategoryId}
-                subcategory={selectedSubcategoryId}
-                placeholder="Search bridal wear, decor, catering…"
+                subcategory={selectedSubcategoryIds.join(",")}
+                placeholder="Search clothing, jewellery, cosmetics, gifts…"
               />
-            </div>
-          </div>
-          <div className="pointer-events-none absolute right-2 top-0 hidden h-52.5 w-55 md:block lg:h-65 lg:w-75">
-            <div className="h-full w-full rounded-b-[120px] rounded-t-3xl bg-primary-soft/40 p-2">
-              <div className="relative h-full w-full">
-                <Image
-                  src="/shopping_header.webp"
-                  alt="Bride and groom in traditional wedding attire"
-                  fill
-                  className="object-contain object-bottom-right"
-                  sizes="(max-width: 1024px) 220px, 300px"
-                  priority
-                />
-              </div>
             </div>
           </div>
         </div>
 
         <div className="mt-4">
-          <h2 className="text-2xl sm:text-3xl font-medium text-text-strong">Category</h2>
-          <div className="no-scrollbar mt-4 flex items-center gap-0.5 overflow-x-auto overflow-y-visible rounded-[30px] bg-primary-soft px-0.5 py-2">
+          <h2 className="text-xl sm:text-2xl font-medium text-text-strong">Category</h2>
+          {/* Brown card strip — matches the Figma reference. Inactive cards
+              blend into the strip; the active one pops in deep brown. */}
+          <div className="no-scrollbar mt-2 flex items-center gap-3 overflow-x-auto overflow-y-visible rounded-[30px] px-3 py-4">
+            {/* min-w-full so the brown strip fills the container when
+                there are ≤ 6 cards, but expands to fit when there are
+                more — combined with shrink-0 cards, this gives the
+                "6 fit / 7+ scroll" behaviour. */}
+            <div className="bg-[#c4b0a9] min-w-full flex items-center gap-5 rounded-2xl">
             {showcaseCategories.map((category) => {
               const isActive = selectedCategory?.category_id === category.category_id;
-              const categoryImage =
-                category.image_url ||
-                productItems.find((item) => item.category_id === category.category_id)?.images?.[0] ||
-                productItems.find((item) => item.category_id === category.category_id)?.image ||
-                "";
+              const categoryImage = category.image_url || "";
               const categoryHref = isActive
-                ? `/shopping${buildQuery("", "", "", search)}`
-                : `/shopping${buildQuery(category.category_id, "", "", search)}`;
+                ? `/shopping${buildQuery({ search })}`
+                : `/shopping${buildQuery({ categoryId: category.category_id, search })}`;
               return (
                 <Link
                   key={category.category_id}
                   href={categoryHref}
-                  className={`flex min-w-41.25 flex-1 cursor-pointer flex-col items-center justify-between rounded-[22px] border px-3 py-4 transition-transform duration-200 ease-out ${
+                  className={`group relative flex w-48 shrink-0 cursor-pointer flex-col items-center justify-between rounded-4xl px-3 text-center transition-all duration-200 ease-out ${
                     isActive
-                      ? "z-10 scale-110 border-secondary bg-secondary text-primary-foreground shadow-md"
-                      : "scale-100 border-transparent bg-primary-soft text-text"
+                      // Active card pops above the strip — scale + lift +
+                      // shadow give the "bigger popup box" effect from the
+                      // Figma reference. Strip has overflow-y-visible so
+                      // the overflow renders cleanly.
+                      ? "z-20 -translate-y-2 scale-110 bg-[#84716b] py-4 text-primary-foreground"
+                      : "py-3 text-text-strong"
                   }`}
                 >
-                  <div className="relative h-24 w-full shrink-0">
-                    {categoryImage ? (
+                  <div
+                    className={`relative w-full shrink-0 overflow-hidden rounded-2xl ${
+                      isActive ? "h-28 text-primary-foreground" : "h-20 text-secondary"
+                    }`}
+                  >
+                    {
                       <Image
                         src={categoryImage}
                         alt={category.name}
                         fill
-                        className="object-contain object-center rounded-md"
+                        className="object-contain object-center rounded-2xl"
                         sizes="165px"
                         unoptimized
                       />
-                    ) : (
-                      <div className="h-full w-full rounded-md bg-surface/35" aria-hidden />
-                    )}
+                    }
                   </div>
-                  <div className="mt-2 text-border-strong flex items-center justify-center gap-1 text-center text-lg font-normal leading-tight sm:text-xl">
-                    {isActive ? <span className="text-border-strong">{category.name}</span> : <span className="text-text-strong">{category.name}</span>}
+                  <div
+                    className={`mt-2 flex items-center justify-center gap-1 text-center text-sm font-medium leading-tight sm:text-base ${
+                      isActive ? "text-primary-foreground" : "text-text-strong"
+                    }`}
+                  >
+                    <span>{category.name}</span>
                     {isActive ? (
-                      <ChevronsDown className="h-5 w-5 shrink-0 text-border-strong" aria-hidden strokeWidth={2.25} />
+                      <ChevronsDown
+                        className="h-4 w-4 shrink-0 text-primary-foreground"
+                        aria-hidden
+                        strokeWidth={2.25}
+                      />
                     ) : null}
                   </div>
                 </Link>
               );
             })}
+            </div>
           </div>
         </div>
 
-        <div className="no-scrollbar mt-6 flex items-center gap-3 overflow-x-auto rounded-full bg-transparent py-1">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary" aria-hidden />
-          <span className="h-7 w-px shrink-0 bg-primary-accent" aria-hidden />
+        {/* Subcategory pill row — matches the Figma's lavender chip strip
+            with the dark "All" pill, yellow active pill, and yellow round
+            scroll button on the right. */}
+        <div className="no-scrollbar mt-6 flex items-center gap-2 overflow-x-auto rounded-full bg-transparent py-1">
+          <span
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#84716b]"
+            aria-hidden
+          />
+          <span className="h-7 w-px shrink-0 bg-shop-chip" aria-hidden />
           <Link
-            href={
-              selectedCategory
-                ? `/shopping${buildQuery(selectedCategory.category_id, "", "", search)}`
-                : `/shopping${buildQuery("", "", "", search)}`
-            }
-            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-lg ${
-              !selectedSubcategory ? "bg-[#f5de32] text-text-strong" : "text-secondary"
+            href={`/shopping${buildQuery({
+              categoryId: selectedCategory?.category_id || "",
+              subcategoryIds: [],
+              search,
+            })}`}
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-sm font-medium ${
+              selectedSubcategoryIds.length === 0
+                ? "bg-shop-chip-active text-primary-foreground"
+                : "bg-shop-chip text-secondary"
             }`}
           >
             All
           </Link>
-          {visibleSubcategories.map((sub) => (
-            (() => {
-              const isSubActive = selectedSubcategory?.category_id === sub.category_id;
-              // Switching subcategory always clears the deeper sub-sub filter.
-              const href = isSubActive
-                ? `/shopping${buildQuery(selectedCategory?.category_id || "", "", "", search)}`
-                : `/shopping${buildQuery(selectedCategory?.category_id || "", sub.category_id, "", search)}`;
-              return (
-            <Link
-              key={sub.category_id}
-              href={href}
-              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-lg ${
-                isSubActive
-                  ? "bg-[#f5de32] text-text-strong"
-                  : "text-secondary"
-              }`}
-            >
-              {sub.name}
-            </Link>
-              );
-            })()
-          ))}
+          {visibleSubcategories.map((sub) => {
+            const isSubActive = selectedSubcategoryIds.includes(sub.category_id);
+            return (
+              <Link
+                key={sub.category_id}
+                href={buildToggleSubHref(sub.category_id)}
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-sm font-medium transition ${
+                  isSubActive
+                    ? "bg-shop-chip-active text-text-strong"
+                    : "bg-shop-chip text-secondary hover:bg-shop-chip/80"
+                }`}
+              >
+                {sub.name}
+              </Link>
+            );
+          })}
+          <span
+            className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shop-chip text-secondary"
+            aria-hidden
+          >
+            <SlidersHorizontal className="h-4 w-4" strokeWidth={2.25} />
+          </span>
           <button
             type="button"
-            className="ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f5de32] text-secondary"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shop-chip-active text-text-strong"
             aria-label="Scroll subcategories forward"
           >
-            <ChevronRight className="h-6 w-6" strokeWidth={2.25} aria-hidden />
+            <ChevronRight className="h-5 w-5" strokeWidth={2.25} aria-hidden />
           </button>
         </div>
 
-        {/* Sub-subcategory pill row — appears only when the picked subcategory has children. */}
+        {/* Sub-subcategory pill row — appears only when exactly one
+            subcategory is picked AND it has its own children. */}
         {hasSubSubcategoryRow ? (
           <div className="no-scrollbar mt-3 flex items-center gap-3 overflow-x-auto rounded-full bg-transparent py-1">
-            <span className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-primary-accent" aria-hidden />
-            <span className="h-5 w-px shrink-0 bg-primary-accent" aria-hidden />
+            <span className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-shop-chip-active" aria-hidden />
+            <span className="h-5 w-px shrink-0 bg-shop-chip" aria-hidden />
             <Link
-              href={`/shopping${buildQuery(selectedCategory?.category_id || "", selectedSubcategory?.category_id || "", "", search)}`}
-              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm ${
-                !selectedSubSubcategory ? "bg-[#f5de32] text-text-strong" : "text-secondary"
+              href={`/shopping${buildQuery({
+                categoryId: selectedCategory?.category_id || "",
+                subcategoryIds: singleSelectedSub ? [singleSelectedSub.category_id] : [],
+                subSubcategoryId: "",
+                search,
+              })}`}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium ${
+                !selectedSubSubcategory
+                  ? "bg-shop-chip-active text-text-strong"
+                  : "bg-shop-chip text-secondary"
               }`}
             >
               All
@@ -228,14 +320,26 @@ export default function ShoppingCatalog({
             {visibleSubSubcategories.map((ss) => {
               const isActive = selectedSubSubcategory?.category_id === ss.category_id;
               const href = isActive
-                ? `/shopping${buildQuery(selectedCategory?.category_id || "", selectedSubcategory?.category_id || "", "", search)}`
-                : `/shopping${buildQuery(selectedCategory?.category_id || "", selectedSubcategory?.category_id || "", ss.category_id, search)}`;
+                ? `/shopping${buildQuery({
+                    categoryId: selectedCategory?.category_id || "",
+                    subcategoryIds: singleSelectedSub ? [singleSelectedSub.category_id] : [],
+                    subSubcategoryId: "",
+                    search,
+                  })}`
+                : `/shopping${buildQuery({
+                    categoryId: selectedCategory?.category_id || "",
+                    subcategoryIds: singleSelectedSub ? [singleSelectedSub.category_id] : [],
+                    subSubcategoryId: ss.category_id,
+                    search,
+                  })}`;
               return (
                 <Link
                   key={ss.category_id}
                   href={href}
-                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm ${
-                    isActive ? "bg-[#f5de32] text-text-strong" : "text-secondary"
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium ${
+                    isActive
+                      ? "bg-shop-chip-active text-text-strong"
+                      : "bg-shop-chip text-secondary"
                   }`}
                 >
                   {ss.name}
@@ -246,12 +350,12 @@ export default function ShoppingCatalog({
         ) : null}
       </section>
 
-      <section className="mt-8 grid gap-6 xl:grid-cols-[260px_1fr]">
+      <section className="mt-8 grid gap-6 lg:grid-cols-[260px_1fr]">
         <ShoppingSidebar
           items={productItems}
           filterSubcategories={filterSubcategories}
           selectedCategoryId={selectedCategory?.category_id || ""}
-          selectedSubcategoryId={selectedSubcategory?.category_id || ""}
+          selectedSubcategoryIds={selectedSubcategoryIds}
           search={search}
           selectedFabrics={selectedFabrics}
           minPrice={minPrice}

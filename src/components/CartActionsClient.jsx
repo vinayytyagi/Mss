@@ -379,7 +379,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
           onSubmit={handleSubmitQuotation}
           className="rounded-2xl border border-border bg-surface p-6 shadow-[0_16px_38px_rgba(15,23,42,0.05)]"
         >
-          <h3 className="text-xl font-semibold text-text-strong">Send Quotation Request</h3>
+          <h3 className="text-xl font-semibold text-text-strong">Submit Quotation Request</h3>
           <p className="mt-2 text-sm leading-6 text-muted">
             We will use your quotation cart items and contact details to generate a quote.
           </p>
@@ -425,7 +425,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
             disabled={submitState.loading || carts.quotation.length === 0}
             className="mt-6 w-full cursor-pointer rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_24px_rgba(255,79,134,0.2)]"
           >
-            {submitState.loading ? "Sending..." : "Send Quotation"}
+            {submitState.loading ? "Submitting..." : "Submit Quotation"}
           </button>
         </form>
       ) : (
@@ -613,7 +613,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
             disabled={checkoutState.loading || carts.shopping.length === 0}
             className="mt-6 w-full cursor-pointer rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_24px_rgba(255,79,134,0.2)]"
           >
-            {checkoutState.loading ? "Creating Order..." : "Pay with Razorpay"}
+            {checkoutState.loading ? "Creating Order..." : "Pay"}
           </button>
         </form>
       )}

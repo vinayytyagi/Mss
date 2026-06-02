@@ -12,6 +12,8 @@ export {
 
 export { fetchHeroSlideshow } from "./api/siteSettingsApi";
 
+export { fetchBudgetPresets } from "./api/budgetPresetsApi";
+
 export {
   requestUserOtp,
   verifyUserOtp,

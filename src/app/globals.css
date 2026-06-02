@@ -68,6 +68,14 @@
   --secondary: #70012b;
   --secondary-foreground: #ffffff;
 
+  /* Shop catalog — Figma palette for the /shopping category strip */
+  --shop-bg: #faf3eb;           /* outer card body — warm cream */
+  --shop-strip: #c2a596;        /* dusty rose-brown strip + inactive cards */
+  --shop-card-active: #5e453d;  /* deep wedding brown for the picked card */
+  --shop-chip: #e4e1ee;         /* lavender-grey inactive subcategory chip */
+  --shop-chip-active: #f5de32;  /* bright yellow active subcategory chip */
+  --shop-chip-all: #1d1c2c;     /* near-black for the "All" chip */
+
   /* Status */
   --success: #22c55e;          /* green-500 */
   --warning: #ffbb28;          /* gold (rating star) */
@@ -119,6 +127,14 @@
   --secondary: #8a123c;
   --secondary-foreground: #ffffff;
 
+  /* Shop catalog — slightly desaturated on dark mode */
+  --shop-bg: #1f1a26;
+  --shop-strip: #4a3a32;
+  --shop-card-active: #8b6a5c;
+  --shop-chip: #322337;
+  --shop-chip-active: #ffd764;
+  --shop-chip-all: #ffffff;
+
   /* Status */
   --success: #4ade80;
   --warning: #ffbb28;
@@ -166,6 +182,14 @@
   /* Maroon */
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+
+  /* Shop catalog */
+  --color-shop-bg: var(--shop-bg);
+  --color-shop-strip: var(--shop-strip);
+  --color-shop-card-active: var(--shop-card-active);
+  --color-shop-chip: var(--shop-chip);
+  --color-shop-chip-active: var(--shop-chip-active);
+  --color-shop-chip-all: var(--shop-chip-all);
 
   /* Status */
   --color-success: var(--success);
