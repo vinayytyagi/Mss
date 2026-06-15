@@ -107,6 +107,30 @@ const STATUS_BAR_TONE = {
   cancelled: "bg-danger",
 };
 
+// Shopping-order status → badge tone + left accent-strip colour.
+const ORDER_STATUS_TONE = {
+  Paid: "bg-success/10 text-success",
+  Confirmed: "bg-info/10 text-info",
+  Processing: "bg-warning/15 text-warning-strong",
+  Shipped: "bg-info/10 text-info",
+  Delivered: "bg-success/10 text-success",
+  Completed: "bg-success/10 text-success",
+  Pending: "bg-warning/15 text-warning-strong",
+  Cancelled: "bg-danger/10 text-danger",
+  "Payment Failed": "bg-danger/10 text-danger",
+};
+const ORDER_BAR_TONE = {
+  Paid: "bg-success",
+  Confirmed: "bg-info",
+  Processing: "bg-warning",
+  Shipped: "bg-info",
+  Delivered: "bg-success",
+  Completed: "bg-success",
+  Pending: "bg-warning",
+  Cancelled: "bg-danger",
+  "Payment Failed": "bg-danger",
+};
+
 const MAX_BUDGET_PER_STEP = 5000000;
 const BUDGET_STEP = 1000;
 
@@ -770,52 +794,97 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
         {/* ── Orders Tab ──────────────────────────────────── */}
         {activeTab === "orders" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-text">
-                Recent Orders ({orders.length})
-              </h2>
-              <Link href="/orders" className="text-sm font-semibold text-primary transition hover:text-primary-hover">
-                <span className="inline-flex items-center gap-2">
-                  View All
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </span>
-              </Link>
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-extrabold tracking-tight text-text">My Orders</h2>
+                <p className="mt-0.5 text-sm text-muted">Your shopping orders, payments and delivery status.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {orders.length ? (
+                  <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-bold text-primary">
+                    {orders.length} order{orders.length === 1 ? "" : "s"}
+                  </span>
+                ) : null}
+                <Link
+                  href="/orders"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition hover:text-primary-hover"
+                >
+                  View all <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </div>
             </div>
 
             {orders.length === 0 ? (
-              <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-                <PackageIcon />
-                <p className="mt-3 text-sm text-muted">No orders yet</p>
-                <Link href="/" className="mt-4 inline-block rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover">
-                  Start Shopping
+              <div className="rounded-3xl border border-dashed border-border bg-surface/70 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+                  <Package className="h-7 w-7" />
+                </div>
+                <p className="mt-4 text-base font-bold text-text">No orders yet</p>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+                  Browse the shop and your orders will show up here with live payment + delivery status.
+                </p>
+                <Link
+                  href="/"
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
+                >
+                  Start shopping <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             ) : (
-              recentOrders.map((order) => (
-                <Link
-                  key={order._id}
-                  href={`/orders/${order._id}`}
-                  className="group block rounded-2xl border border-border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:border-primary/30 hover:shadow-[0_8px_30px_rgba(255,79,134,0.08)]"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="font-bold text-text">{order.order_number}</p>
-                      <p className="text-xs text-subtle">{formatDate(order.created_at)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
-                        order.status === "Paid" ? "border-success/40 bg-success/10 text-success" :
-                        order.status === "Cancelled" ? "border-danger/30 bg-danger/10 text-danger" :
-                        "border-warning/40 bg-warning/15 text-warning-strong"
-                      }`}>
-                        {order.status}
-                      </span>
-                      <span className="font-bold text-text">{formatCurrency(order.total_amount)}</span>
-                    </div>
-                  </div>
-                </Link>
-              ))
+              <div className="grid gap-4 sm:grid-cols-2">
+                {recentOrders.map((order) => {
+                  const tone = ORDER_STATUS_TONE[order.status] || "bg-surface-muted text-muted";
+                  const bar = ORDER_BAR_TONE[order.status] || "bg-border";
+                  const itemCount = Array.isArray(order.items)
+                    ? order.items.reduce((n, it) => n + (Number(it.quantity) || 1), 0)
+                    : null;
+                  return (
+                    <Link
+                      key={order._id}
+                      href={`/orders/${order._id}`}
+                      className="group relative block overflow-hidden rounded-2xl border border-border bg-surface/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_16px_40px_rgba(255,79,134,0.10)]"
+                    >
+                      <span className={`absolute inset-y-0 left-0 w-1.5 ${bar}`} aria-hidden />
+                      <div className="p-5 pl-6">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-surface-muted px-2 py-0.5 font-mono text-[11px] font-semibold text-muted">
+                            <Package className="h-3 w-3" />
+                            {order.order_number}
+                          </span>
+                          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone}`}>
+                            {order.status}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-subtle">
+                          <span className="inline-flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5 text-muted" />
+                            {formatDate(order.created_at)}
+                          </span>
+                          {itemCount ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Package className="h-3.5 w-3.5 text-muted" />
+                              {itemCount} item{itemCount === 1 ? "" : "s"}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-4 flex items-end justify-between border-t border-border/70 pt-3">
+                          <div>
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-subtle">Order total</p>
+                            <p className="mt-0.5 text-xl font-extrabold text-text">{formatCurrency(order.total_amount)}</p>
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition group-hover:gap-1.5">
+                            View
+                            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}

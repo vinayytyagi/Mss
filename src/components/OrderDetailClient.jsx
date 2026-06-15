@@ -18,6 +18,15 @@ import {
 import { makeIdempotencyKey } from "@/lib/idempotencyKey";
 import { ArrowRight, RefreshCw, Download, PackageOpen } from "lucide-react";
 
+// Cancellation reasons offered before an order ships.
+const CANCEL_REASONS = [
+  "Changed my mind",
+  "Ordered by mistake",
+  "Found a better price elsewhere",
+  "Delivery is taking too long",
+  "Other",
+];
+
 function loadRazorpayScript() {
   return new Promise((resolve) => {
     if (typeof window !== "undefined" && window.Razorpay) return resolve(true);
@@ -119,6 +128,8 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [returnModal, setReturnModal] = useState(null); // selected item or null
   const [returnForm, setReturnForm] = useState({ reason: "", mode: "return" });
+  const [cancelModal, setCancelModal] = useState(false);
+  const [cancelForm, setCancelForm] = useState({ reason: "", details: "" });
 
   useEffect(() => {
     fetchSiteConfig().then(setSiteCfg).catch(() => {});
@@ -205,11 +216,21 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
   async function onCancelOrder() {
     const token = getAuthToken();
     if (!token) return;
+    // Build the reason from the picker + optional details. "Other" requires
+    // the free-text box; the confirm button enforces that before we get here.
+    const picked = cancelForm.reason.trim();
+    const details = cancelForm.details.trim();
+    const reason =
+      picked === "Other"
+        ? details || "Other"
+        : [picked, details].filter(Boolean).join(" — ");
     setActionState({ loading: true, error: "", success: "" });
     try {
-      const res = await cancelMyOrder(token, currentOrder._id, "Customer cancelled from app");
+      const res = await cancelMyOrder(token, currentOrder._id, reason || "Cancelled by user");
       setCurrentOrder(res.order || currentOrder);
+      setCancelModal(false);
       setActionState({ loading: false, error: "", success: res.message || "Order cancelled." });
+      toast.success("Order cancelled");
     } catch (e) {
       setActionState({ loading: false, error: e.message || "Failed to cancel order", success: "" });
     }
@@ -461,11 +482,15 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
           )}
           {canCancel && (
             <button
-              onClick={onCancelOrder}
+              onClick={() => {
+                setCancelForm({ reason: "", details: "" });
+                setActionState({ loading: false, error: "", success: "" });
+                setCancelModal(true);
+              }}
               disabled={actionState.loading}
-              className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger"
+              className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger transition hover:bg-danger/15"
             >
-              {actionState.loading ? "Please wait..." : "Cancel Order"}
+              Cancel Order
             </button>
           )}
           {canRefund && (
@@ -740,6 +765,96 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                 className="h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
               >
                 {actionState.loading ? "Submitting…" : "Submit request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Cancel-order confirmation + reason modal */}
+      {cancelModal ? (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center bg-text-strong/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !actionState.loading) setCancelModal(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-text-strong">Cancel this order?</h3>
+            <p className="mt-1 text-sm text-muted">
+              Order {currentOrder.order_number} — you can cancel any time before it ships. This can&apos;t be undone.
+            </p>
+
+            <p className="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-subtle">
+              Why are you cancelling?
+            </p>
+            <div className="space-y-2">
+              {CANCEL_REASONS.map((r) => {
+                const active = cancelForm.reason === r;
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setCancelForm((f) => ({ ...f, reason: r }))}
+                    className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm font-medium transition ${
+                      active
+                        ? "border-primary bg-primary-soft text-primary"
+                        : "border-border-strong text-muted hover:border-primary/40"
+                    }`}
+                  >
+                    <span
+                      className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+                        active ? "border-primary" : "border-border-strong"
+                      }`}
+                    >
+                      {active ? <span className="h-2 w-2 rounded-full bg-primary" /> : null}
+                    </span>
+                    {r}
+                  </button>
+                );
+              })}
+            </div>
+
+            <textarea
+              value={cancelForm.details}
+              onChange={(e) => setCancelForm((f) => ({ ...f, details: e.target.value }))}
+              rows={2}
+              placeholder={cancelForm.reason === "Other" ? "Tell us more (required)" : "Add more details (optional)"}
+              className="mt-3 w-full rounded-xl border border-border-strong bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+            />
+
+            {isPaid ? (
+              <p className="mt-3 rounded-lg bg-info/10 px-3 py-2 text-xs text-info">
+                Your paid amount will be refunded to your MyShaadiStore wallet (store credit).
+              </p>
+            ) : null}
+            {actionState.error ? <p className="mt-2 text-sm text-danger">{actionState.error}</p> : null}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelModal(false)}
+                disabled={actionState.loading}
+                className="h-10 rounded-xl border border-border-strong px-4 text-sm font-semibold text-muted hover:bg-surface-muted disabled:opacity-50"
+              >
+                Keep order
+              </button>
+              <button
+                type="button"
+                onClick={onCancelOrder}
+                disabled={
+                  actionState.loading ||
+                  !cancelForm.reason ||
+                  (cancelForm.reason === "Other" && !cancelForm.details.trim())
+                }
+                className="h-10 rounded-xl bg-danger px-4 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+              >
+                {actionState.loading ? "Cancelling…" : "Confirm cancellation"}
               </button>
             </div>
           </div>
