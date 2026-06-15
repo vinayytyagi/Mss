@@ -142,6 +142,43 @@ const GUEST_BRACKETS = [
   { value: "500+", label: "500+", lo: 500, hi: null },
 ];
 
+/**
+ * Per-ITEM price-RANGE filter — distinct from the step's TOTAL budget. A decor
+ * or shopping buyer spends one budget across many items, so the total-budget
+ * chip can't narrow individual products; this lets them filter the grid by a
+ * single item's price with a custom min/max range (slider + number inputs).
+ * Prices are in rupees (item.price / final_price are stored as rupees, not
+ * paise). The filter value is `null` (no range) or `{ min, max }` where either
+ * side may be null for an open end; bounds are inclusive.
+ *
+ * Sensible per-step bounds: decor items run higher (mandaps, stages) than
+ * shopping items (outfits, jewellery), so the slider ceiling + step differ.
+ */
+const PRICE_RANGE_BOUNDS = {
+  decor: { max: 500000, step: 1000 },
+  shopping: { max: 200000, step: 500 },
+};
+
+function priceRangeFilter(stepSlug) {
+  const { max, step } = PRICE_RANGE_BOUNDS[stepSlug] || { max: 500000, step: 1000 };
+  return {
+    key: "price_range",
+    label: "Price",
+    kind: "price-range",
+    min: 0,
+    max,
+    step,
+    match: (item, value) => {
+      if (value == null) return true;
+      const { min: lo, max: hi } = value;
+      const p = Number(item?.final_price ?? item?.price) || 0;
+      if (lo != null && p < lo) return false;
+      if (hi != null && p > hi) return false;
+      return true;
+    },
+  };
+}
+
 const LISTING = {
   venue: {
     filters: [
@@ -239,6 +276,7 @@ const LISTING = {
         match: (item, v) =>
           arrAttr(item, "color_themes").some((c) => c.toLowerCase().includes(v.toLowerCase())),
       },
+      priceRangeFilter("decor"),
     ],
     card: {
       badge: (item) => {
@@ -416,6 +454,7 @@ const LISTING = {
         ].map((v) => ({ value: v, label: v })),
         match: (item, v) => arrAttr(item, "work_embroidery").includes(v),
       },
+      priceRangeFilter("shopping"),
     ],
     card: {
       badge: (item) => {

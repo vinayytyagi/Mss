@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuthUser, getAuthToken, saveAuthCookies, clearAuthCookies } from "@/lib/authCookies";
-import { useRouter } from "next/navigation";
-import { updateMyProfile, deleteMyAccount, fetchMyQuotations, fetchMyServiceOrders, fetchMyCredit, createWalletTopupOrder, verifyWalletTopupPayment } from "@/lib/api";
+import { usePathname, useRouter } from "next/navigation";
+import { updateMyProfile, deleteMyAccount, fetchMyServiceOrders, fetchMyCredit, createWalletTopupOrder, verifyWalletTopupPayment } from "@/lib/api";
 import ImageUpload from "@/components/ImageUpload";
 import CityStateDropdown from "@/components/CityStateDropdown";
 import Dropdown from "@/components/ui/Dropdown";
@@ -26,8 +26,9 @@ import {
   X,
   ArrowRight,
   Receipt,
-  FileText,
   Wallet,
+  Calendar,
+  Users,
 } from "lucide-react";
 
 /* ── Icons ─────────────────────────────────────────── */
@@ -77,13 +78,6 @@ function formatCurrency(amount) {
   return formatLakhs(amount);
 }
 
-const QUOTE_STATUS_TONE = {
-  in_review: "bg-warning/15 text-warning-strong",
-  quote_ready: "bg-primary-soft text-primary",
-  paid: "bg-success/10 text-success",
-  cancelled: "bg-danger/10 text-danger",
-};
-
 // Service-order customer-facing statuses (deriveCustomerStatus in serviceOrder.js).
 const SERVICE_STATUS_TONE = {
   received: "bg-warning/15 text-warning-strong",
@@ -94,6 +88,23 @@ const SERVICE_STATUS_TONE = {
   delivered: "bg-success/10 text-success",
   completed: "bg-success/10 text-success",
   cancelled: "bg-danger/10 text-danger",
+};
+
+// Profile tab slugs — each tab is its own deep-linkable route
+// (/profile, /profile/wallet, /profile/quotations, …). Used to derive the
+// active tab from the URL so tabs are shareable / back-button friendly.
+const PROFILE_TAB_IDS = ["profile", "wallet", "orders", "quotations", "wedding", "budget", "addresses", "settings"];
+
+// Left accent-strip colour per quotation status (mirrors SERVICE_STATUS_TONE).
+const STATUS_BAR_TONE = {
+  received: "bg-warning",
+  sourcing: "bg-warning",
+  quote_ready: "bg-primary",
+  awaiting_payment: "bg-warning",
+  confirmed: "bg-info",
+  delivered: "bg-success",
+  completed: "bg-success",
+  cancelled: "bg-danger",
 };
 
 const MAX_BUDGET_PER_STEP = 5000000;
@@ -120,9 +131,13 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [orders] = useState(initialOrders);
   const [loading] = useState(false);
-  const [activeTab, setActiveTab] = useState("profile");
-  const [quotations, setQuotations] = useState(null);
-  const [quotationsLoading, setQuotationsLoading] = useState(false);
+  const pathname = usePathname();
+  // The active tab is derived from the URL (/profile/<slug>), so each tab is a
+  // dedicated, shareable page. The bare /profile path is the "profile" tab.
+  const activeTab = (() => {
+    const seg = (pathname || "/profile").replace(/^\/profile\/?/, "").split("/")[0];
+    return PROFILE_TAB_IDS.includes(seg) ? seg : "profile";
+  })();
   const [serviceOrders, setServiceOrders] = useState(null);
   const [serviceOrdersLoading, setServiceOrdersLoading] = useState(false);
   const [creditInfo, setCreditInfo] = useState(null); // { balance_paise, ledger }
@@ -386,24 +401,9 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
     handleSaveAddresses(updated);
   }
 
-  // Lazy-load the customer's quotations the first time the tab is opened.
-  useEffect(() => {
-    if (activeTab !== "quotations" || quotations !== null) return;
-    const token = getAuthToken();
-    if (!token) {
-      setQuotations([]);
-      return;
-    }
-    setQuotationsLoading(true);
-    fetchMyQuotations(token)
-      .then((res) => setQuotations(Array.isArray(res?.quotations) ? res.quotations : []))
-      .catch(() => setQuotations([]))
-      .finally(() => setQuotationsLoading(false));
-  }, [activeTab, quotations]);
-
   // Lazy-load the customer's service orders the first time the tab is opened.
   useEffect(() => {
-    if (activeTab !== "service-orders" || serviceOrders !== null) return;
+    if (activeTab !== "quotations" || serviceOrders !== null) return;
     const token = getAuthToken();
     if (!token) {
       setServiceOrders([]);
@@ -452,7 +452,6 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
     { id: "wallet", label: "Wallet", icon: <Wallet className="h-4 w-4" /> },
     { id: "orders", label: "Orders", icon: <PackageIcon /> },
     { id: "quotations", label: "Quotations", icon: <Receipt className="h-4 w-4" /> },
-    { id: "service-orders", label: "Service Orders", icon: <FileText className="h-4 w-4" /> },
     { id: "wedding", label: "Wedding details", icon: <HeartIcon /> },
     { id: "budget", label: "Budget", icon: <IndianRupee className="h-4 w-4" /> },
     { id: "addresses", label: "Addresses", icon: <LocationIcon /> },
@@ -492,7 +491,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             <button
               type="button"
               onClick={() => {
-                setActiveTab("profile");
+                router.push("/profile");
                 setEditingBasic(true);
                 requestAnimationFrame(() => {
                   document.getElementById("profile-photo-upload")?.scrollIntoView({
@@ -530,9 +529,10 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
       {/* Tabs */}
       <div className="scrollbar-soft mt-6 flex gap-1 overflow-x-auto rounded-2xl border border-border bg-surface/80 p-1 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
         {tabs.map((tab) => (
-          <button
+          <Link
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            href={tab.id === "profile" ? "/profile" : `/profile/${tab.id}`}
+            scroll={false}
             className={`flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === tab.id
                 ? "bg-primary text-primary-foreground shadow-[0_8px_20px_rgba(255,79,134,0.25)]"
@@ -540,7 +540,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             }`}
           >
             {tab.icon} {tab.label}
-          </button>
+          </Link>
         ))}
       </div>
 
@@ -820,110 +820,119 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
           </div>
         )}
 
-        {/* ── Quotations Tab ──────────────────────────────── */}
+        {/* ── Quotations Tab (a customer quotation request = a service order) ── */}
         {activeTab === "quotations" && (
-          <div className="space-y-4">
-            <h2 className="text-base font-semibold text-text">My Quotations ({quotations?.length || 0})</h2>
-
-            {quotationsLoading ? (
-              <div className="flex justify-center py-16">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-extrabold tracking-tight text-text">My Quotations</h2>
+                <p className="mt-0.5 text-sm text-muted">
+                  Track every request — from inquiry to the final price our team compiles for you.
+                </p>
               </div>
-            ) : !quotations || quotations.length === 0 ? (
-              <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-                <Receipt className="mx-auto h-6 w-6 text-muted" />
-                <p className="mt-3 text-sm text-muted">No quotation requests yet</p>
-                <p className="text-xs text-subtle">Add package items to your quote basket and submit a request.</p>
-                <Link
-                  href="/"
-                  className="mt-4 inline-block rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
-                >
-                  Explore packages
-                </Link>
-              </div>
-            ) : (
-              quotations.map((q) => (
-                <Link
-                  key={q.quotation_id}
-                  href={`/quotations/${q.quotation_id}`}
-                  className="group block rounded-2xl border border-border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:border-primary/30 hover:shadow-[0_8px_30px_rgba(255,79,134,0.08)]"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="font-bold text-text">
-                        {q.item_count} item{q.item_count === 1 ? "" : "s"}
-                      </p>
-                      <p className="text-xs text-subtle">{formatDate(q.created_at)}</p>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          QUOTE_STATUS_TONE[q.status] || "bg-surface-muted text-muted"
-                        }`}
-                      >
-                        {q.status_label}
-                      </span>
-                      <span className="font-bold text-text">
-                        {q.final_total != null ? formatCurrency(q.final_total) : formatCurrency(q.items_estimate)}
-                      </span>
-                      <ArrowRight className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-primary" />
-                    </div>
-                  </div>
-                </Link>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* ── Service Orders Tab ──────────────────────────── */}
-        {activeTab === "service-orders" && (
-          <div className="space-y-4">
-            <h2 className="text-base font-semibold text-text">My Service Orders ({serviceOrders?.length || 0})</h2>
+              {serviceOrders?.length ? (
+                <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-bold text-primary">
+                  {serviceOrders.length} request{serviceOrders.length === 1 ? "" : "s"}
+                </span>
+              ) : null}
+            </div>
 
             {serviceOrdersLoading ? (
-              <div className="flex justify-center py-16">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="h-44 animate-pulse rounded-2xl border border-border bg-surface-muted/60" />
+                ))}
               </div>
             ) : !serviceOrders || serviceOrders.length === 0 ? (
-              <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-                <FileText className="mx-auto h-6 w-6 text-muted" />
-                <p className="mt-3 text-sm text-muted">No service orders yet</p>
-                <p className="text-xs text-subtle">Request a managed service and we&apos;ll source quotes for you.</p>
+              <div className="rounded-3xl border border-dashed border-border bg-surface/70 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+                  <Receipt className="h-7 w-7" />
+                </div>
+                <p className="mt-4 text-base font-bold text-text">No quotations yet</p>
+                <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+                  Add services to your quote basket and submit a request — our team sources quotes and shares the best price with you.
+                </p>
                 <Link
                   href="/"
-                  className="mt-4 inline-block rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
                 >
-                  Explore services
+                  Explore services <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             ) : (
-              serviceOrders.map((o) => (
-                <Link
-                  key={o.order_id}
-                  href={`/service-orders/${o.quotation_id}`}
-                  className="group block rounded-2xl border border-border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:border-primary/30 hover:shadow-[0_8px_30px_rgba(255,79,134,0.08)]"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-bold capitalize text-text">{o.service_type || "Service order"}</p>
-                      <p className="text-xs text-subtle">{formatDate(o.event_date)}</p>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          SERVICE_STATUS_TONE[o.status] || "bg-surface-muted text-muted"
-                        }`}
-                      >
-                        {o.status_label}
-                      </span>
-                      <span className="font-bold text-text">
-                        {o.quote_total != null ? formatCurrency(o.quote_total) : "—"}
-                      </span>
-                      <ArrowRight className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-primary" />
-                    </div>
-                  </div>
-                </Link>
-              ))
+              <div className="grid gap-4 sm:grid-cols-2">
+                {serviceOrders.map((o) => {
+                  const tone = SERVICE_STATUS_TONE[o.status] || "bg-surface-muted text-muted";
+                  const bar = STATUS_BAR_TONE[o.status] || "bg-border";
+                  const hasQuote = o.quote_total != null;
+                  return (
+                    <Link
+                      key={o.order_id}
+                      href={`/service-orders/${o.quotation_id}`}
+                      className="group relative block overflow-hidden rounded-2xl border border-border bg-surface/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_16px_40px_rgba(255,79,134,0.10)]"
+                    >
+                      <span className={`absolute inset-y-0 left-0 w-1.5 ${bar}`} aria-hidden />
+                      <div className="p-5 pl-6">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-surface-muted px-2 py-0.5 font-mono text-[11px] font-semibold text-muted">
+                            <Receipt className="h-3 w-3" />
+                            {o.order_id || "—"}
+                          </span>
+                          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${tone}`}>
+                            {o.status_label}
+                          </span>
+                        </div>
+
+                        <h3 className="mt-3 truncate text-lg font-bold capitalize text-text">
+                          {o.service_type || "Quotation"}
+                        </h3>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-subtle">
+                          {o.event_date ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5 text-muted" />
+                              {formatDate(o.event_date)}
+                            </span>
+                          ) : null}
+                          {o.event_city ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 text-muted" />
+                              {o.event_city}
+                            </span>
+                          ) : null}
+                          {o.guest_count ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Users className="h-3.5 w-3.5 text-muted" />
+                              {o.guest_count} guests
+                            </span>
+                          ) : null}
+                          {o.item_count ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Package className="h-3.5 w-3.5 text-muted" />
+                              {o.item_count} item{o.item_count === 1 ? "" : "s"}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-4 flex items-end justify-between border-t border-border/70 pt-3">
+                          <div>
+                            <p className="text-[11px] font-medium uppercase tracking-wide text-subtle">
+                              {hasQuote ? "Quote total" : "Final quote"}
+                            </p>
+                            <p className={hasQuote ? "mt-0.5 text-xl font-extrabold text-text" : "mt-0.5 text-sm font-semibold text-muted"}>
+                              {hasQuote ? formatCurrency(o.quote_total) : "Awaiting quote"}
+                            </p>
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition group-hover:gap-1.5">
+                            View
+                            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}

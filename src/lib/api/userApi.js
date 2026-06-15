@@ -23,21 +23,6 @@ export async function fetchMyOrders(token) {
   });
 }
 
-/** The logged-in customer's quotation requests (status + final quote). */
-export async function fetchMyQuotations(token) {
-  return apiFetch("/user/quotations", {
-    cacheMode: "no-store",
-    headers: withAuthHeaders(token),
-  });
-}
-
-export async function fetchMyQuotation(token, quotationId) {
-  return apiFetch(`/user/quotations/${encodeURIComponent(quotationId)}`, {
-    cacheMode: "no-store",
-    headers: withAuthHeaders(token),
-  });
-}
-
 /** The logged-in customer's service orders (managed-service lifecycle). */
 export async function fetchMyServiceOrders(token) {
   return apiFetch("/user/service-orders", {

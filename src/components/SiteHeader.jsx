@@ -167,37 +167,34 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
               <ChevronDown />
             </button>
 
-            <div className="pointer-events-none absolute left-1/2 top-full w-90 -translate-x-1/2 rounded-3xl border border-border bg-surface p-4 opacity-0 shadow-[0_25px_80px_rgba(16,24,40,0.12)] transition duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
-              <p className="mb-3 text-xs font-medium text-subtle">
+            <div className="pointer-events-none absolute left-1/2 top-full w-90 -translate-x-1/2 rounded-xl border border-border bg-surface p-1.5 opacity-0 shadow-lg transition duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
+              <p className="px-3 pb-1.5 pt-1 text-xs font-medium text-subtle">
                 Journey Steps
               </p>
-              <div className="scrollbar-soft grid max-h-[60vh] gap-2 overflow-y-auto pr-1">
-                {steps.map((step, index) => (
-                  <Link
-                    key={step.step_id}
-                    href={`/journey/${step.slug}`}
-                    className={`flex cursor-pointer items-center justify-between rounded-2xl px-4 py-3 transition ${
-                      pathname === `/journey/${step.slug}`
-                        ? "bg-primary-soft text-primary"
-                        : "hover:bg-primary-soft"
-                    }`}
-                  >
-                    <span
-                      className={`text-sm font-semibold ${
-                        pathname === `/journey/${step.slug}` ? "text-primary" : "text-text"
+              <div className="scrollbar-soft grid max-h-[60vh] gap-0.5 overflow-y-auto pr-0.5">
+                {steps.map((step, index) => {
+                  const isActive = pathname === `/journey/${step.slug}`;
+                  return (
+                    <Link
+                      key={step.step_id}
+                      href={`/journey/${step.slug}`}
+                      className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition ${
+                        isActive
+                          ? "bg-primary-soft text-primary font-medium"
+                          : "text-text hover:bg-primary-soft"
                       }`}
                     >
-                      {step.title}
-                    </span>
-                    <span
-                      className={`text-xs font-semibold ${
-                        pathname === `/journey/${step.slug}` ? "text-primary-accent" : "text-subtle"
-                      }`}
-                    >
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                  </Link>
-                ))}
+                      <span className="truncate">{step.title}</span>
+                      <span
+                        className={`shrink-0 text-xs font-semibold ${
+                          isActive ? "text-primary-accent" : "text-subtle"
+                        }`}
+                      >
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           </div>

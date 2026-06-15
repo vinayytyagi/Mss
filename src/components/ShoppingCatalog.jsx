@@ -170,7 +170,7 @@ export default function ShoppingCatalog({
                 initialValue={search}
                 category={selectedCategoryId}
                 subcategory={selectedSubcategoryIds.join(",")}
-                placeholder="Search clothing, jewellery, cosmetics…"
+                placeholder="Find cosmetics, clothing, jewellery and more..."
               />
             </div>
           </div>
@@ -282,12 +282,6 @@ export default function ShoppingCatalog({
               </Link>
             );
           })}
-          <span
-            className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shop-chip text-secondary"
-            aria-hidden
-          >
-            <SlidersHorizontal className="h-4 w-4" strokeWidth={2.25} />
-          </span>
           <button
             type="button"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shop-chip-active text-text-strong"

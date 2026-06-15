@@ -11,7 +11,6 @@ import {
   SlidersHorizontal,
   Tags,
   Users,
-  Crown,
 } from "lucide-react";
 import { useAuthUser, getAuthToken, saveAuthCookies } from "@/lib/authCookies";
 import { updateMyProfile } from "@/lib/api";
@@ -30,7 +29,7 @@ import JourneyStepStrip from "@/components/journey/JourneyStepStrip";
 import JourneyStepNav from "@/components/journey/JourneyStepNav";
 import TrustStrip from "@/components/journey/TrustStrip";
 import { getListingConfig, getTrustItems } from "@/lib/journeyStepUi";
-import { showsAudienceFilter, capturesDetails } from "@/lib/journeyMode";
+import { capturesDetails } from "@/lib/journeyMode";
 
 // Customer journey page items grid pagination — 24 divides evenly into the
 // responsive grid (1 / 2 / 3 columns) so the last row never sits half-empty.
@@ -200,6 +199,29 @@ function formatAmount(value) {
     return `${(amount / 100000).toFixed(amount % 100000 === 0 ? 0 : 1)}L`;
   }
   return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(amount);
+}
+
+// Exact "₹1,23,456" rupee label for the price-range pill + modal.
+function formatRupees(value) {
+  return `₹${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(
+    Math.max(0, Math.round(Number(value) || 0)),
+  )}`;
+}
+
+/**
+ * Label for the per-item price-range pill. `range` is { min, max } | null
+ * (either side may be null for an open end). Falls back to `fallbackLabel`
+ * ("Price") when no range is set.
+ */
+function describePriceRange(range, fallbackLabel) {
+  if (!range) return fallbackLabel;
+  const { min, max } = range;
+  const hasMin = min != null;
+  const hasMax = max != null;
+  if (hasMin && hasMax) return `${formatRupees(min)} – ${formatRupees(max)}`;
+  if (hasMin) return `From ${formatRupees(min)}`;
+  if (hasMax) return `Up to ${formatRupees(max)}`;
+  return fallbackLabel;
 }
 
 const MAX_BUDGET_PER_STEP = 10000000;
@@ -424,6 +446,194 @@ function BudgetModal({
             Turn off this filter (show all prices)
           </button>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PriceRangeModal — per-item price filter for decor / shopping. A dual-thumb
+ * range slider (two overlapped <input type="range">) plus Min/Max number
+ * inputs that stay in sync. "Apply" commits { min, max } (nulls allowed for an
+ * open side — bound at the slider extreme counts as "open"); "Clear" wipes the
+ * range. min <= max is kept while dragging/typing.
+ */
+function PriceRangeModal({
+  onClose,
+  stepTitle,
+  min = 0,
+  max = 500000,
+  step = 1000,
+  seedRange = null,
+  onApply,
+  onClear,
+}) {
+  const clamp = (n) => Math.max(min, Math.min(max, Number(n) || 0));
+  const [lo, setLo] = useState(() => clamp(seedRange?.min ?? min));
+  const [hi, setHi] = useState(() => clamp(seedRange?.max ?? max));
+
+  // Keep the lower thumb/input from crossing the upper and vice-versa.
+  function changeLo(next) {
+    setLo(Math.min(clamp(next), hi));
+  }
+  function changeHi(next) {
+    setHi(Math.max(clamp(next), lo));
+  }
+
+  function apply() {
+    if (lo > hi) {
+      toast.error("Minimum can’t be more than maximum.");
+      return;
+    }
+    // A side parked at the slider extreme is treated as "open" (null).
+    const nextMin = lo <= min ? null : lo;
+    const nextMax = hi >= max ? null : hi;
+    // Both sides open == no constraint; clear instead of an empty range.
+    if (nextMin == null && nextMax == null) {
+      onClear?.();
+    } else {
+      onApply?.({ min: nextMin, max: nextMax });
+    }
+    onClose();
+  }
+
+  function clearRange() {
+    onClear?.();
+    onClose();
+  }
+
+  // Fill the slider track between the two thumbs.
+  const span = Math.max(1, max - min);
+  const leftPct = ((lo - min) / span) * 100;
+  const rightPct = ((hi - min) / span) * 100;
+
+  return (
+    <div
+      role="presentation"
+      className="fixed inset-0 flex items-center justify-center p-4 z-100 bg-text-strong/45"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="price-range-title"
+        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 id="price-range-title" className="text-lg font-semibold text-text-strong">
+            {stepTitle ? `${stepTitle} price` : "Price range"}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 transition-colors rounded-full cursor-pointer hover:bg-surface-muted"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4 text-subtle" />
+          </button>
+        </div>
+        <p className="mb-4 text-sm text-muted">
+          Show only items whose price falls in this range. Leave a side at the end to keep it open.
+        </p>
+
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <label
+              htmlFor="price-range-min"
+              className="block mb-1 text-xs font-semibold tracking-wide uppercase text-subtle"
+            >
+              Min ₹
+            </label>
+            <input
+              id="price-range-min"
+              type="number"
+              min={min}
+              max={max}
+              step={step}
+              value={lo}
+              onChange={(e) => changeLo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && apply()}
+              className="w-full px-3 text-sm font-semibold border outline-none h-11 rounded-xl border-border-strong bg-surface-muted text-text-strong focus:border-primary"
+            />
+          </div>
+          <span className="pb-3 text-sm font-semibold text-subtle">–</span>
+          <div className="flex-1">
+            <label
+              htmlFor="price-range-max"
+              className="block mb-1 text-xs font-semibold tracking-wide uppercase text-subtle"
+            >
+              Max ₹
+            </label>
+            <input
+              id="price-range-max"
+              type="number"
+              min={min}
+              max={max}
+              step={step}
+              value={hi}
+              onChange={(e) => changeHi(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && apply()}
+              className="w-full px-3 text-sm font-semibold border outline-none h-11 rounded-xl border-border-strong bg-surface-muted text-text-strong focus:border-primary"
+            />
+          </div>
+        </div>
+
+        {/* Dual-thumb slider — two overlapped range inputs. The lower input
+            sits above the upper one near the left thumb so both stay grabbable;
+            pointer-events are re-enabled on the thumbs only. */}
+        <div className="relative h-10 mt-6">
+          <div className="absolute left-0 right-0 h-1.5 -translate-y-1/2 rounded-full top-1/2 bg-border-strong" />
+          <div
+            className="absolute h-1.5 -translate-y-1/2 rounded-full top-1/2 bg-primary"
+            style={{ left: `${leftPct}%`, right: `${100 - rightPct}%` }}
+          />
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={lo}
+            onChange={(e) => changeLo(e.target.value)}
+            aria-label="Minimum price"
+            className="pointer-events-none absolute left-0 top-1/2 h-1.5 w-full -translate-y-1/2 cursor-pointer appearance-none bg-transparent accent-primary [&::-moz-range-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:pointer-events-auto"
+            style={{ zIndex: lo > max - step ? 5 : 3 }}
+          />
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={hi}
+            onChange={(e) => changeHi(e.target.value)}
+            aria-label="Maximum price"
+            className="pointer-events-none absolute left-0 top-1/2 h-1.5 w-full -translate-y-1/2 cursor-pointer appearance-none bg-transparent accent-primary [&::-moz-range-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:pointer-events-auto"
+            style={{ zIndex: 4 }}
+          />
+        </div>
+        <div className="mt-2 flex justify-between text-[11px] text-muted">
+          <span>{formatRupees(lo)}</span>
+          <span>{formatRupees(hi)}</span>
+        </div>
+
+        <div className="flex flex-col gap-2 mt-6 sm:flex-row sm:flex-wrap sm:justify-end">
+          <button
+            type="button"
+            onClick={clearRange}
+            className="h-10 px-4 text-sm font-medium border rounded-xl border-border-strong text-muted hover:bg-surface-muted"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={apply}
+            className="h-10 px-4 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover"
+          >
+            Apply
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -741,18 +951,14 @@ export default function JourneyStepPage({
   const listingCfg = useMemo(() => getListingConfig(step.slug), [step.slug]);
   const trustItems = useMemo(() => getTrustItems(step.slug), [step.slug]);
   const [attrFilters, setAttrFilters] = useState({});
-  // Bride/groom audience pill — "all" shows everything, "bride"/"groom"
-  // keep items tagged for that side (plus "both" / untagged items, which
-  // are relevant to either). Services are "both" so this mainly narrows
-  // product steps, but it renders wherever items are listed.
-  const [audienceFilter, setAudienceFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recommended");
-
-  // The Dulhan/Dulha pill is a SHOPPING-only affordance. Other steps
-  // (venue / decor / catering / packages …) never show it. Canonical
-  // source: showsAudienceFilter(slug) in journeyMode.js.
-  const showsAudience = useMemo(() => showsAudienceFilter(step.slug), [step.slug]);
-  const audiencePillVisible = showsAudience && (Array.isArray(items) ? items.length : 0) > 0;
+  // Per-item price-range modal (decor / shopping "Price" pill). The matching
+  // filter config carries the slider bounds (min / max / step).
+  const [priceModalOpen, setPriceModalOpen] = useState(false);
+  const priceFilterCfg = useMemo(
+    () => listingCfg?.filters?.find((f) => f.kind === "price-range") || null,
+    [listingCfg],
+  );
 
   // Decor: adding a product opens a small theme / colour / notes modal whose
   // values are stored on the cart line meta. Canonical: capturesDetails().
@@ -806,19 +1012,12 @@ export default function JourneyStepPage({
     setSearchQuery(search);
   }, [search]);
 
-  // Seed the audience pill from the URL (?audience=bride|groom) so a
-  // shared/refreshed shopping link keeps the chosen side. Shopping only.
-  useEffect(() => {
-    if (!showsAudience) return;
-    const raw = new URLSearchParams(window.location.search).get("audience");
-    setAudienceFilter(raw === "bride" || raw === "groom" ? raw : "all");
-  }, [showsAudience]);
-
   useEffect(() => {
     const lock =
       isBudgetModalOpen ||
       isGuestModalOpen ||
       isLocationModalOpen ||
+      priceModalOpen ||
       categoryMenuOpen ||
       subcategoryMenuOpen ||
       subSubcategoryMenuOpen;
@@ -837,6 +1036,7 @@ export default function JourneyStepPage({
     isBudgetModalOpen,
     isGuestModalOpen,
     isLocationModalOpen,
+    priceModalOpen,
     categoryMenuOpen,
     subcategoryMenuOpen,
     subSubcategoryMenuOpen,
@@ -913,22 +1113,8 @@ export default function JourneyStepPage({
     return needleParts.some((part) => haystack.some((h) => h.includes(part)));
   }
 
-  // Audience (bride/groom) filter. "all" passes everything; a side-
-  // specific choice keeps items tagged for that side, items tagged for
-  // "both", and untagged items (which apply to either). `item.audience`
-  // is written by admin/vendor forms.
-  function itemMatchesAudience(item) {
-    if (audienceFilter === "all") return true;
-    const audience = item?.audience;
-    if (!audience || audience === "both") return true;
-    return audience === audienceFilter;
-  }
-
   let filteredItems = baseItems.filter(
-    (item) =>
-      itemMatchesGuests(item) &&
-      itemMatchesCity(item) &&
-      itemMatchesAudience(item),
+    (item) => itemMatchesGuests(item) && itemMatchesCity(item),
   );
   // Mockup-driven per-step attribute filters (venue type, cuisine,
   // theme, packaging…) + sort. Items missing an attribute stay visible
@@ -964,7 +1150,6 @@ export default function JourneyStepPage({
     selectedSubSubcategoryId,
     searchQuery,
     attrFilters,
-    audienceFilter,
     sortBy,
   ]);
   const totalItems = visibleItems.length;
@@ -1090,18 +1275,6 @@ export default function JourneyStepPage({
     router.push(makeJourneyHref({ search: searchQuery.trim() }));
   }
 
-  // Shopping audience pill. Filters the grid instantly client-side and
-  // reflects the choice in the URL (?audience=) so the view is
-  // shareable / refetchable. `all` clears the param.
-  function applyAudience(value) {
-    setAudienceFilter(value);
-    const sp = new URLSearchParams(window.location.search);
-    if (value && value !== "all") sp.set("audience", value);
-    else sp.delete("audience");
-    const qs = sp.toString();
-    router.replace(`/journey/${step.slug}${qs ? `?${qs}` : ""}`, { scroll: false });
-  }
-
   return (
     <div className="w-full px-4 py-8 mx-auto sm:px-6 lg:px-20">
       <JourneyStepStrip steps={steps} step={step} />
@@ -1141,10 +1314,10 @@ export default function JourneyStepPage({
 
       {/* Filter toolbar — ONE cohesive row. A single horizontally
           scrollable strip holds every filter control (plan chips →
-          category cascade → attribute pills → audience toggle →
-          clear-all), with the search box pinned (non-scrolling) on the
-          right. Children are shrink-0 so they slide off-screen and you
-          scroll left/right instead of compressing. */}
+          category cascade → attribute pills → clear-all), with the
+          search box pinned (non-scrolling) on the right. Children are
+          shrink-0 so they slide off-screen and you scroll left/right
+          instead of compressing. */}
       <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="scrollbar-hide order-last flex min-w-0 flex-1 items-center gap-2.5 overflow-x-auto pb-1.5 sm:order-none">
           {/* Step Budget pill — the SINGLE price control for the step.
@@ -1491,16 +1664,31 @@ export default function JourneyStepPage({
             visible. Rendered inline in the same scrollable strip. */}
         {listingCfg ? (
           <div className="flex shrink-0 items-center gap-2.5">
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-subtle">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" aria-hidden />
-              Filters
-              {activeAttrCount > 0 ? (
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground">
-                  {activeAttrCount}
-                </span>
-              ) : null}
-            </span>
             {listingCfg.filters.map((f) => {
+              // Price-range filter renders a pill button that opens the
+              // dual-thumb PriceRangeModal; its value is { min, max } | null.
+              if (f.kind === "price-range") {
+                const range = attrFilters[f.key] || null;
+                const rangeActive = !!range;
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setPriceModalOpen(true)}
+                    aria-label={f.label}
+                    className={`flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition-colors ${
+                      rangeActive
+                        ? "border-primary bg-primary-soft text-primary"
+                        : "border-border bg-surface text-text hover:border-primary/40"
+                    }`}
+                  >
+                    <Tags className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="whitespace-nowrap">
+                      {describePriceRange(range, f.label)}
+                    </span>
+                  </button>
+                );
+              }
               const active = !!attrFilters[f.key];
               const filterOptions = [
                 { value: "", label: f.label },
@@ -1522,44 +1710,6 @@ export default function JourneyStepPage({
                       : ""
                   }`}
                 />
-              );
-            })}
-          </div>
-        ) : null}
-
-        {/* Bride / groom audience toggle — SHOPPING step only (gated by
-            showsAudienceFilter from journeyMode.js). Narrows the set to
-            the chosen side; items tagged "both" / untagged stay visible
-            for either. Drives the items fetch via ?audience= and also
-            filters client-side so the grid updates instantly. */}
-        {audiencePillVisible ? (
-          <div
-            role="tablist"
-            aria-label="Shopping for"
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-[0_6px_18px_rgba(15,23,42,0.05)]"
-          >
-            {[
-              { value: "all", label: "All", Icon: Users },
-              { value: "bride", label: "Dulhan", Icon: Crown },
-              { value: "groom", label: "Dulha", Icon: Crown },
-            ].map((opt) => {
-              const active = audienceFilter === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="tab"
-                  onClick={() => applyAudience(opt.value)}
-                  aria-selected={active}
-                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
-                    active
-                      ? "bg-primary text-primary-foreground shadow-[0_6px_16px_rgba(255,79,134,0.3)]"
-                      : "bg-transparent text-muted hover:bg-surface-muted hover:text-text"
-                  }`}
-                >
-                  <opt.Icon className="h-4 w-4 shrink-0" aria-hidden />
-                  {opt.label}
-                </button>
               );
             })}
           </div>
@@ -1670,6 +1820,28 @@ export default function JourneyStepPage({
           onApplyUrl={(label) => router.replace(makeJourneyHref({ venueLoc: label, matchLocOff: false }))}
           onSaveToProfile={canSaveProfile ? saveVenueLocationToProfile : null}
           onFilterOff={() => router.replace(makeJourneyHref({ matchLocOff: true, venueLoc: undefined }))}
+        />
+      ) : null}
+
+      {priceModalOpen && priceFilterCfg ? (
+        <PriceRangeModal
+          key={`price-${step.step_id}`}
+          stepTitle={step.title}
+          min={priceFilterCfg.min}
+          max={priceFilterCfg.max}
+          step={priceFilterCfg.step}
+          seedRange={attrFilters[priceFilterCfg.key] || null}
+          onClose={() => setPriceModalOpen(false)}
+          onApply={(range) =>
+            setAttrFilters((prev) => ({ ...prev, [priceFilterCfg.key]: range }))
+          }
+          onClear={() =>
+            setAttrFilters((prev) => {
+              const next = { ...prev };
+              delete next[priceFilterCfg.key];
+              return next;
+            })
+          }
         />
       ) : null}
 

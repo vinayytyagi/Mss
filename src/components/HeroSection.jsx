@@ -78,7 +78,7 @@ export default function HeroSection({ heroSlideshow = null }) {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Find Photographer, Catering, etc"
+              placeholder="Find cosmetics, clothing, jewellery and more..."
               className="flex-1 bg-transparent px-2 py-2 outline-none text-text placeholder:text-subtle font-normal text-[0.95rem]"
             />
             {/* <div className="items-center justify-center hidden p-2 pl-4 ml-2 border-l text-primary opacity-70 sm:flex border-border">
@@ -108,7 +108,7 @@ export default function HeroSection({ heroSlideshow = null }) {
           <div className="grid grid-cols-2 gap-2 mt-4 sm:gap-3">
             {/* Card 1 */}
             <Link
-              href="/shopping?category=honeymoon"
+              href="/journey/honeymoon"
               className="flex items-center gap-3 p-2.5 transition-all cursor-pointer group sm:gap-5 sm:p-4"
             >
               <div className="flex items-center justify-center w-14 h-14 bg-surface rounded-[18px] text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
@@ -132,7 +132,7 @@ export default function HeroSection({ heroSlideshow = null }) {
             </Link>
             {/* Card 2 */}
             <Link
-              href="/shopping?category=catering"
+              href="/journey/catering"
               className="flex items-center gap-3 p-2.5 transition-all cursor-pointer group sm:gap-5 sm:p-4"
             >
               <div className="flex items-center justify-center w-14 h-14 bg-surface rounded-[18px] text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
@@ -156,7 +156,7 @@ export default function HeroSection({ heroSlideshow = null }) {
             </Link>
             {/* Card 3 */}
             <Link
-              href="/shopping?category=decor"
+              href="/journey/decor"
               className="flex items-center gap-3 p-2.5 transition-all cursor-pointer group sm:gap-5 sm:p-4"
             >
               <div className="flex items-center justify-center w-14 h-14 bg-surface rounded-[18px] text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
@@ -180,7 +180,7 @@ export default function HeroSection({ heroSlideshow = null }) {
             </Link>
             {/* Card 4 */}
             <Link
-              href="/shopping?category=venues"
+              href="/journey/venue"
               className="flex items-center gap-3 p-2.5 transition-all cursor-pointer group sm:gap-5 sm:p-4"
             >
               <div className="flex items-center justify-center w-14 h-14 bg-surface rounded-[18px] text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">

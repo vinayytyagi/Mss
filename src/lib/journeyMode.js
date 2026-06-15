@@ -13,7 +13,7 @@
 export const JOURNEY_MODE = Object.freeze({
   venue: { mode: "product" },
   decor: { mode: "product", capture_details: true },
-  shopping: { mode: "product", audience_filter: true },
+  shopping: { mode: "product" },
   catering: {
     mode: "dual",
     product: { key: "hire-chef", label: "Hire a chef" },

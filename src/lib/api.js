@@ -42,8 +42,6 @@ export {
   fetchMyProfile,
   updateMyProfile,
   fetchMyOrders,
-  fetchMyQuotations,
-  fetchMyQuotation,
   fetchMyServiceOrders,
   fetchMyServiceOrder,
   approveServiceQuote,

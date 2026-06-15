@@ -650,54 +650,70 @@ export default function ProductDetailPage({ itemId }) {
       : `/journey/${step.slug}`;
   })();
 
-  // Detailed policy descriptors — surfaced in the Policies tab.
+  // Detailed policy descriptors — surfaced in the Policies tab. Field names
+  // follow the shared policy contract (cancellation_window_hours, *_window_days,
+  // *_policy_text) with fallbacks to legacy names for resilience. Vendor-authored
+  // policy text, when present, is shown beneath the auto-generated summary line.
+  const pol = item.policies || {};
+  const cancellationHours = pol.cancellation_window_hours ?? pol.cancellation_hours;
+  const returnDays = pol.return_window_days ?? pol.return_days;
+  const refundDays = pol.refund_window_days ?? pol.refund_days;
+  const replacementDays = pol.replacement_window_days;
+  // Renamed exchange_policy_text -> replacement_policy_text (fallback to legacy).
+  const replacementText = pol.replacement_policy_text || pol.exchange_policy_text || null;
+
   const policyCards = [];
-  if (item.policies?.cancellable) {
+  if (pol.cancellable) {
     policyCards.push({
       icon: <Clock className="h-5 w-5 text-primary" aria-hidden />,
       title: "Cancellable",
-      detail: item.policies.cancellation_hours
-        ? `Free cancellation up to ${item.policies.cancellation_hours}h before`
+      detail: cancellationHours
+        ? `Free cancellation up to ${cancellationHours}h before`
         : "Free cancellation available",
+      text: pol.cancellation_policy_text || null,
     });
   }
-  if (item.policies?.returnable) {
+  if (pol.returnable) {
     policyCards.push({
       icon: <RotateCcw className="h-5 w-5 text-primary" aria-hidden />,
       title: "Returnable",
-      detail: item.policies.return_days
-        ? `Returns accepted within ${item.policies.return_days} days`
-        : "Easy returns available",
+      detail: returnDays ? `Returns accepted within ${returnDays} days` : "Easy returns available",
+      text: pol.return_policy_text || null,
     });
   }
-  if (item.policies?.refundable) {
+  if (pol.refundable) {
     policyCards.push({
       icon: <ShieldCheck className="h-5 w-5 text-primary" aria-hidden />,
       title: "Refundable",
-      detail: "Refund issued after pickup",
+      detail: refundDays ? `Refund issued within ${refundDays} days` : "Refund issued after pickup",
+      text: pol.refund_policy_text || null,
     });
   }
-  if (item.policies?.replaceable || item.policies?.exchangeable) {
+  if (pol.replaceable) {
     policyCards.push({
       icon: <Package className="h-5 w-5 text-primary" aria-hidden />,
-      title: item.policies.replaceable ? "Replaceable" : "Exchangeable",
-      detail: "Wrong size or damage — swap on the house",
+      title: "Replacement",
+      detail: replacementDays
+        ? `Replacement within ${replacementDays} days`
+        : "Wrong size or damage — swap on the house",
+      text: replacementText,
     });
   }
-  if (item.policies?.warranty_years) {
+  if (pol.warranty_years) {
     policyCards.push({
       icon: <ShieldCheck className="h-5 w-5 text-primary" aria-hidden />,
-      title: `${item.policies.warranty_years}-year warranty`,
+      title: `${pol.warranty_years}-year warranty`,
       detail: "Manufacturer-backed coverage on defects",
     });
   }
   // Slim chip strip too — quick at-a-glance summary near the price.
   const policyChips = [];
-  if (item.policies?.cancellable) policyChips.push("Cancellable");
-  if (item.policies?.returnable) policyChips.push("Returnable");
-  if (item.policies?.refundable) policyChips.push("Refundable");
-  if (item.policies?.warranty_years) {
-    policyChips.push(`${item.policies.warranty_years}y warranty`);
+  if (pol.cancellable) policyChips.push("Cancellable");
+  if (pol.returnable) policyChips.push("Returnable");
+  if (pol.refundable) policyChips.push("Refundable");
+  if (pol.replaceable) policyChips.push("Replacement");
+  if (pol.warranty_years) {
+    policyChips.push(`${pol.warranty_years}y warranty`);
   }
 
   // Vendor card "X years on MyShaadiStore" — derive from vendor_created_at if
@@ -727,12 +743,12 @@ export default function ProductDetailPage({ itemId }) {
       title: "Live support",
       body: "10 AM – 8 PM, Monday to Saturday",
     },
-    item.policies?.returnable
+    pol.returnable
       ? {
           icon: <RotateCcw className="h-5 w-5 text-primary" aria-hidden />,
           title: "Easy returns",
-          body: item.policies.return_days
-            ? `Within ${item.policies.return_days} days of delivery`
+          body: returnDays
+            ? `Within ${returnDays} days of delivery`
             : "Hassle-free returns",
         }
       : {
@@ -1326,6 +1342,11 @@ export default function ProductDetailPage({ itemId }) {
                       <div className="min-w-0">
                         <div className="text-sm font-bold text-text">{p.title}</div>
                         <div className="mt-1 text-xs leading-5 text-muted">{p.detail}</div>
+                        {p.text ? (
+                          <p className="mt-2 whitespace-pre-line text-xs leading-5 text-muted">
+                            {p.text}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   ))}
