@@ -388,7 +388,7 @@ export default function AboutUsPage() {
                   href="https://www.linkedin.com/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="relative inline-flex items-center gap-2 rounded-full bg-text-strong px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-secondary"
+                  className="relative inline-flex items-center gap-2 rounded-full bg-text-strong px-5 py-2.5 text-sm font-semibold text-white! transition hover:bg-secondary"
                 >
                   <LinkedinIcon className="h-4 w-4" /> Connect on LinkedIn
                 </a>

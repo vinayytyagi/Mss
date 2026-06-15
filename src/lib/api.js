@@ -8,9 +8,10 @@ export {
   fetchItem,
   fetchItemVariants,
   fetchAttributeSchema,
+  fetchPackageDefinition,
 } from "./api/catalogApi";
 
-export { fetchHeroSlideshow } from "./api/siteSettingsApi";
+export { fetchHeroSlideshow, fetchSiteConfig } from "./api/siteSettingsApi";
 
 export { fetchBudgetPresets } from "./api/budgetPresetsApi";
 
@@ -23,18 +24,41 @@ export {
   loginUser,
   requestResetOtp,
   resetPassword,
+  googleAuth,
+  completeGooglePhone,
 } from "./api/authApi";
 
-export { submitQuotationRequest, createShoppingOrder, verifyRazorpayPayment, trackOrder } from "./api/ordersApi";
+export {
+  submitQuotationRequest,
+  createShoppingOrder,
+  validateCheckoutCoupon,
+  verifyRazorpayPayment,
+  trackOrder,
+  retryOrderPayment,
+  fetchMyOrder,
+} from "./api/ordersApi";
 
 export {
   fetchMyProfile,
   updateMyProfile,
   fetchMyOrders,
+  fetchMyQuotations,
+  fetchMyQuotation,
+  fetchMyServiceOrders,
+  fetchMyServiceOrder,
+  approveServiceQuote,
+  confirmServiceDelivery,
+  getServiceBalanceLink,
   cancelMyOrder,
   requestMyOrderRefund,
   restartMyJourney,
   deleteMyAccount,
+  fetchMyCredit,
+  createWalletTopupOrder,
+  verifyWalletTopupPayment,
+  fetchMyReturnRequests,
+  createItemReturnRequest,
+  confirmReturnPayment,
 } from "./api/userApi";
 
 export { uploadOracleImage } from "./api/uploadApi";

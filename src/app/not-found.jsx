@@ -87,11 +87,11 @@ export default function NotFound() {
       </div>
 
       {/* Decorative footer line */}
-      <div className="mt-14 flex items-center gap-3 text-xs text-subtle">
+      {/* <div className="mt-14 flex items-center gap-3 text-xs text-subtle">
         <div className="h-px w-12 bg-border" />
         <span>MyShaadiStore</span>
         <div className="h-px w-12 bg-border" />
-      </div>
+      </div> */}
     </main>
   );
 }

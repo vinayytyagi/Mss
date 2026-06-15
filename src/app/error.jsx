@@ -54,13 +54,13 @@ export default function Error({ reset }) {
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <button
             onClick={reset}
-            className="inline-flex min-w-44 items-center justify-center rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[0_18px_40px_rgba(255,79,134,0.22)] transition hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="inline-flex min-w-44 items-center justify-center rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[0_18px_40px_rgba(255,79,134,0.22)] transition hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0"
           >
             Try again
           </button>
           <Link
             href="/"
-            className="inline-flex min-w-44 items-center justify-center rounded-2xl border border-border bg-surface px-6 py-3 text-sm font-semibold text-text transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            className="inline-flex min-w-44 items-center justify-center rounded-2xl border border-border bg-surface px-6 py-3 text-sm font-semibold text-text transition hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0"
           >
             Go home
           </Link>

@@ -50,6 +50,7 @@ function updateCartState(updater) {
 
 function normalizeCartItem(item, quantity = 1) {
   return {
+    line_type: item.line_type || "product",
     item_id: item.item_id,
     variant_id: item.variant_id || "",
     variant_size: item.variant_size || item.size || "",
@@ -76,6 +77,9 @@ function normalizeCartItem(item, quantity = 1) {
     description: item.description || "",
     vendor_id: item.vendor_id || "",
     policies: item.policies || null,
+    // Per-line event details captured at add time (decor → theme / colour /
+    // notes). Null for plain product lines. Rides along to the backend.
+    meta: item.meta && typeof item.meta === "object" ? item.meta : null,
     source: item.source || "catalog",
     added_at: new Date().toISOString(),
   };
@@ -120,6 +124,53 @@ export function useCartSummary() {
       shoppingTotal,
     };
   }, [carts]);
+}
+
+/**
+ * Build a normalized PACKAGE quotation line from a TiersBuilder/SectionsBuilder
+ * selection. Package lines carry `line_type:"package"` and a `selection` blob
+ * (tier / addons / sections / details) instead of a vendor product. They reuse
+ * the product-line fields the cart UI reads (`item_id`, `name`, `quantity`,
+ * `price`/`final_price`) so the existing cart row + quotation submit pipeline
+ * renders and ships them unchanged — the backend routes them by `line_type`.
+ */
+function normalizePackageLine(line) {
+  const indicative = Number(line.indicative_total);
+  const price = Number.isFinite(indicative) && indicative > 0 ? indicative : 0;
+  // Stable synthetic id so cart keys, qty controls and remove() work. Packages
+  // are always quantity 1, so a per-add timestamped id keeps duplicates distinct.
+  const itemId = line.item_id || `pkg_${line.journey_slug || "step"}_${Date.now()}`;
+  return {
+    line_type: "package",
+    item_id: itemId,
+    journey_step_id: line.journey_step_id || "",
+    journey_slug: line.journey_slug || "",
+    journey_title: line.journey_title || line.package_title || "",
+    mode_key: line.mode_key ?? null,
+    package_title: line.package_title || "Custom package",
+    name: line.package_title || "Custom package",
+    image: line.image || "",
+    images: [],
+    selection: line.selection || {},
+    indicative_total: price,
+    price,
+    final_price: price,
+    is_discount_active: false,
+    discount_percentage: 0,
+    category_label: line.category_label || "Package",
+    item_type: "Package",
+    quantity: 1,
+    source: "package-builder",
+    added_at: new Date().toISOString(),
+  };
+}
+
+export function addPackageToCart(line) {
+  if (!line || !line.package_title) return;
+  updateCartState((current) => ({
+    ...current,
+    quotation: [...current.quotation, normalizePackageLine(line)],
+  }));
 }
 
 export function addToCart(cartType, item, quantity = 1) {
@@ -173,4 +224,55 @@ export function clearCart(cartType) {
 
 export function clearAllCarts() {
   updateCartState(() => ({ quotation: [], shopping: [] }));
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Event date — required before anything can be added to the quote basket.
+// Stored separately so it persists across the session and all journey steps.
+// ──────────────────────────────────────────────────────────────────────────
+
+const EVENT_DATE_KEY = "mss_event_date";
+const EVENT_DATE_EVENT = "mss-event-date-change";
+
+/** Read the saved wedding/event date (YYYY-MM-DD) or "" if none. */
+export function getEventDate() {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(EVENT_DATE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+/** Save the event date (pass "" to clear). Fires a change event. */
+export function setEventDate(value) {
+  if (typeof window === "undefined") return;
+  try {
+    const v = String(value || "").trim();
+    if (v) window.localStorage.setItem(EVENT_DATE_KEY, v);
+    else window.localStorage.removeItem(EVENT_DATE_KEY);
+    window.dispatchEvent(new Event(EVENT_DATE_EVENT));
+    emitCartChange();
+  } catch {
+    /* ignore */
+  }
+}
+
+export function hasEventDate() {
+  return Boolean(getEventDate());
+}
+
+function subscribeEventDate(callback) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(EVENT_DATE_EVENT, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(EVENT_DATE_EVENT, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+/** Reactive hook for the saved event date. */
+export function useEventDate() {
+  return useSyncExternalStore(subscribeEventDate, getEventDate, () => "");
 }

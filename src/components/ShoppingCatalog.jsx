@@ -9,7 +9,8 @@ import { categoryIconPath } from "@/lib/categoryIcon";
 import ShoppingSearchBar from "@/components/ShoppingSearchBar";
 
 function itemFabric(item) {
-  const f = item?.attributes?.fabric || item?.attributes?.material;
+  const f =
+    item?.attributes?.fabric_material || item?.attributes?.fabric || item?.attributes?.material;
   if (typeof f === "string") return f.trim();
   if (Array.isArray(f)) return f.map((v) => String(v).trim()).filter(Boolean);
   return null;
@@ -169,7 +170,7 @@ export default function ShoppingCatalog({
                 initialValue={search}
                 category={selectedCategoryId}
                 subcategory={selectedSubcategoryIds.join(",")}
-                placeholder="Search clothing, jewellery, cosmetics, gifts…"
+                placeholder="Search clothing, jewellery, cosmetics…"
               />
             </div>
           </div>
@@ -184,7 +185,7 @@ export default function ShoppingCatalog({
                 there are ≤ 6 cards, but expands to fit when there are
                 more — combined with shrink-0 cards, this gives the
                 "6 fit / 7+ scroll" behaviour. */}
-            <div className="bg-[#c4b0a9] min-w-full flex items-center gap-5 rounded-2xl">
+            <div className="bg-[#FFEAF0] min-w-full flex items-center gap-5 rounded-2xl">
             {showcaseCategories.map((category) => {
               const isActive = selectedCategory?.category_id === category.category_id;
               const categoryImage = category.image_url || "";
@@ -201,7 +202,7 @@ export default function ShoppingCatalog({
                       // shadow give the "bigger popup box" effect from the
                       // Figma reference. Strip has overflow-y-visible so
                       // the overflow renders cleanly.
-                      ? "z-20 -translate-y-2 scale-110 bg-[#84716b] py-4 text-primary-foreground"
+                      ? "z-20 -translate-y-2 scale-110 bg-[#780829] py-4 text-primary-foreground"
                       : "py-3 text-text-strong"
                   }`}
                 >

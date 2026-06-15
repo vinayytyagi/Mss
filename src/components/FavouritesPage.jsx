@@ -16,10 +16,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Heart, Trash2 } from "lucide-react";
 import ItemCardV2 from "@/components/ItemCardV2";
 import {
   clearWishlist,
+  removeFromWishlist,
   useWishlistState,
 } from "@/lib/wishlistStore";
 
@@ -161,14 +163,28 @@ export default function FavouritesPage() {
                 ? "MyShaadiStore"
                 : item.vendor_business_name || "Vendor";
               return (
-                <ItemCardV2
-                  key={item.item_id}
-                  item={item}
-                  vendorName={vendorName}
-                  whiteLabelOn={whiteLabelOn}
-                  cartKind={activeTab.cartKind}
-                  categoryLabel={item.subcategory_label || item.category_label}
-                />
+                <div key={item.item_id} className="flex flex-col">
+                  <ItemCardV2
+                    item={item}
+                    vendorName={vendorName}
+                    whiteLabelOn={whiteLabelOn}
+                    cartKind={activeTab.cartKind}
+                    categoryLabel={item.subcategory_label || item.category_label}
+                  />
+                  {/* Explicit, discoverable single-item remove (Task 14).
+                      Pass the BUCKET key, not the cartKind. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      removeFromWishlist(activeTab.key, item.item_id);
+                      toast("Removed from favourites");
+                    }}
+                    className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 py-2 text-xs font-semibold text-muted transition hover:border-danger hover:text-danger"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+                    Remove
+                  </button>
+                </div>
               );
             })}
           </div>

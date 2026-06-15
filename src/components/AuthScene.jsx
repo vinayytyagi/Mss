@@ -21,8 +21,8 @@ export default function AuthScene({
 
       <div className={`relative z-10 w-full px-4 ${hasStepper ? "max-w-6xl" : "max-w-140"}`}>
         {hasStepper ? (
-          <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-            <div className="hidden lg:block">
+          <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+            <div className="hidden lg:block lg:sticky lg:top-12">
               <div className="mx-auto w-full max-w-md">
                 <div className="mb-6 flex h-32 w-32 items-center justify-center">
                   <Image

@@ -43,12 +43,26 @@ const statusColors = {
   Pending: "bg-warning/15 text-warning-strong border-warning/40",
   Paid: "bg-success/10 text-success border-success/40",
   Confirmed: "bg-info/10 text-info border-info/40",
+  Processing: "bg-info/10 text-info border-info/40",
   Shipped: "bg-info/10 text-info border-info/40",
   Delivered: "bg-success/10 text-success border-success/40",
   Cancelled: "bg-danger/10 text-danger border-danger/30",
   Failed: "bg-danger/10 text-danger border-danger/30",
+  "Payment Failed": "bg-danger/10 text-danger border-danger/30",
   Refunded: "bg-info/10 text-info border-info/40",
 };
+
+// Task 13 — derive a delivery line (delivered date wins, else expected ETA).
+function deliveryLine(order) {
+  const ship =
+    order.shipment ||
+    (Array.isArray(order.sub_orders) ? order.sub_orders.map((s) => s?.shipment).find(Boolean) : null);
+  const delivered = order.delivered_at || ship?.delivered_at;
+  const expected = ship?.expected_delivery_date;
+  if (delivered) return { label: "Delivered on", value: delivered };
+  if (expected) return { label: "Expected by", value: expected };
+  return null;
+}
 
 function StatusBadge({ status }) {
   const cls = statusColors[status] || "bg-surface-muted text-muted border-border-strong";
@@ -227,6 +241,15 @@ export default function MyOrdersClient({ initialOrders = [], initialError = "", 
                     <p className="text-sm font-semibold text-muted">{order.shipment.courier_name}</p>
                   </div>
                 )}
+                {(() => {
+                  const dl = deliveryLine(order);
+                  return dl ? (
+                    <div>
+                      <p className="text-xs text-subtle">{dl.label}</p>
+                      <p className="text-sm font-semibold text-muted">{formatDate(dl.value)}</p>
+                    </div>
+                  ) : null;
+                })()}
               </div>
               <span className="flex items-center gap-1 text-sm font-semibold text-primary opacity-0 transition group-hover:opacity-100">
                 View details <ChevronRight />

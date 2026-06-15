@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuthUser, getAuthToken, saveAuthCookies, clearAuthCookies } from "@/lib/authCookies";
 import { useRouter } from "next/navigation";
-import { updateMyProfile, deleteMyAccount } from "@/lib/api";
+import { updateMyProfile, deleteMyAccount, fetchMyQuotations, fetchMyServiceOrders, fetchMyCredit, createWalletTopupOrder, verifyWalletTopupPayment } from "@/lib/api";
 import ImageUpload from "@/components/ImageUpload";
 import CityStateDropdown from "@/components/CityStateDropdown";
+import Dropdown from "@/components/ui/Dropdown";
 import { formatLakhs } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -19,10 +20,14 @@ import {
   Pencil,
   Plus,
   Settings,
+  Star,
   Trash2,
   UserRound,
   X,
   ArrowRight,
+  Receipt,
+  FileText,
+  Wallet,
 } from "lucide-react";
 
 /* ── Icons ─────────────────────────────────────────── */
@@ -72,8 +77,34 @@ function formatCurrency(amount) {
   return formatLakhs(amount);
 }
 
+const QUOTE_STATUS_TONE = {
+  in_review: "bg-warning/15 text-warning-strong",
+  quote_ready: "bg-primary-soft text-primary",
+  paid: "bg-success/10 text-success",
+  cancelled: "bg-danger/10 text-danger",
+};
+
+// Service-order customer-facing statuses (deriveCustomerStatus in serviceOrder.js).
+const SERVICE_STATUS_TONE = {
+  received: "bg-warning/15 text-warning-strong",
+  sourcing: "bg-warning/15 text-warning-strong",
+  quote_ready: "bg-primary-soft text-primary",
+  awaiting_payment: "bg-warning/15 text-warning-strong",
+  confirmed: "bg-info/10 text-info",
+  delivered: "bg-success/10 text-success",
+  completed: "bg-success/10 text-success",
+  cancelled: "bg-danger/10 text-danger",
+};
+
 const MAX_BUDGET_PER_STEP = 5000000;
 const BUDGET_STEP = 1000;
+
+const ADDRESS_LABEL_OPTIONS = [
+  { value: "Home", label: "Home" },
+  { value: "Work", label: "Work" },
+  { value: "Wedding Venue", label: "Wedding Venue" },
+  { value: "Other", label: "Other" },
+];
 
 function getInitials(name) {
   if (!name) return "?";
@@ -90,6 +121,97 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
   const [orders] = useState(initialOrders);
   const [loading] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
+  const [quotations, setQuotations] = useState(null);
+  const [quotationsLoading, setQuotationsLoading] = useState(false);
+  const [serviceOrders, setServiceOrders] = useState(null);
+  const [serviceOrdersLoading, setServiceOrdersLoading] = useState(false);
+  const [creditInfo, setCreditInfo] = useState(null); // { balance_paise, ledger }
+  const [topupAmount, setTopupAmount] = useState(""); // rupees, as typed
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+    fetchMyCredit(token)
+      .then((res) => setCreditInfo(res || null))
+      .catch(() => {});
+  }, []);
+
+  function loadRazorpayScript() {
+    return new Promise((resolve) => {
+      if (typeof window !== "undefined" && window.Razorpay) return resolve(true);
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  }
+
+  async function refreshCredit() {
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+      const res = await fetchMyCredit(token);
+      setCreditInfo(res || null);
+    } catch {
+      /* keep stale balance on failure */
+    }
+  }
+
+  async function handleAddMoney() {
+    const rupees = Number(topupAmount);
+    if (!rupees || rupees <= 0) {
+      toast.error("Please enter an amount greater than zero.");
+      return;
+    }
+    const amountPaise = Math.round(rupees * 100);
+    setAdding(true);
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+      const { razorpay } = await createWalletTopupOrder(token, amountPaise);
+      if (!razorpay?.order_id) throw new Error("Could not start payment. Please try again.");
+      const loaded = await loadRazorpayScript();
+      if (!loaded) throw new Error("Failed to load Razorpay. Check your internet connection.");
+
+      const rzp = new window.Razorpay({
+        key: razorpay.key_id,
+        order_id: razorpay.order_id,
+        amount: razorpay.amount,
+        currency: razorpay.currency,
+        name: "MyShaadiStore Wallet",
+        description: "Add money to wallet",
+        theme: { color: "#ff4f86" },
+        handler: async (resp) => {
+          try {
+            await verifyWalletTopupPayment(token, {
+              razorpay_order_id: resp.razorpay_order_id,
+              razorpay_payment_id: resp.razorpay_payment_id,
+              razorpay_signature: resp.razorpay_signature,
+              amount_paise: amountPaise,
+            });
+            await refreshCredit();
+            setTopupAmount("");
+            toast.success("Money added to your wallet!");
+          } catch (err) {
+            toast.error(err?.message || "Payment succeeded but crediting failed. Please contact support.");
+          }
+        },
+      });
+      rzp.on("payment.failed", (resp) => {
+        toast.error(resp?.error?.description || "Payment failed. Please try again.");
+      });
+      rzp.open();
+    } catch (e) {
+      toast.error(e?.message || "Could not add money. Please try again.");
+    } finally {
+      setAdding(false);
+    }
+  }
 
   // Edit states
   const [editingBasic, setEditingBasic] = useState(false);
@@ -101,7 +223,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
   // Address states
   const [addresses, setAddresses] = useState(initialProfile?.addresses || []);
-  const [editingAddress, setEditingAddress] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
   const [newAddress, setNewAddress] = useState({ label: "Home", line1: "", line2: "", city: "", state: "", pincode: "" });
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -195,7 +317,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
       const result = await updateMyProfile(token, { addresses: updatedAddresses });
       setProfile(result.user);
       setAddresses(result.user.addresses || []);
-      setEditingAddress(false);
+      setEditingIndex(null);
       setSaveMsg("Addresses updated!");
       setTimeout(() => setSaveMsg(""), 3000);
     } catch (e) {
@@ -205,12 +327,56 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
     }
   }
 
-  function handleAddAddress() {
-    if (!newAddress.line1.trim() || !newAddress.city.trim() || !newAddress.pincode.trim()) return;
-    const updated = [...addresses, { ...newAddress }];
+  function startAddAddress() {
+    setEditingIndex(null);
+    setNewAddress({ label: "Home", line1: "", line2: "", city: "", state: "", pincode: "" });
+    setShowAddForm(true);
+  }
+
+  function startEditAddress(index) {
+    const address = addresses[index];
+    if (!address) return;
+    setEditingIndex(index);
+    setNewAddress({
+      label: address.label || "Home",
+      line1: address.line1 || "",
+      line2: address.line2 || "",
+      city: address.city || "",
+      state: address.state || "",
+      pincode: address.pincode || "",
+    });
+    setShowAddForm(true);
+  }
+
+  function handleSubmitAddress() {
+    if (!newAddress.line1.trim()) return toast.error("Address line 1 is required.");
+    if (!newAddress.city.trim() || !newAddress.state.trim()) return toast.error("City and state are required.");
+    if (!/^\d{6}$/.test(newAddress.pincode.trim())) return toast.error("Please enter a valid 6-digit pincode.");
+    const entry = {
+      label: newAddress.label || "Home",
+      line1: newAddress.line1.trim(),
+      line2: newAddress.line2.trim(),
+      city: newAddress.city.trim(),
+      state: newAddress.state.trim(),
+      pincode: newAddress.pincode.trim(),
+    };
+    const updated =
+      editingIndex != null
+        ? addresses.map((a, i) => (i === editingIndex ? entry : a))
+        : [...addresses, entry];
     setAddresses(updated);
     setNewAddress({ label: "Home", line1: "", line2: "", city: "", state: "", pincode: "" });
     setShowAddForm(false);
+    setEditingIndex(null);
+    handleSaveAddresses(updated);
+  }
+
+  // Default = first in the array (Amazon/Flipkart style). Promoting an address
+  // to default just moves it to the front and re-persists the list.
+  function handleSetDefault(index) {
+    if (index <= 0 || !addresses[index]) return;
+    const updated = [addresses[index], ...addresses.filter((_, i) => i !== index)];
+    setAddresses(updated);
     handleSaveAddresses(updated);
   }
 
@@ -219,6 +385,36 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
     setAddresses(updated);
     handleSaveAddresses(updated);
   }
+
+  // Lazy-load the customer's quotations the first time the tab is opened.
+  useEffect(() => {
+    if (activeTab !== "quotations" || quotations !== null) return;
+    const token = getAuthToken();
+    if (!token) {
+      setQuotations([]);
+      return;
+    }
+    setQuotationsLoading(true);
+    fetchMyQuotations(token)
+      .then((res) => setQuotations(Array.isArray(res?.quotations) ? res.quotations : []))
+      .catch(() => setQuotations([]))
+      .finally(() => setQuotationsLoading(false));
+  }, [activeTab, quotations]);
+
+  // Lazy-load the customer's service orders the first time the tab is opened.
+  useEffect(() => {
+    if (activeTab !== "service-orders" || serviceOrders !== null) return;
+    const token = getAuthToken();
+    if (!token) {
+      setServiceOrders([]);
+      return;
+    }
+    setServiceOrdersLoading(true);
+    fetchMyServiceOrders(token)
+      .then((res) => setServiceOrders(Array.isArray(res?.orders) ? res.orders : []))
+      .catch(() => setServiceOrders([]))
+      .finally(() => setServiceOrdersLoading(false));
+  }, [activeTab, serviceOrders]);
 
   /* ── Not logged in ─────────────────────────────────── */
   if (!user && !hasServerSession) {
@@ -253,7 +449,10 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
   const tabs = [
     { id: "profile", label: "Profile", icon: <UserIcon /> },
+    { id: "wallet", label: "Wallet", icon: <Wallet className="h-4 w-4" /> },
     { id: "orders", label: "Orders", icon: <PackageIcon /> },
+    { id: "quotations", label: "Quotations", icon: <Receipt className="h-4 w-4" /> },
+    { id: "service-orders", label: "Service Orders", icon: <FileText className="h-4 w-4" /> },
     { id: "wedding", label: "Wedding details", icon: <HeartIcon /> },
     { id: "budget", label: "Budget", icon: <IndianRupee className="h-4 w-4" /> },
     { id: "addresses", label: "Addresses", icon: <LocationIcon /> },
@@ -311,7 +510,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             <h1 className="text-2xl font-extrabold tracking-tight text-text">
               {profile?.name || "User"}
             </h1>
-            <p className="mt-0.5 text-sm text-text-strong">+91 {profile?.phone || user.phone || ""}</p>
+            <p className="mt-0.5 text-sm text-text-strong">+91 {profile?.phone || user?.phone || ""}</p>
             {profile?.email && <p className="text-sm text-text-strong">{profile.email}</p>}
             <p className="mt-1 text-xs text-muted">Member since {formatDate(profile?.created_at)}</p>
           </div>
@@ -329,7 +528,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
       )}
 
       {/* Tabs */}
-      <div className="mt-6 flex gap-1 overflow-x-auto rounded-2xl border border-border bg-surface/80 p-1 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+      <div className="scrollbar-soft mt-6 flex gap-1 overflow-x-auto rounded-2xl border border-border bg-surface/80 p-1 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -347,6 +546,106 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
       {/* Tab Content */}
       <div className="mt-6">
+        {/* ── Wallet Tab ───────────────────────────────────── */}
+        {activeTab === "wallet" && (
+          <div className="space-y-4">
+            {/* Balance card */}
+            <div className="rounded-3xl border border-primary/30 bg-linear-to-br from-primary-soft to-white p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-subtle">
+                    <Wallet className="h-4 w-4 text-primary" /> Wallet balance
+                  </p>
+                  <p className="mt-1 text-3xl font-black text-primary">
+                    {formatCurrency((creditInfo?.balance_paise || 0) / 100)}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-subtle">
+                Auto-applied at checkout. Refunds from cancellations &amp; returns land here too.
+              </p>
+            </div>
+
+            {/* Add money panel */}
+            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+              <h2 className="text-base font-semibold text-text">Add money</h2>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {[500, 1000, 2000].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setTopupAmount(String(amt))}
+                    className={`cursor-pointer rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                      Number(topupAmount) === amt
+                        ? "border-primary bg-primary-soft text-primary"
+                        : "border-border-strong text-muted hover:bg-surface-muted hover:text-text"
+                    }`}
+                  >
+                    {formatCurrency(amt)}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-subtle">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={topupAmount}
+                    onChange={(e) => setTopupAmount(e.target.value)}
+                    placeholder="Enter amount"
+                    className="w-full rounded-xl border border-border-strong bg-surface py-3 pl-8 pr-4 text-sm font-semibold text-text outline-none transition focus:border-primary focus:ring focus:ring-primary/20"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddMoney}
+                  disabled={adding}
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:bg-primary-hover disabled:opacity-60"
+                >
+                  {adding ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  Add money
+                </button>
+              </div>
+            </div>
+
+            {/* Transaction ledger */}
+            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+              <h2 className="text-base font-semibold text-text">Transactions</h2>
+              {Array.isArray(creditInfo?.ledger) && creditInfo.ledger.length ? (
+                <div className="scrollbar-soft mt-4 max-h-80 divide-y divide-border overflow-y-auto pr-1">
+                  {creditInfo.ledger.map((e, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 text-sm">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-text">
+                          {e.reason || (e.amount_paise >= 0 ? "Credit added" : "Credit used")}
+                          {e.source?.order_number ? ` · ${e.source.order_number}` : ""}
+                        </p>
+                        <p className="text-xs text-subtle">{formatDate(e.created_at)}</p>
+                      </div>
+                      <span className={`shrink-0 font-semibold ${e.amount_paise >= 0 ? "text-success" : "text-muted"}`}>
+                        {e.amount_paise >= 0 ? "+" : "−"}
+                        {formatCurrency(Math.abs(e.amount_paise) / 100)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 rounded-2xl bg-surface-muted px-4 py-5 text-center text-sm text-muted">
+                  No wallet transactions yet.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── Profile Tab ──────────────────────────────────── */}
         {activeTab === "profile" && (
           <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
@@ -521,6 +820,114 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
           </div>
         )}
 
+        {/* ── Quotations Tab ──────────────────────────────── */}
+        {activeTab === "quotations" && (
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-text">My Quotations ({quotations?.length || 0})</h2>
+
+            {quotationsLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              </div>
+            ) : !quotations || quotations.length === 0 ? (
+              <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+                <Receipt className="mx-auto h-6 w-6 text-muted" />
+                <p className="mt-3 text-sm text-muted">No quotation requests yet</p>
+                <p className="text-xs text-subtle">Add package items to your quote basket and submit a request.</p>
+                <Link
+                  href="/"
+                  className="mt-4 inline-block rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
+                >
+                  Explore packages
+                </Link>
+              </div>
+            ) : (
+              quotations.map((q) => (
+                <Link
+                  key={q.quotation_id}
+                  href={`/quotations/${q.quotation_id}`}
+                  className="group block rounded-2xl border border-border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:border-primary/30 hover:shadow-[0_8px_30px_rgba(255,79,134,0.08)]"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-text">
+                        {q.item_count} item{q.item_count === 1 ? "" : "s"}
+                      </p>
+                      <p className="text-xs text-subtle">{formatDate(q.created_at)}</p>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          QUOTE_STATUS_TONE[q.status] || "bg-surface-muted text-muted"
+                        }`}
+                      >
+                        {q.status_label}
+                      </span>
+                      <span className="font-bold text-text">
+                        {q.final_total != null ? formatCurrency(q.final_total) : formatCurrency(q.items_estimate)}
+                      </span>
+                      <ArrowRight className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* ── Service Orders Tab ──────────────────────────── */}
+        {activeTab === "service-orders" && (
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-text">My Service Orders ({serviceOrders?.length || 0})</h2>
+
+            {serviceOrdersLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              </div>
+            ) : !serviceOrders || serviceOrders.length === 0 ? (
+              <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+                <FileText className="mx-auto h-6 w-6 text-muted" />
+                <p className="mt-3 text-sm text-muted">No service orders yet</p>
+                <p className="text-xs text-subtle">Request a managed service and we&apos;ll source quotes for you.</p>
+                <Link
+                  href="/"
+                  className="mt-4 inline-block rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
+                >
+                  Explore services
+                </Link>
+              </div>
+            ) : (
+              serviceOrders.map((o) => (
+                <Link
+                  key={o.order_id}
+                  href={`/service-orders/${o.quotation_id}`}
+                  className="group block rounded-2xl border border-border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:border-primary/30 hover:shadow-[0_8px_30px_rgba(255,79,134,0.08)]"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold capitalize text-text">{o.service_type || "Service order"}</p>
+                      <p className="text-xs text-subtle">{formatDate(o.event_date)}</p>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          SERVICE_STATUS_TONE[o.status] || "bg-surface-muted text-muted"
+                        }`}
+                      >
+                        {o.status_label}
+                      </span>
+                      <span className="font-bold text-text">
+                        {o.quote_total != null ? formatCurrency(o.quote_total) : "—"}
+                      </span>
+                      <ArrowRight className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+
         {/* ── Wedding Details Tab ─────────────────────────── */}
         {activeTab === "wedding" && (
           <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
@@ -579,7 +986,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   <button
                     onClick={handleSaveWedding}
                     disabled={saving}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_30_rgba(255,79,134,0.25)] transition hover:bg-primary-hover disabled:opacity-60"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:bg-primary-hover disabled:opacity-60"
                   >
                     {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> : <CheckIcon />}
                     Save Wedding Details
@@ -665,7 +1072,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                           {formatCurrency(alloc.amount)}
                         </div>
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-[210px,1fr]">
+                      <div className="grid gap-3 sm:grid-cols-[210px_1fr]">
                         <input
                           type="number"
                           min="0"
@@ -747,7 +1154,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                 Saved Addresses ({addresses.length})
               </h2>
               <button
-                onClick={() => setShowAddForm(true)}
+                onClick={startAddAddress}
                 className="flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[0_8px_20px_rgba(255,79,134,0.25)] transition hover:bg-primary-hover"
               >
                 <PlusIcon /> Add Address
@@ -765,11 +1172,23 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
             <div className="grid gap-4 sm:grid-cols-2">
               {addresses.map((addr, i) => (
-                <div key={i} className="rounded-2xl border border-border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur">
-                  <div className="flex items-center justify-between">
-                    <span className="rounded-lg bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
-                      {addr.label || "Address"}
-                    </span>
+                <div
+                  key={i}
+                  className={`flex flex-col rounded-2xl border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur ${
+                    i === 0 ? "border-primary/40 ring-1 ring-primary/20" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-lg bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
+                        {addr.label || "Address"}
+                      </span>
+                      {i === 0 ? (
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-success/10 px-2 py-1 text-[11px] font-bold text-success">
+                          <Star className="h-3 w-3 fill-current" /> Default
+                        </span>
+                      ) : null}
+                    </div>
                     <button
                       onClick={() => handleRemoveAddress(i)}
                       className="cursor-pointer rounded-lg p-1.5 text-subtle transition hover:bg-danger/10 hover:text-danger"
@@ -784,6 +1203,22 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                     <p>{[addr.city, addr.state].filter(Boolean).join(", ")}</p>
                     {addr.pincode && <p className="font-semibold">{addr.pincode}</p>}
                   </div>
+                  <div className="mt-4 flex items-center gap-1 border-t border-border pt-3">
+                    <button
+                      onClick={() => startEditAddress(i)}
+                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary-soft"
+                    >
+                      <Pencil className="h-3.5 w-3.5" /> Edit
+                    </button>
+                    {i !== 0 ? (
+                      <button
+                        onClick={() => handleSetDefault(i)}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted transition hover:bg-surface-muted hover:text-text"
+                      >
+                        <Star className="h-3.5 w-3.5" /> Set as default
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
@@ -791,20 +1226,18 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             {/* Add address form */}
             {showAddForm && (
               <div className="rounded-3xl border border-primary/20 bg-surface/90 p-6 shadow-[0_8px_40px_rgba(255,79,134,0.08)] backdrop-blur">
-                <h3 className="text-sm font-semibold text-text">New Address</h3>
+                <h3 className="text-sm font-semibold text-text">{editingIndex != null ? "Edit Address" : "New Address"}</h3>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-semibold text-subtle">Label</label>
-                    <select
+                    <Dropdown
                       value={newAddress.label}
-                      onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
-                      className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm outline-none focus:border-primary"
-                    >
-                      <option>Home</option>
-                      <option>Work</option>
-                      <option>Wedding Venue</option>
-                      <option>Other</option>
-                    </select>
+                      onChange={(next) => setNewAddress({ ...newAddress, label: next })}
+                      options={ADDRESS_LABEL_OPTIONS}
+                      placeholder="Select label"
+                      ariaLabel="Address label"
+                      className="mt-1"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-subtle">Pincode *</label>
@@ -836,12 +1269,12 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   </div>
                 </div>
                 <div className="mt-5 flex items-center gap-3">
-                  <button onClick={handleAddAddress} disabled={saving}
+                  <button onClick={handleSubmitAddress} disabled={saving}
                     className="flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:bg-primary-hover disabled:opacity-60">
                     {saving ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> : <CheckIcon />}
-                    Save Address
+                    {editingIndex != null ? "Update Address" : "Save Address"}
                   </button>
-                  <button onClick={() => setShowAddForm(false)}
+                  <button onClick={() => { setShowAddForm(false); setEditingIndex(null); }}
                     className="flex cursor-pointer items-center gap-2 rounded-xl border border-border-strong px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted">
                     <XIcon /> Cancel
                   </button>

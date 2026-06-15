@@ -14,6 +14,10 @@ import CookieConsent from "@/components/CookieConsent";
 import JsonLd from "@/components/JsonLd";
 import { organizationSchema, websiteSchema } from "@/lib/jsonld";
 import WhatsAppIcon from "@/components/icons/WhatsAppIcon";
+import Script from "next/script";
+import AttributionCapture from "@/components/AttributionCapture";
+
+const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -92,12 +96,19 @@ export default async function RootLayout({ children }) {
         <link rel="preconnect" href="https://images.unsplash.com" />
         {/* Razorpay checkout script */}
         <link rel="preconnect" href="https://checkout.razorpay.com" />
+        {/* Microsoft Clarity — heatmaps + session funnel (set NEXT_PUBLIC_CLARITY_ID) */}
+        {CLARITY_ID && (
+          <Script id="ms-clarity" strategy="afterInteractive">
+            {`(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","${CLARITY_ID}");`}
+          </Script>
+        )}
       </head>
       <body
         className={`${poppins.variable} ${playfair.variable} font-sans antialiased`}
       >
         <div className="flex min-h-screen flex-col overflow-x-clip bg-[radial-gradient(circle_at_top,var(--primary-soft)_0%,var(--background)_35%,var(--background)_100%)]">
           <SiteHeader steps={steps} initialUser={initialUser} />
+          <AttributionCapture />
           <JsonLd data={[organizationSchema(), websiteSchema()]} />
           <ScrollToTop />
           <ClientProgressBar />

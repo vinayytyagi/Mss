@@ -2,9 +2,32 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { getAuthToken, useAuthUser } from "@/lib/authCookies";
-import { cancelMyOrder, requestMyOrderRefund, trackOrder } from "@/lib/api";
-import { ArrowRight } from "lucide-react";
+import {
+  API_BASE,
+  cancelMyOrder,
+  requestMyOrderRefund,
+  retryOrderPayment,
+  verifyRazorpayPayment,
+  createItemReturnRequest,
+  confirmReturnPayment,
+  fetchSiteConfig,
+  trackOrder,
+} from "@/lib/api";
+import { makeIdempotencyKey } from "@/lib/idempotencyKey";
+import { ArrowRight, RefreshCw, Download, PackageOpen } from "lucide-react";
+
+function loadRazorpayScript() {
+  return new Promise((resolve) => {
+    if (typeof window !== "undefined" && window.Razorpay) return resolve(true);
+    const s = document.createElement("script");
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
 
 /* ── Helpers ────────────────────────────────────────── */
 function formatDate(dateStr) {
@@ -14,6 +37,15 @@ function formatDate(dateStr) {
 
 function formatCurrency(amount) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount || 0);
+}
+
+function formatDateShort(d) {
+  if (!d) return "—";
+  try {
+    return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return String(d);
+  }
 }
 
 /* ── Status steps for progress tracker ────────────── */
@@ -57,10 +89,12 @@ const statusColors = {
   Pending: "bg-warning/15 text-warning-strong border-warning/40",
   Paid: "bg-success/10 text-success border-success/40",
   Confirmed: "bg-info/10 text-info border-info/40",
+  Processing: "bg-info/10 text-info border-info/40",
   Shipped: "bg-info/10 text-info border-info/40",
   Delivered: "bg-success/10 text-success border-success/40",
   Cancelled: "bg-danger/10 text-danger border-danger/30",
   Failed: "bg-danger/10 text-danger border-danger/30",
+  "Payment Failed": "bg-danger/10 text-danger border-danger/30",
 };
 
 function StatusBadge({ status }) {
@@ -81,6 +115,14 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
   const [copied, setCopied] = useState(false);
   const [actionState, setActionState] = useState({ loading: false, error: "", success: "" });
   const [currentOrder, setCurrentOrder] = useState(initialOrder);
+  const [siteCfg, setSiteCfg] = useState({ refund_visible: false, replacement_enabled: true });
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [returnModal, setReturnModal] = useState(null); // selected item or null
+  const [returnForm, setReturnForm] = useState({ reason: "", mode: "return" });
+
+  useEffect(() => {
+    fetchSiteConfig().then(setSiteCfg).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!user || !currentOrder || tracking) {
@@ -136,10 +178,29 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
     );
   }
 
-  const stepIndex = getStepIndex(currentOrder.status, currentOrder.fulfillment_status);
-  const isCancelled = currentOrder.status === "Cancelled" || currentOrder.status === "Failed";
-  const canCancel = currentOrder.status === "Pending" || currentOrder.status === "Confirmed" || currentOrder.status === "Processing";
-  const canRefund = currentOrder.status === "Cancelled" || currentOrder.status === "Delivered";
+  const status = currentOrder.status;
+  const isPaid =
+    currentOrder.payment_status === "Paid" ||
+    ["Confirmed", "Processing", "Shipped", "Delivered"].includes(status);
+  const isPaymentFailed = status === "Payment Failed" || (status === "Failed" && !isPaid);
+  const isCancelled = status === "Cancelled";
+  const stepIndex = getStepIndex(status, currentOrder.fulfillment_status);
+  const canRetry = !isPaid && (isPaymentFailed || status === "Pending");
+  const canCancel = status === "Pending" || status === "Confirmed" || status === "Processing";
+  // Cash refund is gated behind the admin feature flag; otherwise cancellation
+  // returns store credit automatically. Returns/replacements on delivered orders.
+  const canRefund = siteCfg.refund_visible && (status === "Cancelled" || status === "Delivered");
+  const canReturn = status === "Delivered";
+  // Delivery date (Task 13) — prefer master shipment, fall back to first sub-order.
+  const shipmentInfo =
+    currentOrder.shipment ||
+    (Array.isArray(currentOrder.sub_orders)
+      ? currentOrder.sub_orders.map((s) => s.shipment).find(Boolean)
+      : null) ||
+    null;
+  const expectedDelivery =
+    shipmentInfo?.expected_delivery_date || tracking?.tracking_summary?.expected_delivery_date || null;
+  const deliveredAt = currentOrder.delivered_at || shipmentInfo?.delivered_at || null;
 
   async function onCancelOrder() {
     const token = getAuthToken();
@@ -164,6 +225,138 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
       setActionState({ loading: false, error: "", success: res.message || "Refund requested." });
     } catch (e) {
       setActionState({ loading: false, error: e.message || "Failed to request refund", success: "" });
+    }
+  }
+
+  // Task 6 — re-pay a failed/pending order via a fresh Razorpay order.
+  async function onRetryPayment() {
+    const token = getAuthToken();
+    if (!token) return;
+    setActionState({ loading: true, error: "", success: "" });
+    try {
+      const loaded = await loadRazorpayScript();
+      if (!loaded) throw new Error("Failed to load Razorpay.");
+      const res = await retryOrderPayment(currentOrder._id);
+      const rz = res.razorpay;
+      if (!rz?.order_id) throw new Error("Could not start payment. Please try again.");
+      const rzp = new window.Razorpay({
+        key: rz.key_id,
+        amount: rz.amount,
+        currency: rz.currency || "INR",
+        name: rz.name || "MyShaadiStore",
+        description: rz.description || `Order ${currentOrder.order_number}`,
+        order_id: rz.order_id,
+        prefill: rz.prefill,
+        theme: { color: "#ff4f86" },
+        handler: async (pr) => {
+          try {
+            const vp = {
+              razorpay_order_id: pr.razorpay_order_id,
+              razorpay_payment_id: pr.razorpay_payment_id,
+              razorpay_signature: pr.razorpay_signature,
+            };
+            const vres = await verifyRazorpayPayment(vp, { idempotencyKey: makeIdempotencyKey("orders/verify-payment", vp) });
+            setCurrentOrder(vres.order || currentOrder);
+            setActionState({ loading: false, error: "", success: "Payment successful! Order confirmed." });
+            toast.success("Payment successful!");
+          } catch (e) {
+            setActionState({ loading: false, error: e.message || "Verification failed.", success: "" });
+          }
+        },
+        modal: { ondismiss: () => setActionState({ loading: false, error: "Payment cancelled.", success: "" }) },
+      });
+      rzp.on("payment.failed", (f) =>
+        setActionState({ loading: false, error: f?.error?.description || "Payment failed.", success: "" }),
+      );
+      rzp.open();
+    } catch (e) {
+      setActionState({ loading: false, error: e.message || "Could not retry payment.", success: "" });
+    }
+  }
+
+  // Task 10 — download the GST tax invoice PDF (auth'd fetch → blob).
+  async function downloadInvoice() {
+    const token = getAuthToken();
+    if (!token) return;
+    setInvoiceLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/user/orders/${currentOrder._id}/invoice?format=pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Could not generate invoice");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `invoice-${currentOrder.order_number}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e.message || "Invoice download failed");
+    } finally {
+      setInvoiceLoading(false);
+    }
+  }
+
+  // Task 7 — submit a return / replacement for one delivered item. A
+  // change-of-mind return charges reverse shipping via Razorpay first.
+  async function submitReturn() {
+    const token = getAuthToken();
+    if (!token || !returnModal) return;
+    if (returnForm.reason.trim().length < 5) {
+      toast.error("Please describe the issue (min 5 characters).");
+      return;
+    }
+    setActionState({ loading: true, error: "", success: "" });
+    try {
+      const payload = { reason: returnForm.reason.trim(), mode: returnForm.mode, quantity: 1 };
+      const res = await createItemReturnRequest(token, currentOrder._id, returnModal.item_id, payload, {
+        idempotencyKey: makeIdempotencyKey("return", { o: currentOrder._id, i: returnModal.item_id, ...payload }),
+      });
+      const returnId = res?.return_id || res?.id || res?.return?._id || res?.return?.id || null;
+      // change-of-mind → pay reverse shipping, then confirm.
+      if (res?.razorpay?.order_id && returnId) {
+        const loaded = await loadRazorpayScript();
+        if (!loaded) throw new Error("Failed to load Razorpay.");
+        const rz = res.razorpay;
+        const rzp = new window.Razorpay({
+          key: rz.key_id,
+          amount: rz.amount,
+          currency: rz.currency || "INR",
+          name: rz.name || "MyShaadiStore",
+          description: rz.description || "Reverse shipping",
+          order_id: rz.order_id,
+          prefill: rz.prefill,
+          theme: { color: "#ff4f86" },
+          handler: async (pr) => {
+            try {
+              await confirmReturnPayment(token, returnId, {
+                razorpay_order_id: pr.razorpay_order_id,
+                razorpay_payment_id: pr.razorpay_payment_id,
+                razorpay_signature: pr.razorpay_signature,
+              });
+              setActionState({ loading: false, error: "", success: "Return request submitted." });
+              toast.success("Return request submitted.");
+              setReturnModal(null);
+            } catch (e) {
+              setActionState({ loading: false, error: e.message || "Payment failed.", success: "" });
+            }
+          },
+          modal: {
+            ondismiss: () =>
+              setActionState({ loading: false, error: "Payment cancelled — return not submitted.", success: "" }),
+          },
+        });
+        rzp.open();
+        return;
+      }
+      setActionState({ loading: false, error: "", success: "Return request submitted." });
+      toast.success("Return request submitted.");
+      setReturnModal(null);
+    } catch (e) {
+      setActionState({ loading: false, error: e.message || "Could not submit return", success: "" });
     }
   }
 
@@ -196,7 +389,7 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
       </div>
 
       {/* Progress Tracker */}
-      {!isCancelled && (
+      {!isCancelled && !isPaymentFailed && (
         <div className="mt-8 rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Order Progress</h2>
           <div className="relative mt-6 flex items-center justify-between">
@@ -234,12 +427,38 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
       {/* Cancelled banner */}
       {isCancelled && (
         <div className="mt-8 rounded-2xl border border-danger/30 bg-danger/10 px-6 py-4 text-center">
-          <p className="font-semibold text-danger">This order has been {currentOrder.status.toLowerCase()}.</p>
+          <p className="font-semibold text-danger">This order has been cancelled.</p>
         </div>
       )}
 
-      {(canCancel || canRefund) && (
+      {/* Payment-failed banner (Task 6) */}
+      {isPaymentFailed && (
+        <div className="mt-8 rounded-2xl border border-danger/30 bg-danger/10 px-6 py-4">
+          <p className="font-semibold text-danger">Payment for this order didn&apos;t go through.</p>
+          <p className="mt-1 text-sm text-danger/80">Retry the payment below to confirm your order.</p>
+        </div>
+      )}
+
+      {(canRetry || canCancel || canRefund || isPaid) && (
         <div className="mt-4 flex flex-wrap items-center gap-3">
+          {canRetry && (
+            <button
+              onClick={onRetryPayment}
+              disabled={actionState.loading}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary-hover disabled:opacity-50"
+            >
+              <RefreshCw className="h-4 w-4" /> {actionState.loading ? "Please wait..." : "Retry payment"}
+            </button>
+          )}
+          {isPaid && (
+            <button
+              onClick={downloadInvoice}
+              disabled={invoiceLoading}
+              className="inline-flex items-center gap-2 rounded-xl border border-border-strong bg-surface px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-muted disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" /> {invoiceLoading ? "Preparing…" : "Download invoice (PDF)"}
+            </button>
+          )}
           {canCancel && (
             <button
               onClick={onCancelOrder}
@@ -283,13 +502,41 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                     <p className="text-xs text-subtle">{item.category_label}</p>
                   )}
                 </div>
-                <div className="text-right">
-                  <p className="font-bold text-text">{formatCurrency(item.price)}</p>
-                  <p className="text-xs text-subtle">Qty: {item.quantity}</p>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="text-right">
+                    <p className="font-bold text-text">{formatCurrency(item.price)}</p>
+                    <p className="text-xs text-subtle">Qty: {item.quantity}</p>
+                  </div>
+                  {canReturn && item.item_id ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReturnForm({ reason: "", mode: "return" });
+                        setActionState({ loading: false, error: "", success: "" });
+                        setReturnModal(item);
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border-strong px-2.5 py-1 text-xs font-semibold text-muted transition hover:border-primary hover:text-primary"
+                    >
+                      <PackageOpen className="h-3.5 w-3.5" /> Return / Replace
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}
           </div>
+          {/* Coupon discount line */}
+          {(Number(currentOrder.coupon_discount_paise) > 0 || currentOrder.coupon_free_shipping) && (
+            <div className="mt-2 flex items-center justify-between border-t border-border pt-4 text-sm">
+              <p className="font-medium text-muted">
+                Coupon{currentOrder.coupon_code ? ` (${currentOrder.coupon_code})` : ""}
+              </p>
+              <p className="font-semibold text-success">
+                {Number(currentOrder.coupon_discount_paise) > 0
+                  ? `− ${formatCurrency(Number(currentOrder.coupon_discount_paise) / 100)}`
+                  : "Free shipping"}
+              </p>
+            </div>
+          )}
           {/* Total */}
           <div className="mt-2 flex items-center justify-between border-t border-border pt-4">
             <p className="font-semibold text-muted">Total</p>
@@ -317,6 +564,26 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
               <p className="mt-3 text-sm text-subtle">Not provided</p>
             )}
           </div>
+
+          {/* Delivery date (Task 13) */}
+          {(deliveredAt || expectedDelivery) && (
+            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Delivery</h2>
+              <div className="mt-3 text-sm">
+                {deliveredAt ? (
+                  <div className="flex justify-between">
+                    <span className="text-subtle">Delivered on</span>
+                    <span className="font-semibold text-success">{formatDateShort(deliveredAt)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="text-subtle">Expected by</span>
+                    <span className="font-semibold text-text">{formatDateShort(expectedDelivery)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Shipment info */}
           {currentOrder.shipment && (
@@ -401,6 +668,83 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
           )}
         </div>
       </div>
+
+      {/* Return / replace modal (Task 7) */}
+      {returnModal ? (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center bg-text-strong/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setReturnModal(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-text-strong">Return or replace item</h3>
+            <p className="mt-1 line-clamp-1 text-sm text-muted">{returnModal.name}</p>
+            <div className="mt-4 space-y-3">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReturnForm((f) => ({ ...f, mode: "return" }))}
+                  className={`flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                    returnForm.mode === "return"
+                      ? "border-primary bg-primary-soft text-primary"
+                      : "border-border-strong text-muted hover:border-primary/40"
+                  }`}
+                >
+                  Return (store credit)
+                </button>
+                {siteCfg.replacement_enabled ? (
+                  <button
+                    type="button"
+                    onClick={() => setReturnForm((f) => ({ ...f, mode: "replace" }))}
+                    className={`flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                      returnForm.mode === "replace"
+                        ? "border-primary bg-primary-soft text-primary"
+                        : "border-border-strong text-muted hover:border-primary/40"
+                    }`}
+                  >
+                    Replace item
+                  </button>
+                ) : null}
+              </div>
+              <textarea
+                value={returnForm.reason}
+                onChange={(e) => setReturnForm((f) => ({ ...f, reason: e.target.value }))}
+                rows={3}
+                placeholder="What's the issue? (defective, wrong item, changed mind…)"
+                className="w-full rounded-xl border border-border-strong bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+              />
+              <p className="text-xs text-subtle">
+                Defective / wrong items are free to return. Change-of-mind returns may charge reverse shipping before
+                pickup.
+              </p>
+              {actionState.error ? <p className="text-sm text-danger">{actionState.error}</p> : null}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setReturnModal(null)}
+                className="h-10 rounded-xl border border-border-strong px-4 text-sm font-semibold text-muted hover:bg-surface-muted"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitReturn}
+                disabled={actionState.loading}
+                className="h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+              >
+                {actionState.loading ? "Submitting…" : "Submit request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

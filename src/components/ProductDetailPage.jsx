@@ -27,7 +27,7 @@
  *   - Reused shared helpers from `lib/itemUiHelpers.js`
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -75,6 +75,7 @@ import {
 } from "@/lib/api";
 import { safeCssUrl } from "@/lib/utils";
 import { resolveRating, formatCountdown } from "@/lib/itemUiHelpers";
+import useSiteConfig from "@/lib/useSiteConfig";
 import BasketButton from "@/components/BasketButton";
 import ItemCardV2 from "@/components/ItemCardV2";
 import VerifiedBadge from "@/components/VerifiedBadge";
@@ -318,6 +319,15 @@ export default function ProductDetailPage({ itemId }) {
   const justAddedTimers = useRef({});
   const cartState = useCartState();
 
+  // Tri-state reviews toggle (shared contract). "disabled" hides the top
+  // rating row AND the whole reviews section; otherwise both render.
+  const { config } = useSiteConfig();
+  const reviewsMode = config.reviews_mode;
+  // Live approved-review summary lifted from <ProductReviews/> so the headline
+  // count always matches the list below (item.review_count can be stale).
+  const [reviewSummary, setReviewSummary] = useState(null);
+  const handleReviewSummary = useCallback((s) => setReviewSummary(s), []);
+
   // Tick once a minute so the sale-ends countdown stays fresh.
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -343,6 +353,7 @@ export default function ProductDetailPage({ itemId }) {
         setItem(fetched);
         setActiveImage(0);
         setActiveTab("overview");
+        setReviewSummary(null);
         const resolved = resolveStep(steps, fetched);
         setStep(resolved);
 
@@ -468,6 +479,19 @@ export default function ProductDetailPage({ itemId }) {
   const stepNature = useMemo(() => resolveStepNature(step), [step]);
 
   const rating = useMemo(() => (item ? resolveRating(item) : null), [item]);
+  // Headline rating shown next to the title. Once the live approved-review
+  // summary arrives from <ProductReviews/> it becomes the source of truth so
+  // the count matches the list below (the stored item.review_count can be
+  // stale — this fixes the "N reviews up top, 0 below" mismatch). Until then
+  // we fall back gracefully to the stored rating.
+  const headlineRating = useMemo(() => {
+    if (reviewSummary) {
+      const count = Number(reviewSummary.count) || 0;
+      if (count <= 0) return null;
+      return { value: Number(reviewSummary.avgRating) || 0, count };
+    }
+    return rating;
+  }, [reviewSummary, rating]);
   const locationStr = useMemo(() => {
     if (!item) return "";
     return [item.location_city, item.location_state].filter(Boolean).join(", ");
@@ -488,6 +512,15 @@ export default function ProductDetailPage({ itemId }) {
     if (!hasDiscount || !item?.discount?.is_enabled) return null;
     return formatCountdown(item.discount?.ends_at);
   }, [hasDiscount, item]);
+
+  // Absolute savings + percentage for the premium price block. Only meaningful
+  // when a discount is live AND the MRP is actually higher than the sale price.
+  const savings = useMemo(() => {
+    if (!hasDiscount || basePrice <= finalPrice) return null;
+    const amount = basePrice - finalPrice;
+    const pct = Math.round((amount / basePrice) * 100);
+    return { amount, pct };
+  }, [hasDiscount, basePrice, finalPrice]);
 
   function buildCartPayload() {
     if (!item) return null;
@@ -743,7 +776,7 @@ export default function ProductDetailPage({ itemId }) {
         </nav>
 
         {/* HERO: gallery (left) + sticky purchase column (right) */}
-        <section className="mt-6 grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-14 lg:items-start">
+        <section className="mt-6 grid gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-14 lg:items-start">
           {/* Gallery — hero image with thumbnails below */}
           <div className="space-y-4">
             <button
@@ -835,52 +868,99 @@ export default function ProductDetailPage({ itemId }) {
               </button>
             </div>
 
-            {/* Rating row */}
-            {rating ? (
+            {/* Rating row — hidden entirely when reviews are disabled. Uses the
+                live approved-review summary once known so the count matches the
+                reviews list below. */}
+            {reviewsMode !== "disabled" && headlineRating ? (
               <div className="mt-3 flex items-center gap-2 text-sm text-muted">
-                <StarRow value={rating.value} size="lg" />
-                <span className="font-semibold text-text">{rating.value.toFixed(1)}</span>
-                <span>({rating.count} reviews)</span>
+                <StarRow value={headlineRating.value} size="lg" />
+                <span className="font-semibold text-text">{headlineRating.value.toFixed(1)}</span>
+                <span>({headlineRating.count} reviews)</span>
               </div>
             ) : null}
 
-            <div className="mt-3 flex items-center gap-1.5 text-sm text-muted">
-              <Store className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {/* Hero trust strip — vendor identity + inline rating in one
+                compact bordered row, just above the price. */}
+            <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-y border-border py-2.5 text-sm text-muted">
               <span className="inline-flex items-center gap-1.5">
-                Sold by{" "}
+                {isSellerVerified ? <VerifiedBadge size="sm" /> : (
+                  <Store className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                )}
                 <span className="font-semibold text-text">{vendorName}</span>
-                {isSellerVerified ? <VerifiedBadge size="sm" /> : null}
               </span>
-            </div>
-
-            {/* Price block */}
-            <div className="mt-6 rounded-2xl border border-border bg-surface-muted/40 p-5">
-              <div className="flex flex-wrap items-baseline gap-3">
-                <span className="text-3xl font-bold text-text sm:text-4xl">
-                  {formatRupees(finalPrice)}
-                </span>
-                {hasDiscount && basePrice > finalPrice ? (
-                  <>
-                    <span className="text-sm text-muted line-through">
-                      {formatRupees(basePrice)}
-                    </span>
-                    <span className="rounded-md bg-primary-soft px-2 py-0.5 text-xs font-bold text-primary">
-                      {item.discount_percentage}% OFF
-                    </span>
-                  </>
-                ) : null}
-              </div>
-              <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-success">
-                <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-                Best price guarantee
-              </div>
-              {countdown ? (
-                <div className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
-                  <Timer className="h-3.5 w-3.5" aria-hidden />
-                  Sale ends in {countdown}
-                </div>
+              {reviewsMode !== "disabled" && headlineRating ? (
+                <>
+                  <span className="text-border-strong" aria-hidden>
+                    &middot;
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Star className="h-4 w-4 text-warning" fill="currentColor" strokeWidth={2} aria-hidden />
+                    <span className="font-semibold text-text">{headlineRating.value.toFixed(1)}</span>
+                    <span>({headlineRating.count} reviews)</span>
+                  </span>
+                </>
               ) : null}
             </div>
+
+            {/* Price block — premium: left accent bar + larger price +
+                explicit savings line. */}
+            <div className="mt-6 flex gap-4 rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+              <span className="w-1 shrink-0 rounded-full bg-primary" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline gap-3">
+                  <span className="text-3xl font-bold text-text sm:text-4xl">
+                    {formatRupees(finalPrice)}
+                  </span>
+                  {hasDiscount && basePrice > finalPrice ? (
+                    <>
+                      <span className="text-sm text-muted line-through">
+                        {formatRupees(basePrice)}
+                      </span>
+                      <span className="rounded-md bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
+                        {item.discount_percentage}% OFF
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+                {savings ? (
+                  <div className="mt-2 text-sm font-semibold text-success">
+                    You save {formatRupees(savings.amount)} ({savings.pct}%)
+                  </div>
+                ) : null}
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-success">
+                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+                  Best price guarantee
+                </div>
+                {countdown ? (
+                  <div className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
+                    <Timer className="h-3.5 w-3.5" aria-hidden />
+                    Sale ends in {countdown}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Rating summary mini-card — compact at-a-glance review snapshot
+                near the price. Reuses headlineRating (no extra fetch); hidden
+                when reviews are off or there are no approved reviews yet. */}
+            {reviewsMode !== "disabled" && headlineRating && headlineRating.count > 0 ? (
+              <div className="mt-4 flex items-center gap-4 rounded-2xl border border-border bg-surface p-4 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+                <div className="flex shrink-0 flex-col items-center">
+                  <span className="text-3xl font-bold leading-none text-text">
+                    {headlineRating.value.toFixed(1)}
+                  </span>
+                  <span className="mt-0.5 text-[11px] font-medium text-muted">out of 5</span>
+                </div>
+                <div className="min-w-0">
+                  <StarRow value={headlineRating.value} size="lg" />
+                  <div className="mt-1 text-xs text-muted">
+                    Based on{" "}
+                    <span className="font-semibold text-text">{headlineRating.count}</span>{" "}
+                    verified review{headlineRating.count === 1 ? "" : "s"}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {/* Variant selector — only when this item has variants */}
             {hasVariants ? (
@@ -1054,20 +1134,6 @@ export default function ProductDetailPage({ itemId }) {
                   </div>
                 </div>
               </div>
-              {!whiteLabelOn ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    // Stubbed — wiring TBD when vendor inbox lands.
-                    // eslint-disable-next-line no-console
-                    console.log("[PDP] Message vendor stub", { vendorName })
-                  }
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 py-2 text-sm font-semibold text-text transition hover:border-primary hover:text-primary"
-                >
-                  <MessageCircle className="h-4 w-4" aria-hidden />
-                  Message vendor
-                </button>
-              ) : null}
             </div>
           </div>
         </section>
@@ -1272,10 +1338,14 @@ export default function ProductDetailPage({ itemId }) {
           </div>
         </section>
 
-        {/* Ratings & Reviews — its own section, below the tabs */}
-        <section className="mt-12">
-          <ProductReviews itemId={item.item_id} />
-        </section>
+        {/* Ratings & Reviews — its own section, below the tabs. Skipped
+            entirely when reviews are disabled. The onSummary callback lifts
+            the live approved-review count up so the headline rating matches. */}
+        {reviewsMode !== "disabled" ? (
+          <section className="mt-12">
+            <ProductReviews itemId={item.item_id} onSummary={handleReviewSummary} />
+          </section>
+        ) : null}
 
         {/* "You might also like" */}
         {relatedItems.length > 0 ? (
@@ -1295,20 +1365,26 @@ export default function ProductDetailPage({ itemId }) {
                 </Link>
               ) : null}
             </div>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {/* Horizontal scroll-snap carousel (no JS deps). Negative margins
+                let cards bleed to the viewport edge on mobile for a premium feel. */}
+            <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:thin]">
               {relatedItems.map((rel) => {
                 const wlRel = !rel.vendor_id;
                 const relVendor = wlRel
                   ? "MyShaadiStore"
                   : rel.vendor_business_name || rel.vendor_name || "Vendor";
                 return (
-                  <ItemCardV2
+                  <div
                     key={rel.item_id}
-                    item={rel}
-                    vendorName={relVendor}
-                    whiteLabelOn={wlRel}
-                    step={step}
-                  />
+                    className="w-[260px] shrink-0 snap-start sm:w-[280px]"
+                  >
+                    <ItemCardV2
+                      item={rel}
+                      vendorName={relVendor}
+                      whiteLabelOn={wlRel}
+                      step={step}
+                    />
+                  </div>
                 );
               })}
             </div>
@@ -1413,7 +1489,7 @@ export default function ProductDetailPage({ itemId }) {
               ) : (
                 <ClipboardList className="h-4 w-4" aria-hidden />
               )}
-              {justAdded.quotation ? "Added" : "Add to Inquiry"}
+              {justAdded.quotation ? "Added" : "Add to Cart"}
             </button>
           </div>
         )}
@@ -1440,15 +1516,18 @@ export default function ProductDetailPage({ itemId }) {
 
 function AddButton({ onClick, icon, label, primary = true, justAdded = false }) {
   const flashCls = "bg-success text-primary-foreground shadow-[0_8px_22px_rgba(34,197,94,0.35)]";
+  // Primary CTA carries more visual weight: larger padding, bigger text and a
+  // lifted shadow vs. the lighter secondary (outline) action.
   const baseCls = primary
-    ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover"
+    ? "bg-primary text-primary-foreground shadow-[0_10px_24px_-8px_var(--primary)] hover:bg-primary-hover hover:shadow-[0_14px_30px_-8px_var(--primary)]"
     : "border border-primary bg-surface text-primary hover:bg-primary-soft";
+  const sizeCls = primary ? "px-5 py-3.5 text-base" : "px-5 py-3 text-sm";
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={justAdded}
-      className={`flex w-full items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-bold transition-all duration-300 ${
+      className={`flex w-full items-center justify-center gap-2 rounded-md font-bold transition-all duration-300 ${sizeCls} ${
         justAdded ? flashCls : baseCls
       }`}
     >

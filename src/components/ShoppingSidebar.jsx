@@ -26,7 +26,8 @@ import { SlidersHorizontal, X } from "lucide-react";
 function fabricsFromItems(items) {
   const set = new Set();
   for (const item of items || []) {
-    const f = item?.attributes?.fabric || item?.attributes?.material;
+    const f =
+      item?.attributes?.fabric_material || item?.attributes?.fabric || item?.attributes?.material;
     if (typeof f === "string" && f.trim()) {
       set.add(f.trim());
     } else if (Array.isArray(f)) {

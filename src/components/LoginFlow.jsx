@@ -4,15 +4,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthScene from "@/components/AuthScene";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { getAuthToken, getAuthUser, saveAuthCookies } from "@/lib/authCookies";
 import {
   loginUser,
   requestResetOtp,
   resetPassword,
   verifyUserOtp,
+  googleAuth,
+  completeGooglePhone,
 } from "@/lib/api";
 import { isValidIndianPhone, normalizeIndianPhone, validatePasswordStrength } from "@/lib/authValidation";
 import { makeIdempotencyKey } from "@/lib/idempotencyKey";
+import { sendAttribution } from "@/lib/attribution";
 import { toast } from "sonner";
 
 function computeResumePhaseFromOnboarding(onboarding = {}) {
@@ -82,15 +86,99 @@ function LockIcon() {
 }
 
 function SocialAuth() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(null); // { pending_token, name, email }
+  const [phone, setPhone] = useState("");
+
+  const Divider = (
+    <div className="relative flex items-center">
+      <div className="h-px flex-1 bg-border-strong" />
+      <span className="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-border-strong">Or</span>
+      <div className="h-px flex-1 bg-border-strong" />
+    </div>
+  );
+
+  // Google not configured (no client id) → keep the original divider-only look.
+  if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+    return <div className="mt-8 space-y-6">{Divider}</div>;
+  }
+
+  function finish(data) {
+    saveAuthCookies(data);
+    sendAttribution(getAuthToken()).catch(() => {});
+    const r = searchParams.get("redirect") || searchParams.get("returnTo");
+    router.push(r || "/");
+  }
+
+  async function onCredential(credential) {
+    setBusy(true);
+    try {
+      const res = await googleAuth(credential);
+      if (res?.token) {
+        toast.success("Signed in with Google");
+        finish(res);
+        return;
+      }
+      if (res?.needs_phone && res?.pending_token) {
+        setPending({ pending_token: res.pending_token, name: res.name, email: res.email });
+        return;
+      }
+      throw new Error("Google sign-in failed");
+    } catch (e) {
+      toast.error(e.message || "Google sign-in failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitPhone(e) {
+    e.preventDefault();
+    const p = normalizeIndianPhone(phone);
+    if (!isValidIndianPhone(p)) {
+      toast.error("Enter a valid 10-digit mobile number.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await completeGooglePhone({ pending_token: pending.pending_token, phone: p, name: pending.name });
+      toast.success("Welcome to MyShaadiStore!");
+      finish(res);
+    } catch (e) {
+      toast.error(e.message || "Could not complete signup.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="mt-8 space-y-6">
-      <div className="relative flex items-center">
-        <div className="h-px flex-1 bg-border-strong" />
-        <span className="px-4 text-[10px] font-black uppercase tracking-[0.3em] text-border-strong">Or</span>
-        <div className="h-px flex-1 bg-border-strong" />
-      </div>
+      {Divider}
+      {pending ? (
+        <form onSubmit={submitPhone} className="space-y-3">
+          <p className="text-center text-sm text-muted">
+            Almost there{pending.name ? `, ${pending.name.split(" ")[0]}` : ""} — add your mobile number to finish.
+          </p>
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="10-digit mobile number"
+            className={INPUT_CLASS}
+          />
+          <button type="submit" disabled={busy} className={`${PRIMARY_BTN_CLASS} w-full`}>
+            {busy ? "Please wait…" : "Continue"}
+          </button>
+        </form>
+      ) : (
+        <div className="flex justify-center">
+          <GoogleSignInButton onCredential={onCredential} />
+        </div>
+      )}
     </div>
-  )
+  );
 }
 
 const INPUT_CLASS =
@@ -163,6 +251,8 @@ export default function LoginFlow({ initialSteps = [] }) {
       const idempotencyKey = makeIdempotencyKey("auth/login", payload);
       const data = await loginUser(phone, form.password, { idempotencyKey });
       saveAuthCookies(data);
+      // First-touch lead attribution: flush the captured source to the profile.
+      sendAttribution(getAuthToken()).catch(() => {});
       toast.success("Login successful.");
       
       // Accept either `redirect` (new canonical name) or `returnTo`

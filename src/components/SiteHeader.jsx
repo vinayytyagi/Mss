@@ -551,7 +551,7 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
 
         </div>
       </div>
-      <div className="h-22 sm:h-23" aria-hidden="true" />
+      <div className="h-22 sm:h-16" aria-hidden="true" />
       <LogoutConfirmModal
         open={logoutModalOpen}
         onClose={() => {

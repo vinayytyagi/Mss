@@ -1,5 +1,10 @@
 import { notFound } from "next/navigation";
 import JourneyStepPage from "@/components/JourneyStepPage";
+import JourneyEnquiryPage from "@/components/journey/JourneyEnquiryPage";
+import JourneyPackagesPage from "@/components/journey/JourneyPackagesPage";
+import JourneySectionsPage from "@/components/journey/JourneySectionsPage";
+import JourneyDualPage from "@/components/journey/JourneyDualPage";
+import { getJourneyPageMode } from "@/lib/journeyStepUi";
 import { fetchItems, fetchJourneyStep, fetchJourneySteps, fetchStepCategories } from "@/lib/api";
 import { getAuthUserServer } from "@/lib/authCookiesServer";
 
@@ -177,7 +182,7 @@ function categoryUrlSegment(c) {
   return s || c.category_id || "";
 }
 
-function resolveJourneyCategorySelection(categories, categoryParam, subcategoryParam, subSubcategoryParam) {
+function resolveJourneyCategorySelection(categories, categoryParam, subcategoryParam, subSubcategoryParam, defaultToFirst = true) {
   const tops = categories.filter((c) => !c.parent_category_id);
   if (tops.length === 0) {
     // Step has no categories — nothing to select. The UI hides all pills.
@@ -198,7 +203,20 @@ function resolveJourneyCategorySelection(categories, categoryParam, subcategoryP
     if (!cat) cat = tops.find((c) => String(c.slug || "").trim().toLowerCase() === p.toLowerCase()) || null;
     if (!cat) cat = tops.find((c) => c.category_id === p) || null;
   }
-  if (!cat) cat = tops[0] || null;
+  // Listing/dual steps default to "All" (show everything) so landing on a
+  // step never hides the catalog behind a forced first-category filter.
+  // Package steps still default to their first tab.
+  if (!cat && defaultToFirst) cat = tops[0] || null;
+  if (!cat) {
+    return {
+      effectiveCategoryId: "",
+      effectiveSubcategoryId: "",
+      effectiveSubSubcategoryId: "",
+      selectedCategorySlug: "",
+      selectedSubcategorySlug: "",
+      selectedSubSubcategorySlug: "",
+    };
+  }
 
   const sp = String(subcategoryParam || "").trim();
   let sub = null;
@@ -242,6 +260,32 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
     notFound();
   }
 
+  const pageMode = getJourneyPageMode(step.slug);
+
+  // Enquiry steps (legacy "we'll call you" form). No slug maps here anymore
+  // — the four enquiry steps now render the SectionsBuilder — but the branch
+  // is kept so a step explicitly set to "enquiry" still works.
+  if (pageMode === "enquiry") {
+    const enquirySteps = await fetchJourneySteps();
+    return (
+      <main>
+        <JourneyEnquiryPage steps={enquirySteps} step={step} />
+      </main>
+    );
+  }
+
+  // Sections steps (wedding-invitation / streedhan / pagfera / honeymoon)
+  // render the SectionsBuilder package assembler — no vendor item grid, so
+  // skip the catalog fetch + filter plumbing entirely.
+  if (pageMode === "sections") {
+    const sectionsSteps = await fetchJourneySteps();
+    return (
+      <main>
+        <JourneySectionsPage steps={sectionsSteps} step={step} />
+      </main>
+    );
+  }
+
   const categoryParam = resolvedSearchParams?.category || "";
   const subcategoryParam = resolvedSearchParams?.subcategory || resolvedSearchParams?.subcategory_id || "";
   const subSubcategoryParam =
@@ -250,6 +294,18 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
     resolvedSearchParams?.sub_subcategory_id ||
     "";
   const search = (resolvedSearchParams?.search || "").trim();
+
+  // Shopping Dulha/Dulhan pill. Only "bride" | "groom" narrow the fetch;
+  // anything else ("all" / absent) leaves the audience param off so the
+  // backend returns everything. Passed straight to GET /items?audience=.
+  const audienceRaw = String(
+    Array.isArray(resolvedSearchParams?.audience)
+      ? resolvedSearchParams.audience[0]
+      : resolvedSearchParams?.audience || "",
+  )
+    .trim()
+    .toLowerCase();
+  const audienceFilter = audienceRaw === "bride" || audienceRaw === "groom" ? audienceRaw : "";
 
   const matchLocRaw = String(resolvedSearchParams?.matchLoc ?? "").trim().toLowerCase();
   const matchGuestsRaw = String(resolvedSearchParams?.matchGuests ?? "").trim().toLowerCase();
@@ -299,6 +355,7 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
     categoryParam,
     subcategoryParam,
     subSubcategoryParam,
+    pageMode === "packages",
   );
 
   /** Step budget is for plan / UI only — item price band comes only from Product price (?pmin / ?pmax). */
@@ -313,6 +370,8 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
       // sub-sub doesn't have a slug-resolver on the backend — pass the id directly.
       ...(sel.effectiveSubSubcategoryId ? { subSubcategoryId: sel.effectiveSubSubcategoryId } : {}),
       ...(search ? { search } : {}),
+      // Dulha/Dulhan shopping filter — server-side narrowing via ?audience=.
+      ...(audienceFilter ? { audience: audienceFilter } : {}),
       limit: 500,
     },
     { cacheMode: "revalidate", revalidateSeconds: 60 },
@@ -356,6 +415,33 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
         ? appliedBudgetCap
         : null;
   items = filterItemsByPriceRange(items, null, productPriceCap);
+
+  // Dual steps (catering / gifting) render a tab shell: the vendor product
+  // grid (this filtered catalog) plus the SectionsBuilder package tab.
+  if (pageMode === "dual") {
+    return (
+      <main>
+        <JourneyDualPage steps={steps} step={step} items={items} />
+      </main>
+    );
+  }
+
+  // Package steps (photography / makeup-and-mehndi) render the catalog
+  // as tier-comparison cards with category tabs instead of the grid.
+  if (pageMode === "packages") {
+    return (
+      <main>
+        <JourneyPackagesPage
+          steps={steps}
+          step={step}
+          categories={categories}
+          items={items}
+          selectedCategoryId={sel.effectiveCategoryId}
+          selectedCategorySlug={sel.selectedCategorySlug}
+        />
+      </main>
+    );
+  }
 
   return (
     <main>

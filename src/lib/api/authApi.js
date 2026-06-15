@@ -43,3 +43,17 @@ export async function requestResetOtp(phone, { idempotencyKey } = {}) {
 export async function resetPassword(payload, { idempotencyKey } = {}) {
   return apiPost("/auth/user/forgot-password/reset", { payload, idempotencyKey });
 }
+
+/**
+ * Google sign-in: POST the Google ID-token credential. Returns either a full
+ * session { token, user } (existing user with a phone) or { needs_phone:true,
+ * pending_token } for a new Google user who must add a mobile number.
+ */
+export async function googleAuth(credential, { idempotencyKey } = {}) {
+  return apiPost("/auth/user/google", { payload: { credential }, idempotencyKey });
+}
+
+/** Complete a Google signup by attaching a mobile number → returns { token, user }. */
+export async function completeGooglePhone(payload, { idempotencyKey } = {}) {
+  return apiPost("/auth/user/google/complete-phone", { payload, idempotencyKey });
+}

@@ -1,28 +1,27 @@
-import CartHeaderStatsClient from "@/components/CartHeaderStatsClient";
+import Link from "next/link";
 import CartPageExperienceClient from "@/components/CartPageExperienceClient";
 import { Suspense } from "react";
 
 export default function CartPageServer() {
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <section className="rounded-3xl border border-border bg-[linear-gradient(135deg,#ffffff_0%,#f9f7f8_48%,#ffffff_100%)] px-5 py-6 shadow-[0_14px_34px_rgba(15,23,42,0.04)] sm:px-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="inline-flex rounded-full bg-surface-muted px-3 py-1.5 text-[11px] font-medium text-secondary">
-              Cart
-            </div>
-            <h1 className="mt-4 text-2xl font-semibold tracking-tight text-text-strong sm:text-3xl">
-              Quotation and Shopping Carts
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted sm:text-base">
-              Journey items and shopping products can be added to the quotation basket. Shopping
-              products that you want to purchase immediately go into the shopping cart.
-            </p>
-          </div>
+    <main className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
+      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs font-medium text-subtle">
+        <Link href="/" className="transition hover:text-primary">
+          Home
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="text-muted">Cart</span>
+      </nav>
 
-          <CartHeaderStatsClient />
-        </div>
-      </section>
+      <div className="mt-3 flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-3xl">
+          Your Carts
+        </h1>
+        <p className="max-w-2xl text-sm leading-6 text-muted">
+          Send wedding-journey items for a tailored quotation, or check out shopping products
+          instantly with secure Razorpay payment.
+        </p>
+      </div>
 
       <Suspense fallback={null}>
         <CartPageExperienceClient />
@@ -30,4 +29,3 @@ export default function CartPageServer() {
     </main>
   );
 }
-

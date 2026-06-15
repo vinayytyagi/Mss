@@ -1,41 +1,73 @@
 "use client";
 
+import { Info, Tag, Layers, Ruler, Sparkles, Package } from "lucide-react";
+
 /**
  * Customer-facing "spec sheet" for an item.
  *
  * Renders item.attributes grouped by field.group from the per-journey-step
- * attribute schema. Falls back gracefully if the schema isn't available
- * or the item has no attributes.
- *
- * Use anywhere an item is shown in detail to the customer — works for
- * Venues, Catering, Photography, etc., not just Shopping.
+ * attribute schema (mss-admin/src/lib/itemAttributesSchema.js). The same
+ * fields the vendor/admin filled in the item form show up here, so the
+ * three apps stay in sync. Falls back gracefully when the schema isn't
+ * available or the item has no attributes.
  *
  *   <ItemAttributesSpec item={item} schema={schema} />
  *
- * `schema` is the per-step schema object (fetched from
- * `/api/v1/items/attribute-schema?stepSlug=...`).
- * If `schema` is not provided, falls back to displaying attribute keys
- * as plain text labels (less pretty but still informative).
+ * Styling uses the shared design tokens (text / muted / border / primary)
+ * so it matches the rest of the product detail page.
  */
-
-const HIDE_ALWAYS = new Set(["sample_menu_link", "portfolio_link", "sample_reel_link", "size_chart_link", "google_maps_link"]);
 
 function formatValue(field, value) {
   if (value === null || value === undefined || value === "") return null;
   if (Array.isArray(value)) {
-    if (value.length === 0) return null;
-    return value.join(", ");
+    const cleaned = value.filter((v) => v !== null && v !== undefined && v !== "");
+    return cleaned.length ? cleaned.join(", ") : null;
   }
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (field?.type === "money") {
     const n = Number(value);
     if (Number.isFinite(n)) return `₹${new Intl.NumberFormat("en-IN").format(n)}`;
   }
-  if (field?.type === "url" || HIDE_ALWAYS.has(field?.key)) {
-    // We render URLs as links below; return raw value so the renderer can wrap.
-    return String(value);
-  }
   return String(value);
+}
+
+// Pick a generic, on-brand icon for a group heading based on its name.
+// Falls back to a neutral Info icon so every group reads consistently.
+function iconForGroup(groupName) {
+  const g = String(groupName || "").toLowerCase();
+  if (/(dimension|size|measure|weight|length|width|height)/.test(g)) return Ruler;
+  if (/(material|fabric|finish|style|design|look)/.test(g)) return Sparkles;
+  if (/(category|type|tag|label|brand)/.test(g)) return Tag;
+  if (/(package|content|include|kit|bundle|set)/.test(g)) return Package;
+  if (/(spec|detail|feature|attribute|layer|variant)/.test(g)) return Layers;
+  return Info;
+}
+
+function SpecRow({ field, value }) {
+  const isUrl = field?.type === "url";
+  const formatted = formatValue(field, value);
+  if (formatted == null) return null;
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-2">
+      <dt className="shrink-0 text-sm text-muted">{field?.label || formatted}</dt>
+      <dd className="text-right">
+        {isUrl ? (
+          <a
+            href={formatted}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block rounded-md bg-primary-soft px-2 py-0.5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+          >
+            View&nbsp;↗
+          </a>
+        ) : (
+          <span className="inline-block rounded-md bg-surface-muted px-2 py-0.5 text-sm font-semibold text-text">
+            {formatted}
+          </span>
+        )}
+      </dd>
+    </div>
+  );
 }
 
 function groupFieldsBySection(schema) {
@@ -53,67 +85,52 @@ export default function ItemAttributesSpec({ item, schema }) {
   const attrs = item?.attributes || {};
   if (!attrs || Object.keys(attrs).length === 0) return null;
 
+  const hasValue = (key) =>
+    attrs[key] !== undefined &&
+    attrs[key] !== null &&
+    attrs[key] !== "" &&
+    !(Array.isArray(attrs[key]) && attrs[key].length === 0);
+
   // With schema: render grouped sections with labels + help text.
   if (schema?.attributes) {
-    const groups = groupFieldsBySection(schema);
-    const groupsWithValues = groups
-      .map(([groupName, fields]) => {
-        const present = fields.filter((f) => attrs[f.key] !== undefined && attrs[f.key] !== null && attrs[f.key] !== "");
-        return [groupName, present];
-      })
+    const groupsWithValues = groupFieldsBySection(schema)
+      .map(([groupName, fields]) => [groupName, fields.filter((f) => hasValue(f.key))])
       .filter(([, fields]) => fields.length > 0);
     if (!groupsWithValues.length) return null;
 
     return (
-      <section className="space-y-5">
-        <h3 className="text-lg font-semibold text-slate-900">Details</h3>
-        {groupsWithValues.map(([groupName, fields]) => (
-          <div key={groupName} className="space-y-2">
-            <h4 className="text-sm font-semibold text-slate-700">{groupName}</h4>
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-              {fields.map((f) => {
-                const v = attrs[f.key];
-                const formatted = formatValue(f, v);
-                if (formatted == null) return null;
-                return (
-                  <div key={f.key} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 py-1.5">
-                    <dt className="text-sm text-slate-600">{f.label}</dt>
-                    <dd className="text-sm font-medium text-slate-900">
-                      {f.type === "url" ? (
-                        <a href={formatted} target="_blank" rel="noopener noreferrer" className="text-pink-600 hover:underline">
-                          Open ↗
-                        </a>
-                      ) : (
-                        formatted
-                      )}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </div>
-        ))}
+      <section className="space-y-8">
+        {groupsWithValues.map(([groupName, fields]) => {
+          const GroupIcon = iconForGroup(groupName);
+          return (
+            <div key={groupName}>
+              <div className="mb-3 flex items-center gap-2 border-b border-border pb-2">
+                <GroupIcon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+                <h4 className="text-[11px] font-bold uppercase tracking-wide text-muted">
+                  {groupName}
+                </h4>
+              </div>
+              <dl className="grid grid-cols-1 gap-x-10 gap-y-0.5 sm:grid-cols-2">
+                {fields.map((f) => (
+                  <SpecRow key={f.key} field={f} value={attrs[f.key]} />
+                ))}
+              </dl>
+            </div>
+          );
+        })}
       </section>
     );
   }
 
-  // Fallback without schema: dump keys as-is (humanized).
-  const entries = Object.entries(attrs).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  // Fallback without schema: humanize the raw keys.
+  const entries = Object.entries(attrs).filter(([key]) => hasValue(key));
   if (!entries.length) return null;
   return (
-    <section className="space-y-2">
-      <h3 className="text-lg font-semibold text-slate-900">Details</h3>
-      <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+    <section>
+      <dl className="grid grid-cols-1 gap-x-10 gap-y-0.5 sm:grid-cols-2">
         {entries.map(([key, value]) => {
-          const formatted = formatValue(null, value);
-          if (formatted == null) return null;
           const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-          return (
-            <div key={key} className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 py-1.5">
-              <dt className="text-sm text-slate-600">{label}</dt>
-              <dd className="text-sm font-medium text-slate-900">{formatted}</dd>
-            </div>
-          );
+          return <SpecRow key={key} field={{ label }} value={value} />;
         })}
       </dl>
     </section>

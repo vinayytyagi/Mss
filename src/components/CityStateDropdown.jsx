@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ChevronDown, Check } from "lucide-react";
+import Dropdown from "@/components/ui/Dropdown";
 import {
   IN_CITIES_BY_STATE,
   IN_STATES,
@@ -59,7 +61,9 @@ export default function CityStateDropdown({
   const [lastSyncedKey, setLastSyncedKey] = useState(`${parsed.state}|${parsed.city}`);
   const wrapRef = useRef(null);
   const inputRef = useRef(null);
+  const triggerRef = useRef(null);
   const [menuStyle, setMenuStyle] = useState(null);
+  const listboxId = useId();
 
   // Sync internal inputs when parent-supplied value changes (e.g., DB hydration /
   // Back navigation). Adjust during render per React 19 docs to avoid a setState-in-effect.
@@ -73,7 +77,7 @@ export default function CityStateDropdown({
   useEffect(() => {
     if (!open) return;
     function update() {
-      const el = inputRef.current;
+      const el = triggerRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
       const maxHeight = Math.min(320, Math.max(180, window.innerHeight - r.bottom - 16));
@@ -97,9 +101,14 @@ export default function CityStateDropdown({
 
   const cityOptions = useMemo(() => {
     const scoped = state ? (IN_CITIES_BY_STATE[state] || []) : [];
-    const fallback = state ? scoped : Array.from(new Set(Object.values(IN_CITIES_BY_STATE).flat()));
-    return filterOptions(fallback, cityQuery || city, 30);
-  }, [state, cityQuery, city]);
+    const source = state ? scoped : Array.from(new Set(Object.values(IN_CITIES_BY_STATE).flat()));
+    // Clicking the control opens the full scoped list immediately; typing
+    // narrows it. We filter on the live query only (not the committed city)
+    // so an already-chosen city does not collapse the list to a single match.
+    return filterOptions(source, cityQuery, 30);
+  }, [state, cityQuery]);
+
+  const stateOptions = useMemo(() => IN_STATES.map((s) => ({ value: s, label: s })), []);
 
   function emit(nextCity, nextState) {
     const payload = { city: normalizeText(nextCity), state: normalizeText(nextState) };
@@ -111,10 +120,9 @@ export default function CityStateDropdown({
     <div ref={wrapRef} className={`w-full ${className}`}>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <select
+          <Dropdown
             value={state}
-            onChange={(e) => {
-              const nextState = e.target.value;
+            onChange={(nextState) => {
               setState(nextState);
               // Changing the state invalidates the previous city (city
               // options are scoped per state). Clear it so the user
@@ -123,67 +131,95 @@ export default function CityStateDropdown({
               setCityQuery("");
               emit("", nextState);
             }}
-            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
-            required={required}
-            aria-label="State"
-          >
-            <option value="">{placeholderState}</option>
-            {IN_STATES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+            options={stateOptions}
+            placeholder={placeholderState}
+            ariaLabel="State"
+            className="[&>button]:h-12 [&>button]:rounded-xl [&>button]:border-border-strong [&>button]:font-medium"
+          />
         </div>
 
         <div className="relative space-y-1">
-          <input
-            ref={inputRef}
-            value={city}
-            onChange={(e) => {
-              setCity(e.target.value);
-              setCityQuery(e.target.value);
+          {/* Searchable, library-backed city DROPDOWN. The trigger mirrors the
+              state <Dropdown> (h-12, rounded-xl, border-border-strong, font-medium,
+              focus ring + trailing chevron) so it reads as a real dropdown, while
+              the embedded input keeps it a typeable combobox that allows free text. */}
+          <div
+            ref={triggerRef}
+            className={`flex h-12 w-full items-center gap-2 rounded-xl border bg-surface px-4 text-sm font-medium transition
+              ${open ? "border-primary ring-2 ring-primary/15" : "border-border-strong"}`}
+            onMouseDown={() => {
+              // Clicking anywhere on the control opens the full scoped list
+              // immediately (no typing required) and focuses the input.
               setOpen(true);
-              emit(e.target.value, state);
+              inputRef.current?.focus();
             }}
-            onFocus={() => setOpen(true)}
-            onBlur={(e) => {
-              // allow click selection from dropdown
-              const next = e.relatedTarget;
-              if (wrapRef.current && next && wrapRef.current.contains(next)) return;
-              setOpen(false);
-              setCityQuery("");
-            }}
-            placeholder={placeholderCity}
-            className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
-            required={required}
-            aria-label="City"
-          />
+          >
+            <input
+              ref={inputRef}
+              value={city}
+              onChange={(e) => {
+                setCity(e.target.value);
+                setCityQuery(e.target.value);
+                setOpen(true);
+                emit(e.target.value, state);
+              }}
+              onFocus={() => setOpen(true)}
+              onBlur={(e) => {
+                // allow click selection from dropdown
+                const next = e.relatedTarget;
+                if (wrapRef.current && next && wrapRef.current.contains(next)) return;
+                setOpen(false);
+                setCityQuery("");
+              }}
+              placeholder={state ? "Choose a city" : placeholderCity}
+              className="min-w-0 flex-1 bg-transparent text-text outline-none placeholder:text-subtle"
+              required={required}
+              aria-label="City"
+              role="combobox"
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              aria-controls={listboxId}
+              autoComplete="off"
+            />
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180 text-primary" : "text-subtle"}`}
+            />
+          </div>
 
           {open && cityOptions.length > 0 && menuStyle
             ? createPortal(
-                <div
+                <ul
+                  id={listboxId}
+                  role="listbox"
                   style={menuStyle}
-                  className="overflow-auto rounded-2xl border border-border bg-surface p-1 shadow-[0_18px_60px_rgba(15,23,42,0.16)]"
+                  className="dropdown-scroll overflow-auto rounded-xl border border-border bg-surface p-1 shadow-lg"
                 >
-                  {cityOptions.map((opt) => (
-                    <button
-                      key={`${state || "any"}:${opt}`}
-                      type="button"
-                      className="w-full cursor-pointer rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition hover:bg-primary-soft hover:text-primary"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setCity(opt);
-                        setOpen(false);
-                        setCityQuery("");
-                        emit(opt, state);
-                      }}
-                    >
-                      {opt}
-                      {state ? <span className="ml-2 text-xs font-medium text-subtle">({state})</span> : null}
-                    </button>
-                  ))}
-                </div>,
+                  {cityOptions.map((opt) => {
+                    const isSel = normalizeText(opt).toLowerCase() === normalizeText(city).toLowerCase();
+                    return (
+                      <li
+                        key={`${state || "any"}:${opt}`}
+                        role="option"
+                        aria-selected={isSel}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setCity(opt);
+                          setOpen(false);
+                          setCityQuery("");
+                          emit(opt, state);
+                        }}
+                        className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition hover:bg-primary-soft hover:text-primary
+                          ${isSel ? "bg-primary-soft font-medium text-primary" : "text-text"}`}
+                      >
+                        <span className="flex min-w-0 items-center gap-2 truncate">
+                          <span className="truncate">{opt}</span>
+                          {state ? <span className="shrink-0 text-xs font-medium text-subtle">({state})</span> : null}
+                        </span>
+                        {isSel ? <Check className="h-4 w-4 shrink-0 text-primary" /> : null}
+                      </li>
+                    );
+                  })}
+                </ul>,
                 document.body
               )
             : null}

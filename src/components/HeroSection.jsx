@@ -11,8 +11,9 @@ export default function HeroSection({ heroSlideshow = null }) {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/shopping?search=${encodeURIComponent(searchQuery)}`);
+    const q = searchQuery.trim();
+    if (q) {
+      router.push(`/shopping?search=${encodeURIComponent(q)}`);
     }
   };
 
@@ -239,7 +240,7 @@ export default function HeroSection({ heroSlideshow = null }) {
       </div>
 
       {/* Floating Elements */}
-      <div className="absolute z-20 items-center hidden ml-10 bottom-1 left-4 sm:left-10 lg:left-12 xl:flex">
+      {/* <div className="absolute z-20 items-center hidden ml-10 bottom-1 left-4 sm:left-10 lg:left-12 xl:flex">
         <div className="flex items-center gap-3">
           <span className="text-text-strong font-medium text-[0.5rem] tracking-[0.2em] -rotate-90">
             Scroll Down
@@ -248,7 +249,7 @@ export default function HeroSection({ heroSlideshow = null }) {
             <div className="w-1 h-4 mt-1 rounded-full bg-primary animate-bounce" />
           </div>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }

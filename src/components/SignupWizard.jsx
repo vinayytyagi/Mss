@@ -1080,17 +1080,22 @@ export default function SignupWizard({ step }) {
         stepLabels={showStepper ? stepLabels : []}
         activeStep={activeStep}
       >
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* Quick-start preset chips — single-row horizontal carousel.
               Chips don't shrink; the row scrolls if they overflow. Only
               presets whose guest range covers the user's count appear. */}
           {visibleBudgetPresets.length > 0 && (
             <div>
-              <div className="mb-2 text-xs font-medium text-subtle">
-                Quick start — choose a budget range
+              <div className="mb-2.5 flex items-baseline justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
+                  Quick start
+                </span>
+                <span className="text-[11px] font-medium text-subtle">
+                  Tap to auto-fill, then fine-tune
+                </span>
               </div>
               <div
-                className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory"
+                className="flex gap-2.5 overflow-x-auto pb-2 snap-x snap-mandatory"
                 style={{ scrollbarWidth: "thin" }}
               >
                 {visibleBudgetPresets.map((preset) => {
@@ -1100,17 +1105,24 @@ export default function SignupWizard({ step }) {
                       key={preset.slug}
                       type="button"
                       onClick={() => applyPreset(preset.slug)}
-                      className={`flex w-35 shrink-0 snap-start flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition ${
+                      className={`flex w-36 shrink-0 snap-start flex-col gap-1 rounded-2xl border px-3.5 py-3 text-left transition ${
                         isActive
                           ? "border-primary bg-primary-soft shadow-[0_0_0_1px_var(--color-primary)]"
                           : "border-border bg-surface hover:border-primary/40 hover:bg-primary-soft/30"
                       }`}
                     >
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-strong">
-                        {preset.name}
+                      <span className="flex items-center justify-between gap-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-text-strong">
+                          {preset.name}
+                        </span>
+                        {isActive ? (
+                          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold leading-none text-primary-foreground">
+                            ✓
+                          </span>
+                        ) : null}
                       </span>
                       {preset.short_label ? (
-                        <span className="text-[11px] font-bold text-primary">
+                        <span className="text-sm font-bold leading-tight text-primary">
                           {preset.short_label}
                         </span>
                       ) : null}
@@ -1123,71 +1135,75 @@ export default function SignupWizard({ step }) {
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-center text-[10px] font-medium text-subtle">
-                Tap a preset to auto-fill, then adjust each slider.
-              </p>
             </div>
           )}
 
           {/* Total budget hero */}
-          <div className="flex items-center justify-between rounded-xl bg-primary-soft px-4 py-3 ring-1 ring-primary/15">
-            <span className="text-sm font-semibold text-text-strong">Your total budget</span>
-            <span className="text-lg font-bold tabular-nums text-primary">
+          <div className="rounded-2xl bg-primary-soft px-5 py-4 ring-1 ring-primary/15">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-subtle">
+              Your total budget
+            </div>
+            <div className="mt-0.5 text-3xl font-bold tabular-nums text-primary">
               {formatBudget(totalAllocated)}
-            </span>
+            </div>
+            <div className="mt-0.5 text-[11px] font-medium text-muted">
+              Allocated across {budgetAllocations.length} categor
+              {budgetAllocations.length === 1 ? "y" : "ies"}
+            </div>
           </div>
 
           {/* Per-category sliders */}
-          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-            {budgetAllocations.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-border-strong bg-surface px-3 py-6 text-center text-sm font-medium text-muted">
-                Loading journey steps…
-              </div>
-            ) : null}
-            {budgetAllocations.map((item, index) => {
-              const min = Math.max(Number(item.min_budget) || 0, 0);
-              const max = Math.max(
-                Number(item.max_budget) || 0,
-                Number(item.amount) || 0,
-                500000,
-                min,
-              );
-              const value = Math.max(min, Math.min(max, Number(item.amount) || 0));
-              return (
-                <div
-                  key={item.step_id || item.slug || index}
-                  className="rounded-xl border border-border bg-surface px-4 py-3"
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-sm font-semibold text-text-strong">{item.title}</span>
-                    <span className="text-sm font-bold tabular-nums text-primary">
-                      {formatBudget(value)}
-                    </span>
-                  </div>
-                  {item.blurb ? (
-                    <p className="mt-0.5 text-[11px] italic text-subtle">{item.blurb}</p>
-                  ) : null}
-                  <input
-                    type="range"
-                    min={min}
-                    max={max}
-                    step="1000"
-                    value={value}
-                    onChange={(e) => updateBudgetAmount(index, e.target.value)}
-                    className="mt-2 w-full cursor-pointer accent-primary"
-                    aria-label={`${item.title} budget`}
-                  />
-                  <div className="mt-0.5 flex items-center justify-between text-[10px] font-medium text-subtle">
-                    <span>{formatBudget(min)}</span>
-                    <span>{formatBudget(max)}</span>
-                  </div>
+          <div>
+            <div className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-subtle">
+              Adjust by category
+            </div>
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-1.5">
+              {budgetAllocations.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border-strong bg-surface px-3 py-6 text-center text-sm font-medium text-muted">
+                  Loading journey steps…
                 </div>
-              );
-            })}
-            {/* Extras hint, matches reference image */}
-            {/* <p className="px-1 pt-1 text-[11px] italic text-subtle">
-              + Makeup, Mehendi, Music &amp; more — set after you see vendor options.
-            </p> */}
+              ) : null}
+              {budgetAllocations.map((item, index) => {
+                const min = Math.max(Number(item.min_budget) || 0, 0);
+                const max = Math.max(
+                  Number(item.max_budget) || 0,
+                  Number(item.amount) || 0,
+                  500000,
+                  min,
+                );
+                const value = Math.max(min, Math.min(max, Number(item.amount) || 0));
+                return (
+                  <div
+                    key={item.step_id || item.slug || index}
+                    className="rounded-2xl border border-border bg-surface px-4 py-3.5"
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-sm font-semibold text-text-strong">{item.title}</span>
+                      <span className="text-sm font-bold tabular-nums text-primary">
+                        {formatBudget(value)}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={min}
+                      max={max}
+                      step="1000"
+                      value={value}
+                      onChange={(e) => updateBudgetAmount(index, e.target.value)}
+                      className="mt-3 w-full cursor-pointer accent-primary"
+                      aria-label={`${item.title} budget`}
+                    />
+                    <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] font-medium text-subtle">
+                      <span>{formatBudget(min)}</span>
+                      {item.blurb ? (
+                        <span className="truncate italic text-subtle/80">{item.blurb}</span>
+                      ) : null}
+                      <span>{formatBudget(max)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Actions */}

@@ -4,7 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Star, Trash2, Edit3, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { deleteMyItemReview, fetchItemReviews, upsertMyItemReview } from "@/lib/api/reviewsApi";
+import useSiteConfig from "@/lib/useSiteConfig";
 import { useAuthUser } from "@/lib/authCookies";
+import Dropdown from "@/components/ui/Dropdown";
+
+const REVIEW_SORT_OPTIONS = [
+  { value: "newest", label: "Newest" },
+  { value: "highest", label: "Highest rating" },
+  { value: "lowest", label: "Lowest rating" },
+];
 
 function clampRating(n) {
   const x = Number(n);
@@ -44,7 +52,7 @@ function formatDate(d) {
   }
 }
 
-export default function ProductReviews({ itemId }) {
+export default function ProductReviews({ itemId, onSummary }) {
   const user = useAuthUser();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,8 +66,16 @@ export default function ProductReviews({ itemId }) {
 
   const [draftRating, setDraftRating] = useState(0);
   const [draftComment, setDraftComment] = useState("");
+  // Tri-state reviews toggle (shared contract):
+  //   "enabled"  — show ratings+reviews AND allow new submissions
+  //   "readonly" — show existing ratings+reviews, hide the write form
+  //   "disabled" — hide the entire ratings & reviews section
+  const { config } = useSiteConfig();
+  const reviewsMode = config.reviews_mode;
+  const reviewsEnabled = reviewsMode === "enabled";
 
-  const canWrite = Boolean(user);
+  // Submission is only allowed in "enabled" mode (and to a logged-in user).
+  const canWrite = Boolean(user) && reviewsEnabled;
   const totalPages = useMemo(() => {
     const total = Number(data?.total) || 0;
     const limit = Number(data?.limit) || 10;
@@ -93,6 +109,17 @@ export default function ProductReviews({ itemId }) {
       setDraftComment("");
     }
   }, [myReview?.review_id]);
+
+  // Lift the live approved-review summary up to the PDP so the headline
+  // "{count} reviews" matches the list below (the stored item.review_count
+  // can be stale). Only fire once we actually have a summary loaded.
+  useEffect(() => {
+    if (!onSummary || !data?.summary) return;
+    onSummary({
+      avgRating: Number(data.summary.avgRating) || 0,
+      count: Number(data.summary.count) || 0,
+    });
+  }, [onSummary, data?.summary]);
 
   async function handleSave(e) {
     e?.preventDefault?.();
@@ -147,6 +174,9 @@ export default function ProductReviews({ itemId }) {
   const breakdown = summary.breakdown || {};
   const count = Number(summary.count) || 0;
 
+  // "disabled" hides the entire ratings & reviews section everywhere.
+  if (reviewsMode === "disabled") return null;
+
   return (
     <section className="mt-12 rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_18px_46px_rgba(15,23,42,0.06)] backdrop-blur sm:p-8">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -183,11 +213,17 @@ export default function ProductReviews({ itemId }) {
           </div>
         </div>
 
+        {reviewsEnabled ? (
         <div className="w-full lg:max-w-md">
           <div className="rounded-3xl border border-border bg-surface p-5 shadow-sm">
+            {myReview?.status === "Pending" ? (
+              <div className="mb-4 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-xs font-semibold text-warning-strong">
+                Your review was submitted and is awaiting admin approval.
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-3">
               <p className="text-base font-bold text-text-strong">
-                {canWrite ? (myReview ? "Edit your review" : "Write a review") : "Login to write a review"}
+                {user ? (myReview ? "Edit your review" : "Write a review") : "Login to write a review"}
               </p>
               {canWrite && myReview ? (
                 <button
@@ -251,6 +287,7 @@ export default function ProductReviews({ itemId }) {
             </form>
           </div>
         </div>
+        ) : null}
       </div>
 
       <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -259,18 +296,17 @@ export default function ProductReviews({ itemId }) {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm font-semibold text-muted">Sort</label>
-          <select
+          <Dropdown
             value={sort}
-            onChange={(e) => {
+            onChange={(next) => {
               setPage(1);
-              setSort(e.target.value);
+              setSort(next);
             }}
-            className="h-10 rounded-2xl border border-border-strong bg-surface px-4 text-sm font-semibold text-text outline-none focus:border-primary"
-          >
-            <option value="newest">Newest</option>
-            <option value="highest">Highest rating</option>
-            <option value="lowest">Lowest rating</option>
-          </select>
+            options={REVIEW_SORT_OPTIONS}
+            placeholder="Sort"
+            ariaLabel="Sort reviews"
+            className="w-44"
+          />
         </div>
       </div>
 

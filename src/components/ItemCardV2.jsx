@@ -40,6 +40,7 @@ import {
 } from "@/lib/wishlistStore";
 import { safeCssUrl } from "@/lib/utils";
 import { resolveRating, formatCountdown } from "@/lib/itemUiHelpers";
+import useSiteConfig from "@/lib/useSiteConfig";
 import VerifiedBadge from "@/components/VerifiedBadge";
 
 // Map a cartKind ("quotation" | "shopping") to a wishlist bucket
@@ -65,20 +66,35 @@ function formatRupees(value) {
   }).format(amount);
 }
 
+// Schema-key driven highlight bullets (keys mirror itemAttributesSchema.js).
+// ItemCardV2 is used on the /shopping catalog, the PDP "related items" rail
+// and favourites — it can't rely on the step slug, so we just surface
+// whichever known attributes are present, in priority order.
 function inlineHighlights(item) {
   const a = item?.attributes || {};
+  const join2 = (v) =>
+    Array.isArray(v) ? v.filter(Boolean).slice(0, 2).join(", ") : v;
   const out = [];
   const candidates = [
-    ["Fabric", a.fabric || a.material],
-    ["Color", a.color],
-    ["Capacity", a.capacity || a.max_guests],
-    ["Theme", a.theme],
+    // Shopping
+    ["Fabric", a.fabric_material],
+    ["Work", join2(a.work_embroidery)],
+    ["Occasion", join2(a.occasion)],
+    ["Purity", a.purity && a.purity !== "Not Applicable" ? a.purity : null],
+    ["Pieces", a.pieces_included],
     ["Brand", a.brand],
-    ["Pack of", a.pack_size],
-    ["Coverage", a.coverage_hours ? `${a.coverage_hours}h` : a.coverage],
-    ["Menu", a.menu_type],
-    ["Nights", a.nights],
-    ["Destination", a.destination],
+    // Venue
+    ["Capacity", a.max_guests ? `Up to ${a.max_guests} guests` : null],
+    ["Type", a.venue_type],
+    // Catering
+    ["Cuisine", join2(a.cuisine_types)],
+    ["Per plate", a.veg_plate_price ? `₹${a.veg_plate_price}/plate` : null],
+    // Decor
+    ["Theme", a.theme],
+    ["Includes", join2(a.includes)],
+    // Gifting
+    ["Type", a.gift_type],
+    ["Packaging", a.packaging_type],
   ];
   for (const [label, value] of candidates) {
     if (value == null || value === "") continue;
@@ -136,6 +152,9 @@ export default function ItemCardV2({
 }) {
   const wishlistKind = wishlistKindFromCartKind(cartKind);
   const wishlisted = useIsWishlisted(wishlistKind, item?.item_id);
+  // Tri-state reviews toggle: hide the rating chip when reviews are disabled.
+  const { config } = useSiteConfig();
+  const showRatings = config.reviews_mode !== "disabled";
   // Brief post-click "Added" affordance on the basket button. Persists for
   // ~1.6s, then reverts to the default label so the same card can be
   // re-added if the customer wants two of something.
@@ -332,8 +351,8 @@ export default function ItemCardV2({
             {item.name}
           </h3>
 
-          {/* Rating row — only when item actually has reviews */}
-          {rating ? (
+          {/* Rating row — only when item has reviews and reviews aren't disabled */}
+          {showRatings && rating ? (
             <div className="flex items-center gap-1.5 text-xs text-muted">
               <StarRow value={rating.value} />
               <span className="font-semibold text-text">{rating.value.toFixed(1)}</span>

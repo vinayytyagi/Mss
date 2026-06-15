@@ -5,6 +5,7 @@ import { Briefcase, FileUp, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { isValidEmail, isValidIndianPhone, normalizeIndianPhone } from "@/lib/authValidation";
 import { submitCareerApplication, uploadCareerResume } from "@/lib/api/careersApi";
+import Dropdown from "@/components/ui/Dropdown";
 
 const OPEN_ROLES = [
   "Engineering / Product",
@@ -14,6 +15,8 @@ const OPEN_ROLES = [
   "Vendor Partnerships",
   "General application",
 ];
+
+const ROLE_OPTIONS = OPEN_ROLES.map((r) => ({ value: r, label: r }));
 
 const RESUME_ACCEPT =
   ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -199,21 +202,17 @@ export default function CareersApplicationForm() {
 
         <label className="grid gap-1 sm:col-span-2">
           <span className="text-xs font-semibold text-muted">Role you&apos;re applying for *</span>
-          <select
+          <Dropdown
             value={values.role}
-            onChange={update("role")}
-            onBlur={() => markTouched("role")}
-            className={`h-11 rounded-xl border bg-surface px-3 text-sm text-text-strong outline-none focus:border-primary focus:ring-primary/15 ${
-              showError("role") ? "border-danger" : "border-border-strong"
-            }`}
-          >
-            <option value="">Select a role</option>
-            {OPEN_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+            onChange={(next) => {
+              setValues((prev) => ({ ...prev, role: next }));
+              markTouched("role");
+            }}
+            options={ROLE_OPTIONS}
+            placeholder="Select a role"
+            ariaLabel="Role you're applying for"
+            className={`rounded-xl ${showError("role") ? "[&>button]:border-danger" : ""}`}
+          />
           {showError("role") ? <span className="text-xs font-medium text-danger">{errors.role}</span> : null}
         </label>
 

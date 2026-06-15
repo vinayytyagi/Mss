@@ -2,41 +2,47 @@
 
 import BudgetBadge from "@/components/BudgetBadge";
 import BasketButton from "@/components/BasketButton";
-import { Plus, Minus, Heart, ShoppingCart } from "lucide-react";
 import {
-  ChevronLeft,
-  ChevronRight,
   Pencil,
   LayoutGrid,
   Search,
-  Check,
-  LockKeyhole,
   X,
   MapPin,
   SlidersHorizontal,
   Tags,
-  Star,
-  ArrowUp,
-  ArrowDown,
-  IndianRupee,
   Users,
-  Receipt,
+  Crown,
 } from "lucide-react";
 import { useAuthUser, getAuthToken, saveAuthCookies } from "@/lib/authCookies";
 import { updateMyProfile } from "@/lib/api";
 import CityStateDropdown from "@/components/CityStateDropdown";
+import Dropdown from "@/components/ui/Dropdown";
 import { buildLocationLabel } from "@/lib/indiaLocations";
-import { safeCssUrl } from "@/lib/utils";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { addToCart, useCartState, updateCartQuantity, removeFromCart } from "@/lib/cartStore";
 import Pagination from "@/components/Pagination";
-import ItemCardV2 from "@/components/ItemCardV2";
+import ProductCard from "@/components/journey/ProductCard";
+import JourneyListingCard from "@/components/journey/JourneyListingCard";
+import JourneyStepStrip from "@/components/journey/JourneyStepStrip";
+import JourneyStepNav from "@/components/journey/JourneyStepNav";
+import TrustStrip from "@/components/journey/TrustStrip";
+import { getListingConfig, getTrustItems } from "@/lib/journeyStepUi";
+import { showsAudienceFilter, capturesDetails } from "@/lib/journeyMode";
 
-// Customer journey page items grid pagination — 24 fits a 4-col grid in 6 rows.
+// Customer journey page items grid pagination — 24 divides evenly into the
+// responsive grid (1 / 2 / 3 columns) so the last row never sits half-empty.
 const JOURNEY_PAGE_SIZE = 24;
+
+// Results sort options for mockup-configured listing steps (venue / decor …).
+const JOURNEY_SORT_OPTIONS = [
+  { value: "recommended", label: "Recommended" },
+  { value: "price_asc", label: "Price: Low to high" },
+  { value: "price_desc", label: "Price: High to low" },
+  { value: "rating", label: "Rating: High to low" },
+];
 
 function categoryUrlSegment(c) {
   if (!c) return "";
@@ -88,9 +94,9 @@ function highlightsForItem(step, item) {
 
   switch (slug) {
     case "shopping":
-      add("Fabric", a.fabric || a.material);
-      add("Color", a.color);
-      add("Occasion", a.occasion);
+      add("Fabric", a.fabric_material);
+      add("Work", Array.isArray(a.work_embroidery) ? a.work_embroidery[0] : a.work_embroidery);
+      add("Occasion", Array.isArray(a.occasion) ? a.occasion.slice(0, 2).join(", ") : a.occasion);
       break;
     case "streedhan":
       add("Capacity", a.capacity);
@@ -188,21 +194,6 @@ function buildJourneyHref(
   return `/journey/${slug}${q ? `?${q}` : ""}`;
 }
 
-function StarRating({ value = 4 }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {[0, 1, 2, 3, 4].map((index) => (
-        <Star
-          key={index}
-          className={`h-3.5 w-3.5 ${
-            index < value ? "fill-warning text-warning" : "fill-border-strong text-border-strong"
-          }`}
-        />
-      ))}
-    </div>
-  );
-}
-
 function formatAmount(value) {
   const amount = Number(value || 0);
   if (amount >= 100000) {
@@ -218,140 +209,116 @@ const MAX_BUDGET_PER_STEP = 10000000;
 const BUDGET_STEP = 1000;
 
 /**
- * BudgetStatusStrip — slim "Plan / In basket / Remaining" status row
- * rendered at the top of the BudgetModal. Tints red when the basket is
- * over plan, green otherwise. When the basket has items for this step
- * we also surface a one-line "biggest category" summary so the user
- * can see where the spend went without leaving the planner.
+ * FilterPopover — portals the category / subcategory / sub-subcategory
+ * dropdown menus to document.body with position:fixed so the filter
+ * strip's `overflow-x-auto` can't clip them. Mirrors the positioning
+ * pattern in `ui/Dropdown.jsx`: position computed from the trigger's
+ * bounding rect, re-run on scroll(capture)+resize while open, and
+ * outside-click closes when the click is in NEITHER the trigger nor the
+ * portaled menu. Children are the existing search input + Link list.
  */
-function BudgetStatusStrip({
-  stepTitle,
-  planRupees,
-  spentRupees,
-  remainingRupees,
-  quotationItemsForStep = [],
-}) {
-  const plan = planRupees != null ? Number(planRupees) || 0 : null;
-  const spent = Number(spentRupees) || 0;
-  const remaining = remainingRupees != null ? Number(remainingRupees) || 0 : null;
-  const overBudget = plan != null && spent > plan;
-  const pct = plan && plan > 0 ? Math.min(100, Math.round((spent / plan) * 100)) : 0;
+const FILTER_POPOVER_WIDTH = 320;
 
-  // Group basket items by category so we can show the biggest spender.
-  const byCategory = (quotationItemsForStep || []).reduce((acc, it) => {
-    const key = it?.category_label || it?.subcategory_label || "Other";
-    if (!acc[key]) acc[key] = 0;
-    acc[key] += (Number(it?.final_price ?? it?.price ?? 0)) * Number(it?.quantity || 1);
-    return acc;
-  }, {});
-  const top = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
+function FilterPopover({ open, triggerRef, onClose, children }) {
+  const menuRef = useRef(null);
+  const [menuStyle, setMenuStyle] = useState(null);
 
-  return (
-    <div className="mb-5 rounded-2xl border border-border bg-surface-muted/40 px-4 py-3 text-sm">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted">
-          {stepTitle} basket vs plan
-        </p>
-        <p className="text-xs font-medium text-muted">
-          {plan != null ? `${formatCurrency(spent)} of ${formatCurrency(plan)}` : `${formatCurrency(spent)} committed`}
-        </p>
-      </div>
+  // Position (and reposition) the portaled menu while open.
+  useEffect(() => {
+    if (!open) return undefined;
+    function update() {
+      const el = triggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const width = Math.min(FILTER_POPOVER_WIDTH, window.innerWidth - 16);
+      const left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - width - 8));
+      const spaceBelow = window.innerHeight - r.bottom;
+      const maxHeight = Math.min(360, Math.max(160, spaceBelow - 16));
+      setMenuStyle({
+        position: "fixed",
+        left,
+        top: r.bottom + 6,
+        width,
+        maxHeight,
+        zIndex: 9999,
+      });
+    }
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, triggerRef]);
 
-      {plan != null ? (
-        <>
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface">
-            <div
-              className={`h-full rounded-full ${overBudget ? "bg-danger" : "bg-success"}`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted">Plan</div>
-              <div className="font-bold text-text-strong">{formatCurrency(plan)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted">In basket</div>
-              <div className="font-bold text-text-strong">{formatCurrency(spent)}</div>
-            </div>
-            <div>
-              <div
-                className={`text-[10px] font-bold uppercase tracking-wider ${
-                  overBudget ? "text-danger" : "text-success"
-                }`}
-              >
-                {overBudget ? "Over by" : "Remaining"}
-              </div>
-              <div className={`font-bold ${overBudget ? "text-danger" : "text-success"}`}>
-                {overBudget ? formatCurrency(spent - plan) : formatCurrency(remaining || 0)}
-              </div>
-            </div>
-          </div>
-        </>
-      ) : (
-        <p className="mt-1.5 text-xs text-muted">
-          No plan set yet — pick an amount below and the strip will start tracking.
-        </p>
-      )}
+  // Outside-click close — account for both the trigger and the portaled menu.
+  useEffect(() => {
+    if (!open) return undefined;
+    function onDoc(e) {
+      const t = e.target;
+      if (triggerRef.current && triggerRef.current.contains(t)) return;
+      if (menuRef.current && menuRef.current.contains(t)) return;
+      onClose?.();
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open, onClose, triggerRef]);
 
-      {top ? (
-        <p className="mt-2 text-[11px] text-muted">
-          Biggest line in your basket:{" "}
-          <span className="font-semibold text-text">{top[0]}</span>
-          <span className="text-muted"> ({formatCurrency(top[1])})</span>
-        </p>
-      ) : null}
-    </div>
+  if (!open || !menuStyle) return null;
+  return createPortal(
+    <div
+      ref={menuRef}
+      style={menuStyle}
+      className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-[0_16px_40px_rgba(15,23,42,0.16)]"
+      role="presentation"
+      onWheel={(e) => e.stopPropagation()}
+    >
+      {children}
+    </div>,
+    document.body,
   );
 }
 
-// The old `BudgetSummaryButton` + `BudgetSummaryDialog` (a separate
-// summary card mounted under the filter row) lived here. They were
-// removed once the same data started rendering inside BudgetModal via
-// BudgetStatusStrip — keep that pattern; don't reintroduce a
-// standalone summary surface.
+// The old `BudgetStatusStrip` (a plan / spent / remaining + per-category
+// breakdown row rendered at the top of BudgetModal) and the older
+// `BudgetSummaryButton` + `BudgetSummaryDialog` lived here. They were
+// removed when BudgetModal was simplified down to a single budget-amount
+// control with three actions — don't reintroduce a standalone budget
+// summary surface.
 
 function BudgetModal({
   onClose,
-  stepId,
   stepTitle,
   defaultBudget = 0,
   maxBudget = MAX_BUDGET_PER_STEP,
   seedAmount = 0,
-  onboarding = {},
   onApply,
+  onSaveToProfile,
   onClearCap,
-  // Live "what's in the basket vs the plan" summary — used to live in a
-  // separate card below the filter row; now rendered at the top of this
-  // modal so the user sees plan/spent/remaining in the same place where
-  // they edit it.
-  planRupees = null,
-  spentRupees = 0,
-  remainingRupees = null,
-  quotationItemsForStep = [],
 }) {
-  const [amount, setAmount] = useState(() => Number(seedAmount ?? defaultBudget) || 0);
-  const [error, setError] = useState("");
-
   const effectiveMaxBudget = Math.max(Number(maxBudget) || 0, Number(defaultBudget) || 0, 500000);
+  const [amount, setAmount] = useState(() =>
+    Math.max(0, Math.min(effectiveMaxBudget, Number(seedAmount ?? defaultBudget) || 0)),
+  );
+  const [saving, setSaving] = useState(false);
 
-  const planPreview = useMemo(() => {
-    const allocations = Array.isArray(onboarding?.budget_allocations) ? onboarding.budget_allocations : [];
-    const stepInPlan = Number(allocations.find((a) => a.step_id === stepId)?.amount) || 0;
-    const budgetTotal = Number(onboarding?.budget_total) || 0;
-    const hasSavedPlan = allocations.length > 0 || budgetTotal > 0;
-    const projectedTotal = Math.max(0, budgetTotal - stepInPlan + (Number(amount) || 0));
-    const delta = projectedTotal - budgetTotal;
-    return { hasSavedPlan, projectedTotal, delta, budgetTotal, stepInPlan };
-  }, [onboarding, stepId, amount]);
+  const clamp = (n) => Math.max(0, Math.min(effectiveMaxBudget, Number(n) || 0));
 
-  function handleApply() {
-    setError("");
+  function applyUrl() {
+    onApply?.(clamp(amount));
+    onClose();
+  }
+
+  async function saveProfile() {
+    setSaving(true);
     try {
-      onApply?.(Math.max(0, Math.min(effectiveMaxBudget, Number(amount) || 0)));
+      await onSaveToProfile?.(clamp(amount));
       onClose();
-    } catch (err) {
-      setError(err?.message || "Something went wrong");
+    } catch (e) {
+      toast.error(e?.message || "Could not save");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -367,175 +334,12 @@ function BudgetModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="budget-modal-title"
-        className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-5">
-          <h3 id="budget-modal-title" className="text-lg font-semibold text-text-strong">
-            {stepTitle} budget planner
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 transition-colors rounded-full cursor-pointer hover:bg-surface-muted"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4 text-subtle" />
-          </button>
-        </div>
-
-        {/* Live status row — plan vs basket vs remaining for THIS step.
-            Tints red when the basket is over plan; green otherwise. */}
-        <BudgetStatusStrip
-          stepTitle={stepTitle}
-          planRupees={planRupees}
-          spentRupees={spentRupees}
-          remainingRupees={remainingRupees}
-          quotationItemsForStep={quotationItemsForStep}
-        />
-
-        <div className="space-y-5">
-          {planPreview.hasSavedPlan ? (
-            <div className="px-4 py-3 border rounded-xl border-border bg-surface-muted">
-              <p className="text-xs font-semibold tracking-wide uppercase text-subtle">Estimated full plan total</p>
-              <p className="mt-1 text-xl font-semibold text-text-strong">{formatCurrency(planPreview.projectedTotal)}</p>
-              {planPreview.delta !== 0 ? (
-                <p
-                  className={`mt-1 text-sm font-semibold ${planPreview.delta > 0 ? "text-warning-strong" : "text-success"}`}
-                >
-                  {planPreview.delta > 0 ? (
-                    <ArrowUp className="mr-1 inline-block h-4 w-4 align-[-2px]" aria-hidden="true" />
-                  ) : (
-                    <ArrowDown className="mr-1 inline-block h-4 w-4 align-[-2px]" aria-hidden="true" />
-                  )}
-                  {formatCurrency(Math.abs(planPreview.delta))} from your saved plan
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-muted">Matches your saved plan total</p>
-              )}
-            </div>
-          ) : null}
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold tracking-wide uppercase text-muted">This step</label>
-              <div className="text-sm font-semibold text-text-strong">{formatCurrency(amount)}</div>
-            </div>
-
-            <div className="relative">
-              <span className="absolute text-sm font-semibold -translate-y-1/2 left-4 top-1/2 text-subtle">Rs</span>
-              <input
-                type="number"
-                min="0"
-                max={effectiveMaxBudget}
-                step={BUDGET_STEP}
-                value={amount}
-                onChange={(e) =>
-                  setAmount(Math.max(0, Math.min(effectiveMaxBudget, Number(e.target.value) || 0)))
-                }
-                className="w-full pl-10 pr-4 text-sm font-semibold border outline-none h-11 rounded-xl border-border-strong bg-surface text-text focus:border-primary"
-                autoFocus
-              />
-            </div>
-
-            <div className="pt-1">
-              <input
-                type="range"
-                min="0"
-                max={effectiveMaxBudget}
-                step={BUDGET_STEP}
-                value={amount}
-                onChange={(e) => setAmount(Number(e.target.value))}
-                className="w-full h-2 cursor-pointer accent-primary"
-              />
-              <div className="mt-2 flex justify-between text-[11px] text-muted">
-                <span>Min</span>
-                <span>Max {formatAmount(effectiveMaxBudget)}</span>
-              </div>
-            </div>
-            <p className="text-xs leading-relaxed text-muted">
-              Choose how much you want to spend on this part of the wedding. We’ll narrow the list to ideas that fit —
-              adjust anytime.
-            </p>
-          </div>
-
-          {error ? (
-            <div className="px-3 py-2 text-sm border rounded-xl border-danger/30 bg-danger/10 text-danger">{error}</div>
-          ) : null}
-
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                onClearCap?.();
-                onClose();
-              }}
-              className="text-xs font-semibold text-muted underline-offset-2 hover:text-primary hover:underline"
-            >
-              Show everything (no price limit)
-            </button>
-          </div>
-
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-10 px-4 text-sm font-medium border rounded-xl border-border-strong text-muted hover:bg-surface-muted"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleApply}
-              className="h-10 px-4 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover"
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PriceFilterModal({ onClose, seedCap, summaryLine, onApply, onClearUrl }) {
-  const [capS, setCapS] = useState(() => (seedCap != null && Number.isFinite(Number(seedCap)) ? String(seedCap) : ""));
-  const [error, setError] = useState("");
-
-  function submit() {
-    setError("");
-    const raw = String(capS).replace(/[^\d]/g, "");
-    if (!raw) {
-      setError("Enter a maximum price in rupees.");
-      return;
-    }
-    const n = Number(raw);
-    if (!Number.isFinite(n) || n < 0) {
-      setError("Enter a valid amount.");
-      return;
-    }
-    onApply?.(Math.round(n));
-    onClose();
-  }
-
-  return (
-    <div
-      role="presentation"
-      className="fixed inset-0 flex items-center justify-center p-4 z-100 bg-text-strong/45"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="price-filter-title"
         className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 id="price-filter-title" className="text-lg font-semibold text-text-strong">
-            Product budget
+          <h3 id="budget-modal-title" className="text-lg font-semibold text-text-strong">
+            {stepTitle} budget
           </h3>
           <button
             type="button"
@@ -546,52 +350,80 @@ function PriceFilterModal({ onClose, seedCap, summaryLine, onApply, onClearUrl }
             <X className="w-4 h-4 text-subtle" />
           </button>
         </div>
+        <p className="mb-3 text-sm text-muted">
+          We’ll narrow the list to ideas that fit this amount. This is the budget you set at signup — adjust anytime.
+        </p>
         <label className="block mb-1 text-xs font-semibold tracking-wide uppercase text-subtle">
-          Max offer price (₹)
+          Budget for this step
         </label>
-        <input
-          type="text"
-          inputMode="numeric"
-          value={capS}
-          onChange={(e) => setCapS(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="e.g. 500000"
-          className="w-full px-3 text-sm font-semibold border outline-none h-11 rounded-xl border-border-strong bg-surface-muted text-text-strong focus:border-primary"
-          aria-label="Maximum offer price"
-        />
-        {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
-        <div className="flex flex-wrap items-center justify-between gap-2 mt-6">
-          {onClearUrl ? (
-            <button
-              type="button"
-              onClick={() => {
-                onClearUrl();
-                onClose();
-              }}
-              className="text-xs font-semibold text-muted underline-offset-2 hover:text-text-strong hover:underline"
-            >
-              Match step budget again (remove product override)
-            </button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-10 px-4 text-sm font-medium border rounded-xl border-border-strong text-muted hover:bg-surface-muted"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={submit}
-              className="h-10 px-4 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover"
-            >
-              Apply
-            </button>
+        <div className="relative">
+          <span className="absolute text-sm font-semibold -translate-y-1/2 left-4 top-1/2 text-subtle">Rs</span>
+          <input
+            type="number"
+            min="0"
+            max={effectiveMaxBudget}
+            step={BUDGET_STEP}
+            value={amount}
+            onChange={(e) => setAmount(clamp(e.target.value))}
+            onKeyDown={(e) => e.key === "Enter" && applyUrl()}
+            className="w-full pl-10 pr-4 text-sm font-semibold border outline-none h-11 rounded-xl border-border-strong bg-surface-muted text-text-strong focus:border-primary"
+            autoFocus
+          />
+        </div>
+        <div className="pt-3">
+          <input
+            type="range"
+            min="0"
+            max={effectiveMaxBudget}
+            step={BUDGET_STEP}
+            value={amount}
+            onChange={(e) => setAmount(Number(e.target.value))}
+            className="w-full h-2 cursor-pointer accent-primary"
+            aria-label="Budget for this step"
+          />
+          <div className="mt-2 flex justify-between text-[11px] text-muted">
+            <span>Min</span>
+            <span>Max {formatAmount(effectiveMaxBudget)}</span>
           </div>
         </div>
+        <div className="flex flex-col gap-2 mt-6 sm:flex-row sm:flex-wrap sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 px-4 text-sm font-medium border rounded-xl border-border-strong text-muted hover:bg-surface-muted"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={applyUrl}
+            className="h-10 px-4 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover"
+          >
+            Apply for this page
+          </button>
+          {onSaveToProfile ? (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={saveProfile}
+              className="h-10 px-4 text-sm font-semibold border rounded-xl border-primary/40 bg-primary-soft text-primary hover:bg-primary-soft disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save to my account"}
+            </button>
+          ) : null}
+        </div>
+        {onClearCap ? (
+          <button
+            type="button"
+            className="w-full mt-4 text-xs font-semibold text-center text-muted underline-offset-2 hover:text-text-strong hover:underline"
+            onClick={() => {
+              onClearCap();
+              onClose();
+            }}
+          >
+            Turn off this filter (show all prices)
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -836,26 +668,6 @@ const fallbackImages = [
   "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=900&q=80",
 ];
 
-function formatCurrency(value) {
-  const amount = Number(value || 0);
-  if (amount >= 100000) {
-    return `${(amount / 100000).toFixed(amount % 100000 === 0 ? 0 : 1)}L`;
-  }
-
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function describeProductPriceCapLine(cap, customizedInUrl) {
-  if (cap == null || !Number.isFinite(Number(cap))) return "Showing all offer prices";
-  const n = Number(cap);
-  if (n === 0) return "Showing listings with ₹0 offer price only";
-  return `${formatCurrency(n)}`;
-}
-
 function describeGuestFilterLine(count, filterOff) {
   if (filterOff) return "Guest capacity filter is off";
   const n = Number(count);
@@ -897,8 +709,6 @@ export default function JourneyStepPage({
   showSignupGuestFilter = false,
   matchLocOff = false,
   matchGuestsOff = false,
-  productPriceCap = null,
-  productPriceMaxForUrl = undefined,
   guestCountForUrl = undefined,
   venueLocForUrl = undefined,
   effectiveGuestCount = 0,
@@ -906,9 +716,7 @@ export default function JourneyStepPage({
 }) {
   const router = useRouter();
   const authUser = useAuthUser();
-  const cartState = useCartState();
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
-  const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
   const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(search);
@@ -919,7 +727,36 @@ export default function JourneyStepPage({
   const [subcategorySearch, setSubcategorySearch] = useState("");
   const [subSubcategorySearch, setSubSubcategorySearch] = useState("");
   const filtersWrapRef = useRef(null);
+  // Trigger refs for the category cascade — the popovers are portaled to
+  // document.body (so the scroll strip's overflow-x-auto can't clip them),
+  // positioned from these triggers' bounding rects (see FilterPopover).
+  const categoryTriggerRef = useRef(null);
+  const subcategoryTriggerRef = useRef(null);
+  const subSubcategoryTriggerRef = useRef(null);
   const stepNature = useMemo(() => resolveStepNature(step), [step]);
+
+  // Per-step mockup config: step-specific attribute filters + card
+  // recipe + trust strip (venue / decor / catering / gifting / shopping).
+  // Null only for steps that keep the legacy generic layout.
+  const listingCfg = useMemo(() => getListingConfig(step.slug), [step.slug]);
+  const trustItems = useMemo(() => getTrustItems(step.slug), [step.slug]);
+  const [attrFilters, setAttrFilters] = useState({});
+  // Bride/groom audience pill — "all" shows everything, "bride"/"groom"
+  // keep items tagged for that side (plus "both" / untagged items, which
+  // are relevant to either). Services are "both" so this mainly narrows
+  // product steps, but it renders wherever items are listed.
+  const [audienceFilter, setAudienceFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("recommended");
+
+  // The Dulhan/Dulha pill is a SHOPPING-only affordance. Other steps
+  // (venue / decor / catering / packages …) never show it. Canonical
+  // source: showsAudienceFilter(slug) in journeyMode.js.
+  const showsAudience = useMemo(() => showsAudienceFilter(step.slug), [step.slug]);
+  const audiencePillVisible = showsAudience && (Array.isArray(items) ? items.length : 0) > 0;
+
+  // Decor: adding a product opens a small theme / colour / notes modal whose
+  // values are stored on the cart line meta. Canonical: capturesDetails().
+  const captureDetailsOn = useMemo(() => capturesDetails(step.slug), [step.slug]);
 
   const capOrBudgetQs = capOffActive
     ? { capOff: true }
@@ -933,9 +770,12 @@ export default function JourneyStepPage({
       subcategorySlug: selectedSubcategorySlug || undefined,
       subSubcategorySlug: selectedSubSubcategorySlug || undefined,
       search: searchQuery.trim(),
+      // Preserve the active guest-size + destination chips across navigation
+      // (category/filter clicks) so they don't reset.
+      guestCount: guestCountForUrl,
+      venueLoc: venueLocForUrl,
       matchLocOff,
       matchGuestsOff,
-      priceMax: productPriceMaxForUrl,
       ...capOrBudgetQs,
       ...overrides,
     };
@@ -966,10 +806,17 @@ export default function JourneyStepPage({
     setSearchQuery(search);
   }, [search]);
 
+  // Seed the audience pill from the URL (?audience=bride|groom) so a
+  // shared/refreshed shopping link keeps the chosen side. Shopping only.
+  useEffect(() => {
+    if (!showsAudience) return;
+    const raw = new URLSearchParams(window.location.search).get("audience");
+    setAudienceFilter(raw === "bride" || raw === "groom" ? raw : "all");
+  }, [showsAudience]);
+
   useEffect(() => {
     const lock =
       isBudgetModalOpen ||
-      isPriceModalOpen ||
       isGuestModalOpen ||
       isLocationModalOpen ||
       categoryMenuOpen ||
@@ -988,7 +835,6 @@ export default function JourneyStepPage({
     };
   }, [
     isBudgetModalOpen,
-    isPriceModalOpen,
     isGuestModalOpen,
     isLocationModalOpen,
     categoryMenuOpen,
@@ -1004,24 +850,14 @@ export default function JourneyStepPage({
     if (subSubcategoryMenuOpen) setSubSubcategorySearch("");
   }, [subSubcategoryMenuOpen]);
 
-  useEffect(() => {
-    if (!categoryMenuOpen && !subcategoryMenuOpen && !subSubcategoryMenuOpen) return;
-    function onDocMouseDown(e) {
-      if (filtersWrapRef.current && !filtersWrapRef.current.contains(e.target)) {
-        setCategoryMenuOpen(false);
-        setSubcategoryMenuOpen(false);
-        setSubSubcategoryMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDocMouseDown);
-    return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, [categoryMenuOpen, subcategoryMenuOpen, subSubcategoryMenuOpen]);
+  // Outside-click + scroll-following are owned per-popover by FilterPopover
+  // (each checks BOTH its trigger and its portaled menu), since the menus are
+  // now portaled to document.body and live outside `filtersWrapRef`.
 
   const activeIndex = Math.max(
     0,
     steps.findIndex((item) => item.step_id === step.step_id)
   );
-  const progress = Math.round(((activeIndex + 1) / Math.max(steps.length, 1)) * 100);
 
   const topCategories = categories.filter((category) => !category.parent_category_id);
   const stepHasCategories = topCategories.length > 0;
@@ -1033,6 +869,13 @@ export default function JourneyStepPage({
   const selectedSubSubcategory = selectedSubSubcategoryId
     ? categories.find((c) => c.category_id === selectedSubSubcategoryId) || null
     : null;
+
+  // Gifting mockup shows top-level categories as segmented occasion tabs
+  // instead of a dropdown. Only sensible for a handful of categories.
+  const useCategoryTabs =
+    listingCfg?.categoryStyle === "tabs" &&
+    topCategories.length > 1 &&
+    topCategories.length <= 5;
 
   // Apply the guest + venue-city filters client-side. The server returns
   // every item for the step + category; the URL params `guestCount` and
@@ -1070,13 +913,43 @@ export default function JourneyStepPage({
     return needleParts.some((part) => haystack.some((h) => h.includes(part)));
   }
 
-  // Audience (bride/groom) filter was removed per ask — shoppers
-  // see every item that passes the guest + city predicates. The
-  // `item.audience` field is still written by admin/vendor forms and
-  // can be re-surfaced later if the UX brings the pill row back.
-  const visibleItems = baseItems.filter(
-    (item) => itemMatchesGuests(item) && itemMatchesCity(item),
+  // Audience (bride/groom) filter. "all" passes everything; a side-
+  // specific choice keeps items tagged for that side, items tagged for
+  // "both", and untagged items (which apply to either). `item.audience`
+  // is written by admin/vendor forms.
+  function itemMatchesAudience(item) {
+    if (audienceFilter === "all") return true;
+    const audience = item?.audience;
+    if (!audience || audience === "both") return true;
+    return audience === audienceFilter;
+  }
+
+  let filteredItems = baseItems.filter(
+    (item) =>
+      itemMatchesGuests(item) &&
+      itemMatchesCity(item) &&
+      itemMatchesAudience(item),
   );
+  // Mockup-driven per-step attribute filters (venue type, cuisine,
+  // theme, packaging…) + sort. Items missing an attribute stay visible
+  // — we only filter OUT explicit mismatches.
+  if (listingCfg) {
+    for (const f of listingCfg.filters) {
+      const v = attrFilters[f.key];
+      if (v) filteredItems = filteredItems.filter((item) => f.match(item, v));
+    }
+    if (sortBy === "price_asc" || sortBy === "price_desc") {
+      filteredItems = [...filteredItems].sort((a, b) => {
+        const pa = Number(a.final_price ?? a.price) || 0;
+        const pb = Number(b.final_price ?? b.price) || 0;
+        return sortBy === "price_asc" ? pa - pb : pb - pa;
+      });
+    } else if (sortBy === "rating") {
+      const ratingOf = (it) => Number(it?.average_rating ?? it?.rating ?? it?.rating_avg) || 0;
+      filteredItems = [...filteredItems].sort((a, b) => ratingOf(b) - ratingOf(a));
+    }
+  }
+  const visibleItems = filteredItems;
   const hasVisibleItems = visibleItems.length > 0;
 
   // Pagination — client-side slice. Resets to page 1 whenever the filtered
@@ -1090,6 +963,9 @@ export default function JourneyStepPage({
     selectedSubcategoryId,
     selectedSubSubcategoryId,
     searchQuery,
+    attrFilters,
+    audienceFilter,
+    sortBy,
   ]);
   const totalItems = visibleItems.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / JOURNEY_PAGE_SIZE));
@@ -1098,42 +974,6 @@ export default function JourneyStepPage({
     (currentPage - 1) * JOURNEY_PAGE_SIZE,
     currentPage * JOURNEY_PAGE_SIZE
   );
-
-  const quotationTotalThisStep = useMemo(() => {
-    const sid = String(step.step_id || "");
-    return cartState.quotation.reduce((sum, line) => {
-      if (String(line.journey_step_id || "") !== sid) return sum;
-      const unit = Number(line.final_price ?? line.price) || 0;
-      const qty = Number(line.quantity) || 0;
-      return sum + unit * qty;
-    }, 0);
-  }, [cartState.quotation, step.step_id]);
-
-  const stepPlanRupees = useMemo(() => {
-    if (!capOffActive && appliedBudgetCap != null && Number.isFinite(Number(appliedBudgetCap))) {
-      return Math.max(0, Number(appliedBudgetCap));
-    }
-    const alloc = Number(profileStepBudget);
-    if (Number.isFinite(alloc) && alloc > 0) return alloc;
-    const def = Number(step.default_budget);
-    if (Number.isFinite(def) && def > 0) return def;
-    return null;
-  }, [capOffActive, appliedBudgetCap, profileStepBudget, step.default_budget]);
-
-  const stepRemainingRupees =
-    stepPlanRupees != null ? Math.max(0, stepPlanRupees - quotationTotalThisStep) : null;
-
-  function applyProductPriceToUrl(maxN) {
-    if (!Number.isFinite(maxN) || maxN < 0) {
-      toast.error("Enter a valid maximum price.");
-      return;
-    }
-    router.replace(makeJourneyHref({ priceMax: Math.round(maxN) }));
-  }
-
-  function clearPriceFilter() {
-    router.replace(makeJourneyHref({ priceMax: undefined }));
-  }
 
   const canSaveProfile = !!getAuthToken() && !!authUser;
 
@@ -1167,10 +1007,41 @@ export default function JourneyStepPage({
     router.refresh();
   }
 
-  const productPriceCustomized = productPriceMaxForUrl != null && Number.isFinite(Number(productPriceMaxForUrl));
-  const priceFilterSummary = describeProductPriceCapLine(productPriceCap, productPriceCustomized);
+  // Persist the chosen per-step budget into the profile's budget_allocations
+  // (the same signup/profile allocation budgetModalSeed reads from). After
+  // saving we drop the ?budget / ?capOff overrides so the page falls back to
+  // the freshly-saved profile amount.
+  async function saveBudgetToProfile(amount) {
+    const t = getAuthToken();
+    if (!t) throw new Error("Please log in to save.");
+    const existing = Array.isArray(authUser?.onboarding?.budget_allocations)
+      ? authUser.onboarding.budget_allocations
+      : [];
+    const nextAllocations = existing.some((a) => a.step_id === step.step_id)
+      ? existing.map((a) => (a.step_id === step.step_id ? { ...a, amount } : a))
+      : [...existing, { step_id: step.step_id, amount }];
+    const result = await updateMyProfile(t, {
+      onboarding: {
+        ...(authUser?.onboarding || {}),
+        budget_allocations: nextAllocations,
+      },
+    });
+    saveAuthCookies({ token: t, user: result.user });
+    toast.success("Budget saved to your account");
+    router.replace(makeJourneyHref({ capOff: false, budget: undefined }));
+    router.refresh();
+  }
+
   const guestFilterSummary = describeGuestFilterLine(effectiveGuestCount, matchGuestsOff);
   const areaFilterSummary = describeAreaFilterLine(effectiveVenueLocation, matchLocOff);
+  // The Step Budget caps item price (server filters by appliedBudgetCap when
+  // no explicit override). When that cap is on and nothing fits, the empty
+  // state nudges the user to the budget tile instead of a removed control.
+  const budgetCapActive =
+    !capOffActive && appliedBudgetCap != null && Number.isFinite(Number(appliedBudgetCap));
+  // Count of active attribute-filter dropdowns — drives the "Filters" badge
+  // + the "Clear all" affordance on the per-step filter bar.
+  const activeAttrCount = Object.values(attrFilters).filter(Boolean).length;
 
   const categorySearchLower = categorySearch.trim().toLowerCase();
   const filteredCategories = categorySearchLower
@@ -1219,92 +1090,73 @@ export default function JourneyStepPage({
     router.push(makeJourneyHref({ search: searchQuery.trim() }));
   }
 
+  // Shopping audience pill. Filters the grid instantly client-side and
+  // reflects the choice in the URL (?audience=) so the view is
+  // shareable / refetchable. `all` clears the param.
+  function applyAudience(value) {
+    setAudienceFilter(value);
+    const sp = new URLSearchParams(window.location.search);
+    if (value && value !== "all") sp.set("audience", value);
+    else sp.delete("audience");
+    const qs = sp.toString();
+    router.replace(`/journey/${step.slug}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
   return (
     <div className="w-full px-4 py-8 mx-auto sm:px-6 lg:px-20">
-      {/*
-        Step strip — fully responsive:
-        • Each pill sizes to its own label width via `whitespace-nowrap` so
-          long titles like "Wedding invitation" / "Makeup & Mehndi" never
-          wrap inside the pill.
-        • Outer container allows horizontal scroll on small screens; on
-          wide screens the whole row fits comfortably. No `overflow-hidden`
-          on the parent — that was clipping the right edge.
-        • Connector between pills shrinks to `w-4` on small screens so the
-          11-step row fits more compactly without losing the visual link.
-      */}
-      <div className="w-full overflow-x-auto no-scrollbar">
-        <div className="inline-flex min-w-full items-center justify-start rounded-full bg-surface px-1 py-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border md:justify-center">
-          <div className="flex items-center">
-            {steps.map((item, index) => {
-              const isLast = index === steps.length - 1;
+      <JourneyStepStrip steps={steps} step={step} />
 
-              return (
-                <div key={item.step_id} className="flex items-center">
-                  <a
-                    href={`/journey/${item.slug}`}
-                    title={item.title}
-                    className={`flex items-center gap-2 rounded-full px-3 py-1 transition-all duration-300 shrink-0 transform active:scale-95 cursor-pointer ${
-                      index<=activeIndex ? "bg-primary-soft" : "hover:bg-surface-muted"
-                    }`}
-                  >
-                    <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all shadow-sm ${
-                      (index <= activeIndex)
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-primary-accent text-primary-foreground"
-                    }`}>
-                      {(index <= activeIndex) ? <Check className="w-3 h-3" strokeWidth={4} /> : <LockKeyhole className="h-3.5 w-3.5" strokeWidth={3} />}
-                    </div>
-                    <span className={`whitespace-nowrap text-sm font-semibold transition-colors duration-300 ${
-                      index<=activeIndex ? "text-text-strong" : "text-subtle"
-                    }`}>
-                      {item.title}
-                    </span>
-                  </a>
-                  {!isLast && (
-                    <div className="h-1 w-4 lg:w-6 bg-linear-to-r from-primary-soft via-primary to-primary-soft shrink-0" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      {/* Mockup trust strip ("All venues verified by MyShaadi" …) — hidden on
+          mobile to keep the top of the page compact. */}
+      <div className="hidden sm:block">
+        <TrustStrip items={trustItems} />
+      </div>
+
+      {/* Occasion tabs (gifting mockup) — top categories as segmented
+          tabs instead of the dropdown button. */}
+      {useCategoryTabs ? (
+        <div className="mx-auto mt-6 flex max-w-2xl overflow-hidden rounded-2xl border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
+          {topCategories.map((category) => {
+            const active = category.category_id === selectedCategory?.category_id;
+            return (
+              <Link
+                key={category.category_id}
+                href={makeJourneyHref({
+                  categorySlug: categoryUrlSegment(category),
+                  subcategorySlug: undefined,
+                  subSubcategorySlug: undefined,
+                })}
+                className={`flex-1 rounded-xl px-3 py-2.5 text-center text-sm font-bold transition-all ${
+                  active
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted hover:bg-surface-muted"
+                }`}
+              >
+                {category.name}
+              </Link>
+            );
+          })}
         </div>
-      </div>
+      ) : null}
 
-      <div className="max-w-4xl mx-auto mt-4">
-        <div className="rounded-full bg-surface/80 px-2 py-1 shadow-[0_18px_36px_rgba(15,23,42,0.06)]">
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-4 overflow-hidden rounded-full bg-surface-muted">
-              <div
-                className="h-full rounded-full bg-primary shadow-[0_10px_20px_rgba(255,79,134,0.35)]"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <span className="text-sm font-semibold text-muted">{progress}% Completed</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-4xl px-6 py-6 mx-auto mt-10 text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-text sm:text-4xl">{step.title}</h1>
-        <p className="mt-3 text-sm text-muted">{step.subtitle || "Select the perfect option for your special day."}</p>
-      </div>
-
-      {/* Filter row — restored chunky tile buttons (icon + label + value)
-          we had before the pill experiment, but the row is now a
-          horizontally scrollable strip. Filter chips never wrap to a
-          second line — when there's no room they slide off-screen and
-          you scroll left/right. */}
-      <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-center">
-        <div className="-mx-4 flex items-stretch gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-6 sm:pb-1 [scrollbar-width:thin] lg:overflow-visible lg:px-0">
-          <div
+      {/* Filter toolbar — ONE cohesive row. A single horizontally
+          scrollable strip holds every filter control (plan chips →
+          category cascade → attribute pills → audience toggle →
+          clear-all), with the search box pinned (non-scrolling) on the
+          right. Children are shrink-0 so they slide off-screen and you
+          scroll left/right instead of compressing. */}
+      <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="scrollbar-hide order-last flex min-w-0 flex-1 items-center gap-2.5 overflow-x-auto pb-1.5 sm:order-none">
+          {/* Step Budget pill — the SINGLE price control for the step.
+              The signup per-step budget caps which items show. */}
+          <button
+            type="button"
             onClick={() => setIsBudgetModalOpen(true)}
-            className="flex shrink-0 cursor-pointer select-none items-center gap-3 rounded-xl bg-surface px-4 py-3 text-text shadow-sm ring-1 ring-border transition-all hover:bg-surface-muted"
+            className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-sm font-medium text-text transition-colors hover:border-primary/40"
           >
-            <div className="rounded-lg bg-primary-soft p-2 text-primary">
-              <SlidersHorizontal className="h-4 w-4" />
-            </div>
-            <div className="whitespace-nowrap text-sm font-medium">
-              {step.title} Budget:{" "}
+            <SlidersHorizontal className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              {step.title} Budget:
               <span className="font-bold leading-none text-text-strong">
                 <BudgetBadge
                   noLimit={capOffActive}
@@ -1312,28 +1164,8 @@ export default function JourneyStepPage({
                   defaultBudget={step.default_budget}
                 />
               </span>
-            </div>
-            <button className="ml-1 p-1 text-border-strong pointer-events-none">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsPriceModalOpen(true)}
-            className={`flex shrink-0 max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
-              productPriceCap != null
-                ? "bg-primary-soft text-primary ring-primary/40"
-                : "bg-surface text-text ring-border hover:bg-surface-muted"
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <IndianRupee className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="whitespace-nowrap">Product budget</span>
             </span>
-            <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-muted">
-              {priceFilterSummary}
-            </span>
+            <Pencil className="h-3.5 w-3.5 shrink-0 text-border-strong" aria-hidden />
           </button>
 
           {showSignupLocFilter ? (
@@ -1341,18 +1173,15 @@ export default function JourneyStepPage({
               type="button"
               onClick={() => setIsLocationModalOpen(true)}
               aria-pressed={!matchLocOff}
-              className={`flex shrink-0 max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
+              className={`flex h-11 shrink-0 max-w-56 cursor-pointer items-center gap-2 rounded-xl border bg-surface px-3.5 text-sm font-medium transition-colors ${
                 !matchLocOff
-                  ? "bg-primary-soft text-primary ring-primary/40"
-                  : "bg-surface text-muted ring-border hover:bg-surface-muted"
+                  ? "border-primary bg-primary-soft text-primary"
+                  : "border-border text-text hover:border-primary/40"
               }`}
             >
-              <span className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="whitespace-nowrap">Your dream destination</span>
-              </span>
-              <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-muted">
-                {areaFilterSummary}
+              <MapPin className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="truncate">
+                {!matchLocOff && areaFilterSummary ? areaFilterSummary : "Destination"}
               </span>
             </button>
           ) : null}
@@ -1362,31 +1191,30 @@ export default function JourneyStepPage({
               type="button"
               onClick={() => setIsGuestModalOpen(true)}
               aria-pressed={!matchGuestsOff}
-              className={`flex shrink-0 max-w-[min(100%,17rem)] cursor-pointer select-none flex-col items-start gap-0.5 rounded-xl px-4 py-2.5 text-left text-sm font-semibold shadow-sm ring-1 transition-all ${
+              className={`flex h-11 shrink-0 max-w-56 cursor-pointer items-center gap-2 rounded-xl border bg-surface px-3.5 text-sm font-medium transition-colors ${
                 !matchGuestsOff
-                  ? "bg-primary-soft text-primary ring-primary/40"
-                  : "bg-surface text-muted ring-border hover:bg-surface-muted"
+                  ? "border-primary bg-primary-soft text-primary"
+                  : "border-border text-text hover:border-primary/40"
               }`}
             >
-              <span className="flex items-center gap-2">
-                <Users className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="whitespace-nowrap">Guest size</span>
-              </span>
-              <span className="line-clamp-2 pl-6 text-[11px] font-medium leading-snug text-muted">
-                {guestFilterSummary}
+              <Users className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="truncate">
+                {!matchGuestsOff && guestFilterSummary ? guestFilterSummary : "Guest size"}
               </span>
             </button>
           ) : null}
-        </div>
 
         {stepHasCategories ? (
         <div
           ref={filtersWrapRef}
-          className="flex flex-col w-full gap-3 sm:flex-row sm:flex-wrap sm:items-stretch lg:w-auto lg:justify-center"
+          className="flex shrink-0 items-center gap-2.5"
         >
-          {/* Category — own button + popover */}
-          <div className="relative z-30 w-full sm:min-w-50 sm:flex-1 lg:w-auto lg:max-w-xs lg:flex-none">
+          {/* Category — own button + popover (hidden when the occasion
+              tabs above already cover top-level category selection) */}
+          {!useCategoryTabs ? (
+          <div className="relative z-30 shrink-0 w-44 sm:w-52">
             <button
+              ref={categoryTriggerRef}
               type="button"
               onClick={() => {
                 setSubcategoryMenuOpen(false);
@@ -1395,19 +1223,18 @@ export default function JourneyStepPage({
               }}
               aria-expanded={categoryMenuOpen}
               aria-haspopup="listbox"
-              className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-surface px-5 py-4 text-left text-sm font-bold text-text shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border ring-inset transition-all hover:bg-surface-muted"
+              className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-left text-sm font-medium text-text shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/40"
             >
               <div className={`text-subtle transition-colors ${categoryMenuOpen ? "text-primary" : ""}`}>
                 <LayoutGrid className="w-5 h-5" />
               </div>
               <span className="flex-1 min-w-0 truncate">{selectedCategory ? selectedCategory.name : "Category"}</span>
             </button>
-            {categoryMenuOpen && topCategories.length > 0 ? (
-              <div
-                className="absolute left-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),360px)] overflow-hidden rounded-3xl border border-border bg-surface shadow-[0_25px_80px_rgba(16,24,40,0.15)] sm:min-w-70"
-                role="presentation"
-                onWheel={(e) => e.stopPropagation()}
-              >
+            <FilterPopover
+              open={categoryMenuOpen && topCategories.length > 0}
+              triggerRef={categoryTriggerRef}
+              onClose={() => setCategoryMenuOpen(false)}
+            >
                 <div className="p-2 border-b border-border">
                   <div className="relative">
                     <Search className="absolute w-4 h-4 -translate-y-1/2 pointer-events-none left-3 top-1/2 text-subtle" />
@@ -1415,13 +1242,13 @@ export default function JourneyStepPage({
                       value={categorySearch}
                       onChange={(e) => setCategorySearch(e.target.value)}
                       placeholder="Search categories…"
-                      className="w-full h-10 pr-3 text-sm border outline-none rounded-xl border-border-strong bg-surface-muted pl-9 text-text placeholder:text-subtle focus:border-primary"
+                      className="w-full h-9 pr-3 text-sm border outline-none rounded-lg border-border bg-surface pl-9 text-text placeholder:text-subtle focus:border-primary focus:ring-2 focus:ring-primary/15"
                       onClick={(e) => e.stopPropagation()}
                       aria-label="Search categories"
                     />
                   </div>
                 </div>
-                <div className="scrollbar-themed max-h-[min(280px,50vh)] touch-pan-y overflow-y-auto overscroll-contain p-2" role="listbox">
+                <div className="scrollbar-themed min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2" role="listbox">
                   {filteredCategories.length === 0 ? (
                     <p className="px-3 py-4 text-sm text-center text-muted">No categories match your search.</p>
                   ) : (
@@ -1441,7 +1268,7 @@ export default function JourneyStepPage({
                               setCategoryMenuOpen(false);
                               setCategorySearch("");
                             }}
-                            className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
+                            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                               active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
                             }`}
                             role="option"
@@ -1454,14 +1281,15 @@ export default function JourneyStepPage({
                     </div>
                   )}
                 </div>
-              </div>
-            ) : null}
+            </FilterPopover>
           </div>
+          ) : null}
 
           {/* Subcategory — separate button + popover (only if this category has subs) */}
           {hasSubcategoryOptions ? (
             <div className="relative z-30 w-full sm:min-w-50 sm:flex-1 lg:w-auto lg:max-w-xs lg:flex-none">
               <button
+                ref={subcategoryTriggerRef}
                 type="button"
                 onClick={() => {
                   setCategoryMenuOpen(false);
@@ -1470,7 +1298,7 @@ export default function JourneyStepPage({
                 }}
                 aria-expanded={subcategoryMenuOpen}
                 aria-haspopup="listbox"
-                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-surface px-5 py-4 text-left text-sm font-bold text-text shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border ring-inset transition-all hover:bg-surface-muted"
+                className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-left text-sm font-medium text-text shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/40"
               >
                 <div className={`text-subtle transition-colors ${subcategoryMenuOpen ? "text-primary" : ""}`}>
                   <Tags className="w-5 h-5" />
@@ -1479,12 +1307,11 @@ export default function JourneyStepPage({
                   {selectedSubcategory ? selectedSubcategory.name : "All types"}
                 </span>
               </button>
-              {subcategoryMenuOpen ? (
-                <div
-                  className="absolute left-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),360px)] overflow-hidden rounded-3xl border border-border bg-surface shadow-[0_25px_80px_rgba(16,24,40,0.15)] sm:min-w-70"
-                  role="presentation"
-                  onWheel={(e) => e.stopPropagation()}
-                >
+              <FilterPopover
+                open={subcategoryMenuOpen}
+                triggerRef={subcategoryTriggerRef}
+                onClose={() => setSubcategoryMenuOpen(false)}
+              >
                   <div className="p-2 border-b border-border">
                     <div className="relative">
                       <Search className="absolute w-4 h-4 -translate-y-1/2 pointer-events-none left-3 top-1/2 text-subtle" />
@@ -1492,14 +1319,14 @@ export default function JourneyStepPage({
                         value={subcategorySearch}
                         onChange={(e) => setSubcategorySearch(e.target.value)}
                         placeholder="Search types…"
-                        className="w-full h-10 pr-3 text-sm border outline-none rounded-xl border-border-strong bg-surface-muted pl-9 text-text placeholder:text-subtle focus:border-primary"
+                        className="w-full h-9 pr-3 text-sm border outline-none rounded-lg border-border bg-surface pl-9 text-text placeholder:text-subtle focus:border-primary focus:ring-2 focus:ring-primary/15"
                         onClick={(e) => e.stopPropagation()}
                         aria-label="Search subcategories"
                       />
                     </div>
                   </div>
                   <div
-                    className="scrollbar-themed max-h-[min(280px,50vh)] touch-pan-y overflow-y-auto overscroll-contain p-2"
+                    className="scrollbar-themed min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2"
                     role="listbox"
                     aria-label="Subcategories"
                   >
@@ -1515,7 +1342,7 @@ export default function JourneyStepPage({
                           setSubcategoryMenuOpen(false);
                           setSubcategorySearch("");
                         }}
-                        className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                           !selectedSubcategoryId ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
                         }`}
                         role="option"
@@ -1540,7 +1367,7 @@ export default function JourneyStepPage({
                                 setSubcategoryMenuOpen(false);
                                 setSubcategorySearch("");
                               }}
-                              className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
+                              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                 active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
                               }`}
                               role="option"
@@ -1553,8 +1380,7 @@ export default function JourneyStepPage({
                       )}
                     </div>
                   </div>
-                </div>
-              ) : null}
+              </FilterPopover>
             </div>
           ) : null}
 
@@ -1562,6 +1388,7 @@ export default function JourneyStepPage({
           {hasSubcategoryOptions && hasSubSubcategoryOptions ? (
             <div className="relative z-30 w-full sm:min-w-50 sm:flex-1 lg:w-auto lg:max-w-xs lg:flex-none">
               <button
+                ref={subSubcategoryTriggerRef}
                 type="button"
                 onClick={() => {
                   setCategoryMenuOpen(false);
@@ -1570,7 +1397,7 @@ export default function JourneyStepPage({
                 }}
                 aria-expanded={subSubcategoryMenuOpen}
                 aria-haspopup="listbox"
-                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl bg-surface px-5 py-4 text-left text-sm font-bold text-text shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border ring-inset transition-all hover:bg-surface-muted"
+                className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-left text-sm font-medium text-text shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/40"
               >
                 <div className={`text-subtle transition-colors ${subSubcategoryMenuOpen ? "text-primary" : ""}`}>
                   <Tags className="w-5 h-5" />
@@ -1579,12 +1406,11 @@ export default function JourneyStepPage({
                   {selectedSubSubcategory ? selectedSubSubcategory.name : "All sub-types"}
                 </span>
               </button>
-              {subSubcategoryMenuOpen ? (
-                <div
-                  className="absolute left-0 top-full z-50 mt-2 w-[min(calc(100vw-2rem),360px)] overflow-hidden rounded-3xl border border-border bg-surface shadow-[0_25px_80px_rgba(16,24,40,0.15)] sm:min-w-70"
-                  role="presentation"
-                  onWheel={(e) => e.stopPropagation()}
-                >
+              <FilterPopover
+                open={subSubcategoryMenuOpen}
+                triggerRef={subSubcategoryTriggerRef}
+                onClose={() => setSubSubcategoryMenuOpen(false)}
+              >
                   <div className="p-2 border-b border-border">
                     <div className="relative">
                       <Search className="absolute w-4 h-4 -translate-y-1/2 pointer-events-none left-3 top-1/2 text-subtle" />
@@ -1592,14 +1418,14 @@ export default function JourneyStepPage({
                         value={subSubcategorySearch}
                         onChange={(e) => setSubSubcategorySearch(e.target.value)}
                         placeholder="Search sub-types…"
-                        className="w-full h-10 pr-3 text-sm border outline-none rounded-xl border-border-strong bg-surface-muted pl-9 text-text placeholder:text-subtle focus:border-primary"
+                        className="w-full h-9 pr-3 text-sm border outline-none rounded-lg border-border bg-surface pl-9 text-text placeholder:text-subtle focus:border-primary focus:ring-2 focus:ring-primary/15"
                         onClick={(e) => e.stopPropagation()}
                         aria-label="Search sub-subcategories"
                       />
                     </div>
                   </div>
                   <div
-                    className="scrollbar-themed max-h-[min(280px,50vh)] touch-pan-y overflow-y-auto overscroll-contain p-2"
+                    className="scrollbar-themed min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2"
                     role="listbox"
                     aria-label="Sub-subcategories"
                   >
@@ -1615,7 +1441,7 @@ export default function JourneyStepPage({
                           setSubSubcategoryMenuOpen(false);
                           setSubSubcategorySearch("");
                         }}
-                        className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                           !selectedSubSubcategoryId ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
                         }`}
                         role="option"
@@ -1640,7 +1466,7 @@ export default function JourneyStepPage({
                                 setSubSubcategoryMenuOpen(false);
                                 setSubSubcategorySearch("");
                               }}
-                              className={`rounded-2xl px-4 py-3 text-sm font-bold transition-all ${
+                              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                 active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
                               }`}
                               role="option"
@@ -1653,28 +1479,140 @@ export default function JourneyStepPage({
                       )}
                     </div>
                   </div>
-                </div>
-              ) : null}
+              </FilterPopover>
             </div>
           ) : null}
         </div>
         ) : null}
 
-        {/* Search Section */}
-        <div className="flex flex-1 items-center gap-3 rounded-2xl bg-surface p-1.5 pl-6 shadow-[0_12px_30px_rgba(0,0,0,0.03)] ring-1 ring-border lg:max-w-xl">
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-muted outline-none placeholder:text-subtle"
-            placeholder={searchPlaceholder}
-          />
-          <div className="flex items-center gap-1.5 pr-1">
-            <button 
+        {/* Mockup-driven per-step attribute filters — venue type /
+            cuisine / theme / packaging dropdowns etc. Applied client-side
+            over the loaded item set; items without the attribute stay
+            visible. Rendered inline in the same scrollable strip. */}
+        {listingCfg ? (
+          <div className="flex shrink-0 items-center gap-2.5">
+            <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-subtle">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary" aria-hidden />
+              Filters
+              {activeAttrCount > 0 ? (
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground">
+                  {activeAttrCount}
+                </span>
+              ) : null}
+            </span>
+            {listingCfg.filters.map((f) => {
+              const active = !!attrFilters[f.key];
+              const filterOptions = [
+                { value: "", label: f.label },
+                ...f.options.map((o) => ({ value: o.value, label: o.label })),
+              ];
+              return (
+                <Dropdown
+                  key={f.key}
+                  value={attrFilters[f.key] || ""}
+                  onChange={(next) =>
+                    setAttrFilters((prev) => ({ ...prev, [f.key]: next }))
+                  }
+                  options={filterOptions}
+                  placeholder={f.label}
+                  ariaLabel={f.label}
+                  className={`shrink-0 w-auto min-w-44 max-w-56 ${
+                    active
+                      ? "[&>button]:border-primary [&>button]:bg-primary-soft [&>button]:text-primary"
+                      : ""
+                  }`}
+                />
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Bride / groom audience toggle — SHOPPING step only (gated by
+            showsAudienceFilter from journeyMode.js). Narrows the set to
+            the chosen side; items tagged "both" / untagged stay visible
+            for either. Drives the items fetch via ?audience= and also
+            filters client-side so the grid updates instantly. */}
+        {audiencePillVisible ? (
+          <div
+            role="tablist"
+            aria-label="Shopping for"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-[0_6px_18px_rgba(15,23,42,0.05)]"
+          >
+            {[
+              { value: "all", label: "All", Icon: Users },
+              { value: "bride", label: "Dulhan", Icon: Crown },
+              { value: "groom", label: "Dulha", Icon: Crown },
+            ].map((opt) => {
+              const active = audienceFilter === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="tab"
+                  onClick={() => applyAudience(opt.value)}
+                  aria-selected={active}
+                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                    active
+                      ? "bg-primary text-primary-foreground shadow-[0_6px_16px_rgba(255,79,134,0.3)]"
+                      : "bg-transparent text-muted hover:bg-surface-muted hover:text-text"
+                  }`}
+                >
+                  <opt.Icon className="h-4 w-4 shrink-0" aria-hidden />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {/* Clear-all attribute filters — last item in the strip. */}
+        {activeAttrCount > 0 ? (
+          <button
+            type="button"
+            onClick={() => setAttrFilters({})}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-muted transition-colors hover:bg-surface-muted hover:text-primary"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+            Clear all
+          </button>
+        ) : null}
+        </div>
+
+        {/* Search — pinned (non-scrolling) on the right, fixed width. */}
+        <div className="w-full sm:w-56 sm:shrink-0 lg:w-72">
+          <div className="group flex h-11 items-center gap-1.5 rounded-xl bg-surface pl-3 pr-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-border transition-all focus-within:ring-2 focus-within:ring-primary/50">
+            <Search
+              className="h-4 w-4 shrink-0 text-subtle transition-colors group-focus-within:text-primary"
+              aria-hidden
+            />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="min-w-0 flex-1 bg-transparent text-sm font-medium text-text outline-none placeholder:text-subtle"
+              placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  router.push(makeJourneyHref({ search: "" }));
+                }}
+                aria-label="Clear search"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-subtle transition-colors hover:bg-surface-muted hover:text-text"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+            <button
+              type="button"
               onClick={handleSearch}
-              className="flex items-center justify-center transition-all h-11 w-11 rounded-2xl bg-primary text-primary-foreground active:scale-95 hover:bg-primary-hover"
+              aria-label="Search"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_6px_16px_rgba(255,79,134,0.25)] transition-all hover:bg-primary-hover active:scale-95"
             >
-              <Search className="w-5 h-5" />
+              <Search className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -1689,18 +1627,10 @@ export default function JourneyStepPage({
         <BudgetModal
           key={`${step.step_id}-${budgetModalSeed}-${capOffActive}`}
           onClose={() => setIsBudgetModalOpen(false)}
-          stepId={step.step_id}
           stepTitle={step.title}
           defaultBudget={step.default_budget || 0}
           maxBudget={step.max_budget || MAX_BUDGET_PER_STEP}
           seedAmount={budgetModalSeed}
-          onboarding={authUser?.onboarding || {}}
-          planRupees={stepPlanRupees}
-          spentRupees={quotationTotalThisStep}
-          remainingRupees={stepRemainingRupees}
-          quotationItemsForStep={(cartState?.quotation || []).filter(
-            (c) => String(c?.journey_step_id || "") === String(step.step_id),
-          )}
           onApply={(amount) => {
             router.replace(
               makeJourneyHref({
@@ -1709,6 +1639,7 @@ export default function JourneyStepPage({
               }),
             );
           }}
+          onSaveToProfile={canSaveProfile ? saveBudgetToProfile : null}
           onClearCap={() => {
             router.replace(
               makeJourneyHref({
@@ -1717,17 +1648,6 @@ export default function JourneyStepPage({
               }),
             );
           }}
-        />
-      ) : null}
-
-      {isPriceModalOpen ? (
-        <PriceFilterModal
-          key={`p-${productPriceCap ?? "x"}-${productPriceMaxForUrl ?? "s"}`}
-          seedCap={productPriceCap}
-          summaryLine={priceFilterSummary}
-          onClose={() => setIsPriceModalOpen(false)}
-          onApply={(maxN) => applyProductPriceToUrl(maxN)}
-          onClearUrl={productPriceCustomized ? clearPriceFilter : null}
         />
       ) : null}
 
@@ -1753,22 +1673,38 @@ export default function JourneyStepPage({
         />
       ) : null}
 
-      <div className="mt-10 flex w-full max-w-400 mx-auto items-start gap-4 md:gap-6">
-        {/* Left Phase Control — top-aligned so row height follows content only */}
-        <a
-          href={activeIndex > 0 ? `/journey/${steps[activeIndex - 1].slug}` : "#"}
-          className={`group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-surface shadow-xl ring-1 ring-border transition-all hover:bg-primary-soft hover:shadow-2xl active:scale-90 md:flex ${
-            activeIndex === 0 ? "pointer-events-none opacity-10" : "cursor-pointer"
-          }`}
-          aria-label="Previous Phase"
-        >
-          <ChevronLeft className="w-6 h-6 transition-colors text-primary group-hover:text-primary-hover" />
-        </a>
-
-        <div className="flex-1 min-w-0 pb-20">
+      <JourneyStepNav
+        prevHref={activeIndex > 0 ? `/journey/${steps[activeIndex - 1].slug}` : null}
+        nextHref={
+          activeIndex === steps.length - 1
+            ? "/cart?tab=quotation"
+            : `/journey/${steps[activeIndex + 1].slug}`
+        }
+        nextIsCart={activeIndex === steps.length - 1}
+      >
+          {/* Results count + sort row (mockup: "24 venues found · Sort:
+              Recommended") — only on mockup-configured listing steps. */}
+          {listingCfg && hasVisibleItems ? (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-text">
+                {totalItems} {totalItems === 1 ? "option" : "options"} found
+              </p>
+              <label className="flex items-center gap-2 text-xs font-medium text-muted">
+                Sort:
+                <Dropdown
+                  value={sortBy}
+                  onChange={setSortBy}
+                  options={JOURNEY_SORT_OPTIONS}
+                  placeholder="Recommended"
+                  ariaLabel="Sort results"
+                  className="w-48 [&>button]:h-9 [&>button]:rounded-lg [&>button]:border-border-strong [&>button]:text-xs [&>button]:font-semibold"
+                />
+              </label>
+            </div>
+          ) : null}
           {hasVisibleItems ? (
             <>
-            <div className="grid gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-6 sm:grid-cols-2 sm:gap-7 lg:grid-cols-3 lg:gap-8">
               {pagedItems.map((item, index) => {
                 const whiteLabelOn = !item.vendor_id;
                 const vendorName = whiteLabelOn
@@ -1779,8 +1715,19 @@ export default function JourneyStepPage({
                   : null;
                 const categoryLabel = subForItem?.name || selectedCategory?.name || step.title;
                 const v2Highlights = stepNature ? highlightsForItem(step, item) : [];
-                return (
-                  <ItemCardV2
+                // Mockup-configured steps render the step-specific card
+                // (badge / spec chips / metrics block); others keep the
+                // generic premium card.
+                return listingCfg ? (
+                  <JourneyListingCard
+                    key={item.item_id}
+                    item={item}
+                    cardCfg={listingCfg.card}
+                    fallbackImage={fallbackImages[index % fallbackImages.length]}
+                    captureDetails={captureDetailsOn}
+                  />
+                ) : (
+                  <ProductCard
                     key={item.item_id}
                     item={item}
                     vendorName={vendorName}
@@ -1790,6 +1737,7 @@ export default function JourneyStepPage({
                     highlights={v2Highlights}
                     categoryLabel={categoryLabel}
                     cartKind="quotation"
+                    captureDetails={captureDetailsOn}
                   />
                 );
               })}
@@ -1804,8 +1752,8 @@ export default function JourneyStepPage({
           ) : (
             <div className="px-6 text-center border rounded-[28px] border-border bg-surface py-40 shadow-[0_28px_60px_rgba(15,23,42,0.06)]">
               <p className="text-base font-semibold text-text">
-                {productPriceCap != null
-                  ? "No items within this product budget"
+                {budgetCapActive
+                  ? "No items within your budget"
                   : search
                     ? "No items match your search"
                     : selectedCategoryId
@@ -1813,46 +1761,24 @@ export default function JourneyStepPage({
                       : "No items in this step yet"}
               </p>
               <p className="max-w-md mx-auto mt-2 text-sm text-muted">
-                {productPriceCap != null
-                  ? "Try raising the max price in Product budget, or remove the product override to follow your step budget again."
+                {budgetCapActive
+                  ? `Raise your ${(step.title || "step").toLowerCase()} budget — or show every price — from the budget tile above.`
                   : search
                     ? "Try different keywords or clear search to see everything in this category."
                     : "Check back soon—new options for this journey step will show up here once they are added."}
               </p>
-              {productPriceCustomized ? (
+              {budgetCapActive ? (
                 <button
                   type="button"
-                  onClick={clearPriceFilter}
+                  onClick={() => setIsBudgetModalOpen(true)}
                   className="mt-6 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary-hover"
                 >
-                  Match step budget again
+                  Adjust budget
                 </button>
               ) : null}
             </div>
           )}
-        </div>
-
-        {(() => {
-          const isLast = activeIndex === steps.length - 1;
-          const href = isLast
-            ? "/cart?tab=quotation"
-            : `/journey/${steps[activeIndex + 1].slug}`;
-          return (
-            <a
-              href={href}
-              className="group sticky top-24 z-10 mt-1 hidden h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-primary ring-1 ring-border transition-all hover:bg-primary hover:shadow-2xl active:scale-90 md:flex"
-              aria-label={isLast ? "Review quote basket" : "Next Phase"}
-              title={isLast ? "Review your quote basket" : "Next step"}
-            >
-              {isLast ? (
-                <Receipt className="h-6 w-6 text-primary-foreground transition-colors" strokeWidth={2} />
-              ) : (
-                <ChevronRight className="h-6 w-6 text-primary-foreground transition-colors" />
-              )}
-            </a>
-          );
-        })()}
-      </div>
+      </JourneyStepNav>
 
       <div>
         <BasketButton floating />

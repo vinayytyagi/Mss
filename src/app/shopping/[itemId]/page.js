@@ -1,4 +1,4 @@
-import ShoppingItemPageServer from "@/components/server/ShoppingItemPageServer";
+import ProductDetailPage from "@/components/ProductDetailPage";
 import JsonLd from "@/components/JsonLd";
 import { fetchItem } from "@/lib/api";
 import { productSchema, breadcrumbSchema } from "@/lib/jsonld";
@@ -64,7 +64,10 @@ export default async function ShoppingProductPage({ params }) {
   return (
     <>
       {schemas && <JsonLd data={schemas} />}
-      <ShoppingItemPageServer params={params} />
+      {/* Unified detail experience — both /items/[id] and /shopping/[id]
+          now render the same polished PDP so every item detail page is
+          consistent (variants + shopping cart + specs + policies). */}
+      <ProductDetailPage itemId={itemId} />
     </>
   );
 }

@@ -319,6 +319,33 @@ input::placeholder {
   background: var(--primary-hover);
 }
 
+/* Thin, neutral grayish-white scrollbar for the custom Dropdown menu —
+   no up/down arrow buttons. */
+.dropdown-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #d4dae1 transparent;
+}
+.dropdown-scroll::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.dropdown-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dropdown-scroll::-webkit-scrollbar-thumb {
+  background: #d4dae1;
+  border-radius: 9999px;
+}
+.dropdown-scroll::-webkit-scrollbar-thumb:hover {
+  background: #b8c1cc;
+}
+/* Remove the little up/down arrow buttons at the ends of the track. */
+.dropdown-scroll::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Subtle thin scrollbars (dropdowns / menus) */
 .scrollbar-soft {
   scrollbar-width: thin;
@@ -344,4 +371,40 @@ input::placeholder {
 
 .scrollbar-soft::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--muted-strong) 60%, transparent);
+}
+
+/* Fully hidden scrollbar (still scrollable) — used by the filter toolbar strip */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* WebKit */
+  width: 0;
+  height: 0;
+}
+
+/* Interactive cursors — clickable elements show a pointer; disabled show
+   not-allowed. Kept in @layer base so component-level cursor-* utilities win. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="option"],
+  [role="menuitem"],
+  [role="switch"],
+  a[href],
+  label,
+  summary,
+  select {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"],
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+  }
 }

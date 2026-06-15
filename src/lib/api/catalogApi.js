@@ -68,3 +68,23 @@ export async function fetchAttributeSchema(stepSlug) {
     return null;
   }
 }
+
+/**
+ * Admin-defined package building blocks for a journey step.
+ * GET /package-definitions?slug=<journey_slug>&mode_key=<optional>
+ * Returns { definition: {...} | null }. Resolves to null on any error so
+ * the builder UI can fall back to an empty state instead of throwing.
+ */
+export async function fetchPackageDefinition(slug, modeKey) {
+  if (!slug) return null;
+  const qs = new URLSearchParams({ slug: String(slug) });
+  if (modeKey) qs.set("mode_key", String(modeKey));
+  try {
+    const res = await apiFetch(`/package-definitions?${qs.toString()}`, {
+      revalidateSeconds: 60,
+    });
+    return res?.definition ?? null;
+  } catch {
+    return null;
+  }
+}
