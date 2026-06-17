@@ -7,6 +7,7 @@ import ShoppingSidebar from "@/components/ShoppingSidebar";
 import { isProductItem } from "@/lib/shopUi";
 import { categoryIconPath } from "@/lib/categoryIcon";
 import ShoppingSearchBar from "@/components/ShoppingSearchBar";
+import SubcategoryStrip from "@/components/shopping/SubcategoryStrip";
 
 function itemFabric(item) {
   const f =
@@ -121,9 +122,10 @@ export default function ShoppingCatalog({
   // Render every top category — the strip itself scrolls horizontally
   // once more than ~6 cards no longer fit on a typical desktop.
   const showcaseCategories = topCategories;
-  const filterSubcategories = visibleSubcategories.length
-    ? visibleSubcategories
-    : categories.filter((category) => !category.parent_category_id).slice(0, 6);
+  // Only ever surface ACTUAL subcategories of the selected category — never
+  // fall back to top categories (that made the sidebar show bogus "subcategory"
+  // filters for categories that have none). Empty → the sidebar hides the section.
+  const filterSubcategories = visibleSubcategories;
 
   /** Toggle a subcategory in/out of the URL list. */
   function buildToggleSubHref(subId) {
@@ -147,7 +149,7 @@ export default function ShoppingCatalog({
             the Figma reference. The image is placed before its siblings
             but positioned absolute; z-20 keeps it above the strip cards
             while still sitting in the same flow. */}
-        <div className="pointer-events-none absolute right-2 top-2 z-20 hidden h-72 w-52 md:block lg:right-4 lg:top-2 lg:h-90 lg:w-96">
+        <div className="pointer-events-none absolute right-2 top-2 z-20 hidden h-72 w-52 lg:block lg:right-4 lg:top-2 lg:h-90 lg:w-96">
           <Image
             src="/shopping_header.webp"
             alt="Bride and groom in traditional wedding attire"
@@ -158,7 +160,7 @@ export default function ShoppingCatalog({
           />
         </div>
 
-        <div className="relative min-h-55">
+        <div className="relative lg:min-h-55">
           <h1 className="pt-8 text-center text-2xl font-medium leading-tight text-secondary sm:pt-12 sm:text-3xl">
             Shop Curated Essentials for
             <br />
@@ -181,11 +183,12 @@ export default function ShoppingCatalog({
           {/* Brown card strip — matches the Figma reference. Inactive cards
               blend into the strip; the active one pops in deep brown. */}
           <div className="no-scrollbar mt-2 flex items-center gap-3 overflow-x-auto overflow-y-visible rounded-[30px] px-3 py-4">
-            {/* min-w-full so the brown strip fills the container when
-                there are ≤ 6 cards, but expands to fit when there are
-                more — combined with shrink-0 cards, this gives the
-                "6 fit / 7+ scroll" behaviour. */}
-            <div className="bg-[#FFEAF0] min-w-full flex items-center gap-5 rounded-2xl">
+            {/* w-max makes the pink strip grow to fit ALL cards (so the
+                background spans the full scroll width on mobile instead of
+                cutting off after a card or two); min-w-full keeps it full-width
+                when there are only a few cards; shrink-0 stops the flex parent
+                from collapsing it. */}
+            <div className="bg-[#FFEAF0] w-max min-w-full shrink-0 flex items-center gap-5 rounded-xl">
             {showcaseCategories.map((category) => {
               const isActive = selectedCategory?.category_id === category.category_id;
               const categoryImage = category.image_url || "";
@@ -207,7 +210,7 @@ export default function ShoppingCatalog({
                   }`}
                 >
                   <div
-                    className={`relative w-full shrink-0 overflow-hidden rounded-2xl ${
+                    className={`relative w-full shrink-0 overflow-hidden rounded-lg ${
                       isActive ? "h-28 text-primary-foreground" : "h-20 text-secondary"
                     }`}
                   >
@@ -216,7 +219,7 @@ export default function ShoppingCatalog({
                         src={categoryImage}
                         alt={category.name}
                         fill
-                        className="object-contain object-center rounded-2xl"
+                        className="object-contain object-center rounded-lg"
                         sizes="165px"
                         unoptimized
                       />
@@ -243,60 +246,48 @@ export default function ShoppingCatalog({
           </div>
         </div>
 
-        {/* Subcategory pill row — matches the Figma's lavender chip strip
-            with the dark "All" pill, yellow active pill, and yellow round
-            scroll button on the right. */}
-        <div className="no-scrollbar mt-6 flex items-center gap-2 overflow-x-auto rounded-full bg-transparent py-1">
-          <span
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#84716b]"
-            aria-hidden
-          />
-          <span className="h-7 w-px shrink-0 bg-shop-chip" aria-hidden />
-          <Link
-            href={`/shopping${buildQuery({
-              categoryId: selectedCategory?.category_id || "",
-              subcategoryIds: [],
-              search,
-            })}`}
-            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-sm font-medium ${
-              selectedSubcategoryIds.length === 0
-                ? "bg-shop-chip-active text-primary-foreground"
-                : "bg-shop-chip text-secondary"
-            }`}
-          >
-            All
-          </Link>
-          {visibleSubcategories.map((sub) => {
-            const isSubActive = selectedSubcategoryIds.includes(sub.category_id);
-            return (
-              <Link
-                key={sub.category_id}
-                href={buildToggleSubHref(sub.category_id)}
-                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-sm font-medium transition ${
-                  isSubActive
-                    ? "bg-shop-chip-active text-text-strong"
-                    : "bg-shop-chip text-secondary hover:bg-shop-chip/80"
-                }`}
-              >
-                {sub.name}
-              </Link>
-            );
-          })}
-          <button
-            type="button"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-shop-chip-active text-text-strong"
-            aria-label="Scroll subcategories forward"
-          >
-            <ChevronRight className="h-5 w-5" strokeWidth={2.25} aria-hidden />
-          </button>
-        </div>
+        {/* Subcategory pill row — hidden entirely when the selected category
+            has no subcategories. The scroll arrow is pinned to the far right
+            (see SubcategoryStrip) and only shows when the row overflows. */}
+        {visibleSubcategories.length > 0 ? (
+          <SubcategoryStrip>
+            <Link
+              href={`/shopping${buildQuery({
+                categoryId: selectedCategory?.category_id || "",
+                subcategoryIds: [],
+                search,
+              })}`}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-sm font-medium ${
+                selectedSubcategoryIds.length === 0
+                  ? "bg-shop-chip-active text-primary-foreground"
+                  : "bg-shop-chip text-secondary"
+              }`}
+            >
+              All
+            </Link>
+            {visibleSubcategories.map((sub) => {
+              const isSubActive = selectedSubcategoryIds.includes(sub.category_id);
+              return (
+                <Link
+                  key={sub.category_id}
+                  href={buildToggleSubHref(sub.category_id)}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-sm font-medium transition ${
+                    isSubActive
+                      ? "bg-shop-chip-active text-text-strong"
+                      : "bg-shop-chip text-secondary hover:bg-shop-chip/80"
+                  }`}
+                >
+                  {sub.name}
+                </Link>
+              );
+            })}
+          </SubcategoryStrip>
+        ) : null}
 
         {/* Sub-subcategory pill row — appears only when exactly one
             subcategory is picked AND it has its own children. */}
         {hasSubSubcategoryRow ? (
           <div className="no-scrollbar mt-3 flex items-center gap-3 overflow-x-auto rounded-full bg-transparent py-1">
-            <span className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-shop-chip-active" aria-hidden />
-            <span className="h-5 w-px shrink-0 bg-shop-chip" aria-hidden />
             <Link
               href={`/shopping${buildQuery({
                 categoryId: selectedCategory?.category_id || "",

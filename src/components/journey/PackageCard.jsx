@@ -24,8 +24,9 @@ import { resolveRating } from "@/lib/itemUiHelpers";
 import { formatINR } from "@/lib/journeyStepUi";
 import { safeCssUrl } from "@/lib/utils";
 
-const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=900&q=80";
+const FALLBACK_IMAGE =""
+
+  // "https://images.unsplash.com/photo-1519225421980-715cb0215aed?auto=format&fit=crop&w=900&q=80";
 
 export default function PackageCard({ item, groups = [], ribbon }) {
   const [justAdded, setJustAdded] = useState(false);
@@ -60,7 +61,7 @@ export default function PackageCard({ item, groups = [], ribbon }) {
   }
 
   return (
-    <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_4px_18px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_44px_rgba(15,23,42,0.12)]">
+    <article className="group flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-[0_4px_18px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_44px_rgba(15,23,42,0.12)]">
       {/* Image header with overlays */}
       <Link
         href={`/items/${item.item_id}`}

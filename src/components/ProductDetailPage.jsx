@@ -3,28 +3,24 @@
 /**
  * Generic Product Detail Page (PDP) — works for items from ANY journey step.
  *
- * Server route lives at `/items/[itemId]`; this client component does the
- * actual data fetching (item + journey step + attribute schema + related
- * items) so we can show loading + error states without server round-trips
- * being noticeable.
+ * Layout (Myntra/Amazon-inspired):
+ *   - LEFT: sticky image gallery (stays pinned while the right column scrolls).
+ *   - RIGHT: all buy + detail content — title, vendor, price, variants, CTAs,
+ *     "About this item" (show more), specifications, and returns/policies as
+ *     stacked sections (no tabs).
+ *   - BELOW (full width): "You might also like", then Ratings & Reviews last.
  *
  * Cart wiring:
- *   - Always offers "Add to Inquiry" → addToCart('quotation', item, qty)
- *   - For items with policies.returnable === true (today: Shopping) we ALSO
- *     show "Add to Cart" → addToCart('shopping', item, qty)
+ *   - Shopping items (step.slug === "shopping"): TWO buttons —
+ *     "Add to shopping cart" (shopping) + "Add to quote cart" (quotation).
+ *   - Every other journey step: ONE "Add to cart" → quotation (inquiry).
  *
- * White-label: customer API strips vendor identity when WL is on, so we
- * detect via `!item.vendor_id` and substitute "MyShaadiStore".
+ * Variants: per-variant size / colour / material with per-variant images. The
+ * left gallery swaps to the selected colour's photos (variant images override
+ * item-level images). Data comes from GET /items/:id/variants.
  *
- * Premium polish (this pass):
- *   - Wider hero gallery with thumbnail strip + click-to-zoom modal
- *   - Sticky purchase column with bigger price + countdown + qty stepper
- *   - Tabbed long-form content (Overview / Specifications / Policies / Reviews)
- *   - Vendor info card with avatar, verified badge, message stub
- *   - Trust signal cards (3-up, hover-lift)
- *   - "You might also like" footer with "View all in {category}" link
- *   - Mobile bottom action bar with qty stepper when in cart
- *   - Reused shared helpers from `lib/itemUiHelpers.js`
+ * White-label: customer API strips vendor identity when WL is on, so we detect
+ * via `!item.vendor_id` and substitute "MyShaadiStore".
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,7 +30,7 @@ import { toast } from "sonner";
 import {
   ChevronRight,
   ChevronLeft,
-  Store,
+  ChevronDown,
   Check,
   ShoppingCart,
   ClipboardList,
@@ -46,13 +42,10 @@ import {
   MapPin,
   Clock,
   Package,
-  BadgeCheck,
-  Headphones,
-  Lock,
+  Ruler,
   Heart,
   X,
   ZoomIn,
-  MessageCircle,
   Timer,
 } from "lucide-react";
 import {
@@ -76,18 +69,18 @@ import {
 import { safeCssUrl } from "@/lib/utils";
 import { resolveRating, formatCountdown } from "@/lib/itemUiHelpers";
 import useSiteConfig from "@/lib/useSiteConfig";
+import useSizeChart from "@/lib/useSizeChart";
 import BasketButton from "@/components/BasketButton";
 import ItemCardV2 from "@/components/ItemCardV2";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import ItemAttributesSpec from "@/components/ItemAttributesSpec";
 import ProductReviews from "@/components/ProductReviews";
 
-const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=80";
+const FALLBACK_IMAGE =""
+
+  // "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=80";
 
 // Fallback nature lookup mirrors `mss-admin/src/lib/constants/journeySteps.js`.
-// Used to decide which extra sections to surface on the PDP (e.g. package
-// "what's included" box vs. product stock/bulk-pricing chips).
 const STEP_NATURE_BY_SLUG = {
   venue: "product",
   shopping: "product",
@@ -123,37 +116,6 @@ function resolveStep(steps, item) {
   return steps.find((s) => s.step_id === item.journey_step_id) || null;
 }
 
-function StarRow({ value = 0, size = "sm" }) {
-  const cls = size === "lg" ? "h-5 w-5" : "h-4 w-4";
-  const rounded = Math.round(value * 2) / 2;
-  return (
-    <div className="flex items-center" aria-label={`Rating ${value} out of 5`}>
-      {[0, 1, 2, 3, 4].map((i) => {
-        const full = rounded >= i + 1;
-        const half = !full && rounded >= i + 0.5;
-        if (half) {
-          return (
-            <span key={i} className={`relative inline-block ${cls}`}>
-              <Star className={`absolute inset-0 ${cls} text-warning`} fill="none" strokeWidth={2} />
-              <span className="absolute inset-0 overflow-hidden" style={{ width: "50%" }}>
-                <Star className={`${cls} text-warning`} fill="currentColor" strokeWidth={2} />
-              </span>
-            </span>
-          );
-        }
-        return (
-          <Star
-            key={i}
-            className={`${cls} ${full ? "text-warning" : "text-border-strong"}`}
-            fill={full ? "currentColor" : "none"}
-            strokeWidth={2}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
 // Coerce a variety of shapes (array / comma- / newline-separated string)
 // into a list of strings for the "what's included" checklist.
 function toList(value) {
@@ -168,9 +130,6 @@ function toList(value) {
   return [];
 }
 
-// Probes a handful of attribute keys that vendors tend to use for
-// "what's included" lists. NOTE backend: standardising on a single key
-// (e.g. `package_inclusions`) per package step would let us drop this fan-out.
 function pickInclusions(attrs) {
   if (!attrs) return [];
   for (const key of [
@@ -198,36 +157,19 @@ function pickCitiesServed(attrs) {
 
 function pickDurationLabel(attrs) {
   if (!attrs) return null;
-  const v =
-    attrs.duration_hours ??
-    attrs.coverage_hours ??
-    attrs.hours_covered ??
-    attrs.duration;
+  const v = attrs.duration_hours ?? attrs.coverage_hours ?? attrs.hours_covered ?? attrs.duration;
   if (v == null || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? `${n}h` : String(v);
 }
 
 /* --------------------------- Image zoom modal ---------------------------- */
-// Lightweight, dependency-free fullscreen image modal. Closes on backdrop
-// click, the X button, or Esc. Supports arrow-key navigation when multiple
-// images are present.
 function ImageZoomModal({ images, index, onClose, onIndex }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   useEffect(() => {
     function onKey(e) {
       if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight" && images.length > 1) {
-        onIndex((index + 1) % images.length);
-      }
-      if (e.key === "ArrowLeft" && images.length > 1) {
-        onIndex((index - 1 + images.length) % images.length);
-      }
+      if (e.key === "ArrowRight" && images.length > 1) onIndex((index + 1) % images.length);
+      if (e.key === "ArrowLeft" && images.length > 1) onIndex((index - 1 + images.length) % images.length);
     }
     window.addEventListener("keydown", onKey);
     document.body.style.overflow = "hidden";
@@ -237,7 +179,7 @@ function ImageZoomModal({ images, index, onClose, onIndex }) {
     };
   }, [images.length, index, onClose, onIndex]);
 
-  if (!mounted || typeof document === "undefined") return null;
+  if (typeof document === "undefined") return null;
 
   const node = (
     <div
@@ -281,10 +223,7 @@ function ImageZoomModal({ images, index, onClose, onIndex }) {
           </button>
         </>
       ) : null}
-      <div
-        className="relative h-[80vh] w-[90vw] max-w-5xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative h-[80vh] w-[90vw] max-w-5xl" onClick={(e) => e.stopPropagation()}>
         <div
           className="absolute inset-0 bg-contain bg-center bg-no-repeat"
           style={{ backgroundImage: safeCssUrl(images[index]) }}
@@ -303,6 +242,115 @@ function ImageZoomModal({ images, index, onClose, onIndex }) {
   return createPortal(node, document.body);
 }
 
+/* --------------------------- Size chart modal ---------------------------- */
+// Renders the admin-managed size-chart tables (from /api/v1/size-chart). Opened
+// from the "Size chart" link beside the size selector — the Myntra pattern.
+function SizeChartModal({ onClose }) {
+  const { sizeChart } = useSizeChart();
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  if (typeof document === "undefined") return null;
+  const tables = sizeChart?.tables || [];
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-text-strong/45 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Size chart"
+      onClick={onClose}
+    >
+      <div
+        className="scrollbar-themed max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-lg font-bold text-text">{sizeChart?.heading || "Size Chart"}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="-mr-2 -mt-1 rounded-full p-2 text-subtle transition hover:bg-surface-muted"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+        {sizeChart?.intro ? <p className="mt-1 text-sm text-muted">{sizeChart.intro}</p> : null}
+
+        {tables.length ? (
+          tables.map((t, ti) => (
+            <div key={ti} className="mt-5">
+              {t.title ? <h4 className="mb-2 text-sm font-bold text-text">{t.title}</h4> : null}
+              <div className="scrollbar-themed overflow-x-auto rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-surface-muted text-left">
+                      {t.columns.map((c, ci) => (
+                        <th key={ci} className="whitespace-nowrap px-3 py-2 font-semibold text-text">
+                          {c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {t.rows.map((r, ri) => (
+                      <tr key={ri} className="border-t border-border">
+                        {t.columns.map((_, ci) => (
+                          <td key={ci} className="whitespace-nowrap px-3 py-2 text-muted">
+                            {r[ci] || "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {t.note ? <p className="mt-1.5 text-xs text-muted">{t.note}</p> : null}
+            </div>
+          ))
+        ) : (
+          <p className="mt-4 text-sm text-muted">A detailed size guide will be available soon.</p>
+        )}
+
+        <div className="mt-6 text-right">
+          <Link
+            href="/size-chart"
+            className="text-xs font-semibold text-primary hover:text-primary-hover"
+          >
+            Open full size guide →
+          </Link>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/* ----------------------------- Detail section ---------------------------- */
+function Section({ title, action, children }) {
+  return (
+    <section className="border-t border-border pt-6">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-bold text-text">{title}</h2>
+        {action || null}
+      </div>
+      <div className="mt-3">{children}</div>
+    </section>
+  );
+}
+
 export default function ProductDetailPage({ itemId }) {
   const [item, setItem] = useState(null);
   const [step, setStep] = useState(null);
@@ -311,20 +359,20 @@ export default function ProductDetailPage({ itemId }) {
   const [activeImage, setActiveImage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
   const [zoomOpen, setZoomOpen] = useState(false);
+  const [sizeChartOpen, setSizeChartOpen] = useState(false);
+  const [galleryHover, setGalleryHover] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [openPolicies, setOpenPolicies] = useState({});
   const [variantsData, setVariantsData] = useState(null);
   const [selectedVariant, setSelectedVariant] = useState({ size: "", color: "", material: "" });
   const [justAdded, setJustAdded] = useState({ shopping: false, quotation: false });
   const justAddedTimers = useRef({});
   const cartState = useCartState();
 
-  // Tri-state reviews toggle (shared contract). "disabled" hides the top
-  // rating row AND the whole reviews section; otherwise both render.
+  // Tri-state reviews toggle. "disabled" hides the rating row AND the reviews section.
   const { config } = useSiteConfig();
   const reviewsMode = config.reviews_mode;
-  // Live approved-review summary lifted from <ProductReviews/> so the headline
-  // count always matches the list below (item.review_count can be stale).
   const [reviewSummary, setReviewSummary] = useState(null);
   const handleReviewSummary = useCallback((s) => setReviewSummary(s), []);
 
@@ -335,9 +383,12 @@ export default function ProductDetailPage({ itemId }) {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => () => {
-    Object.values(justAddedTimers.current).forEach((t) => clearTimeout(t));
-  }, []);
+  useEffect(
+    () => () => {
+      Object.values(justAddedTimers.current).forEach((t) => clearTimeout(t));
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -352,13 +403,11 @@ export default function ProductDetailPage({ itemId }) {
         if (cancelled) return;
         setItem(fetched);
         setActiveImage(0);
-        setActiveTab("overview");
+        setDescExpanded(false);
         setReviewSummary(null);
         const resolved = resolveStep(steps, fetched);
         setStep(resolved);
 
-        // Schema + related items are non-blocking — render the rest even
-        // if these fail (e.g. unknown step slug, no peers in same cat).
         if (resolved?.slug) {
           fetchAttributeSchema(resolved.slug)
             .then((res) => {
@@ -377,27 +426,25 @@ export default function ProductDetailPage({ itemId }) {
             .then((res) => {
               if (cancelled) return;
               const pool = Array.isArray(res?.items) ? res.items : [];
-              setRelatedItems(
-                pool
-                  .filter((it) => it.item_id !== fetched.item_id)
-                  .slice(0, 4),
-              );
+              setRelatedItems(pool.filter((it) => it.item_id !== fetched.item_id).slice(0, 4));
             })
             .catch(() => {});
         }
 
-        // Variants are only meaningful for products (shopping-style items).
-        // We still fetch unconditionally — the endpoint returns an empty
-        // `options` map for items with no variants, so the UI just hides.
+        // Variants — endpoint returns an empty options map for items with none.
         fetchItemVariants(fetched.item_id || itemId)
           .then((res) => {
             if (cancelled) return;
             if (!res) return;
             setVariantsData(res);
+            // Pre-select the admin-set DEFAULT variant (is_default), falling back
+            // to the first variant, then to the first of each option list.
+            const vArr = Array.isArray(res?.variants) ? res.variants : [];
+            const def = vArr.find((v) => v.is_default) || vArr[0] || null;
             setSelectedVariant({
-              size: res?.options?.sizes?.[0] || "",
-              color: res?.options?.colors?.[0] || "",
-              material: res?.options?.materials?.[0] || "",
+              size: def?.size || res?.options?.sizes?.[0] || "",
+              color: def?.color || res?.options?.colors?.[0] || "",
+              material: def?.material || res?.options?.materials?.[0] || "",
             });
           })
           .catch(() => {});
@@ -417,17 +464,10 @@ export default function ProductDetailPage({ itemId }) {
   const whiteLabelOn = useMemo(() => !item?.vendor_id, [item]);
   const vendorName = useMemo(() => {
     if (!item) return "";
-    return whiteLabelOn
-      ? "MyShaadiStore"
-      : item.vendor_business_name || item.vendor_name || "Vendor";
+    return whiteLabelOn ? "MyShaadiStore" : item.vendor_business_name || item.vendor_name || "Vendor";
   }, [item, whiteLabelOn]);
-  // White-label = sold as MyShaadiStore (always verified). Otherwise
-  // honour the admin-set verified flag on the underlying vendor.
   const isSellerVerified = whiteLabelOn || !!item?.vendor_is_verified;
 
-  // Match the currently-picked option set to a concrete variant row. We
-  // only match on options that actually exist for this item (e.g. if the
-  // item has sizes but no colors, we ignore the color selection).
   const variantOptions = variantsData?.options || {};
   const hasSizes = (variantOptions.sizes || []).length > 0;
   const hasColors = (variantOptions.colors || []).length > 0;
@@ -435,9 +475,7 @@ export default function ProductDetailPage({ itemId }) {
   const hasVariants = hasSizes || hasColors || hasMaterials;
 
   const matchedVariant = useMemo(() => {
-    if (!variantsData || !Array.isArray(variantsData.variants) || !hasVariants) {
-      return null;
-    }
+    if (!variantsData || !Array.isArray(variantsData.variants) || !hasVariants) return null;
     return (
       variantsData.variants.find((v) => {
         if (hasSizes && v.size !== selectedVariant.size) return false;
@@ -448,10 +486,40 @@ export default function ProductDetailPage({ itemId }) {
     );
   }, [variantsData, selectedVariant, hasSizes, hasColors, hasMaterials, hasVariants]);
 
-  // Image gallery — swaps to variant-specific images when a variant is
-  // selected and that variant has its own gallery. This is the
-  // Amazon/Flipkart pattern: pick a colour → product photos change.
-  // Falls back to item-level images when the variant has none.
+  // Smart variant pick: lock the dimension the shopper just changed and, if the
+  // resulting combo isn't a real in-stock variant, re-resolve the OTHER
+  // dimensions to a valid in-stock combo that still contains the new value — so
+  // selecting "L" snaps the material to an L that's actually in stock instead of
+  // leaving a dead, unbuyable selection.
+  const pickVariant = useCallback(
+    (patch) => {
+      setSelectedVariant((prev) => {
+        const next = { ...prev, ...patch };
+        const variants = variantsData?.variants || [];
+        if (!variants.length) return next;
+        const dimKeys = [hasColors && "color", hasSizes && "size", hasMaterials && "material"].filter(Boolean);
+        const changedDim = Object.keys(patch)[0];
+        const inStock = (v) => (v.stock_quantity ?? 0) > 0;
+        const matchesAll = (v, sel) => dimKeys.every((d) => !sel[d] || v[d] === sel[d]);
+        // Current combo already a real in-stock variant → keep it.
+        if (variants.some((v) => matchesAll(v, next) && inStock(v))) return next;
+        // Otherwise find the best in-stock variant that keeps the changed value.
+        const candidate = variants
+          .filter((v) => inStock(v) && (!changedDim || v[changedDim] === next[changedDim]))
+          .sort((a, b) => (b.stock_quantity || 0) - (a.stock_quantity || 0))[0];
+        if (!candidate) return next; // nothing in stock for this value — leave as-is (shows N/A)
+        const fixed = { ...next };
+        for (const d of dimKeys) {
+          if (d !== changedDim && candidate[d]) fixed[d] = candidate[d];
+        }
+        return fixed;
+      });
+    },
+    [variantsData, hasColors, hasSizes, hasMaterials],
+  );
+
+  // Gallery swaps to the selected variant's images (Amazon/Flipkart pattern),
+  // falling back to item-level images when the variant has none.
   const images = useMemo(() => {
     if (matchedVariant?.images?.length) return matchedVariant.images;
     if (!item) return [FALLBACK_IMAGE];
@@ -459,31 +527,33 @@ export default function ProductDetailPage({ itemId }) {
     return [FALLBACK_IMAGE];
   }, [item, matchedVariant]);
 
-  // Reset to the first image whenever the active gallery (item ↔ variant) swaps.
   useEffect(() => {
     setActiveImage(0);
   }, [matchedVariant?.variant_id]);
 
-  const hasDiscount =
-    item?.is_discount_active && Number(item.discount_percentage) > 0;
-  // Use the matched variant's price when available (lets vendors charge
-  // more for, say, an XXL or a premium colour). Discounts still apply on
-  // top via the item-level discount percentage.
+  // Auto-advance the gallery every 5s. Pauses while the zoom modal is open or
+  // the user is hovering the gallery, so it never fights a deliberate look.
+  useEffect(() => {
+    if (images.length <= 1 || zoomOpen || galleryHover) return undefined;
+    const t = setInterval(() => {
+      setActiveImage((i) => (i + 1) % images.length);
+    }, 5000);
+    return () => clearInterval(t);
+  }, [images.length, zoomOpen, galleryHover]);
+
+  const hasDiscount = item?.is_discount_active && Number(item.discount_percentage) > 0;
   const variantBase = Number(matchedVariant?.price || 0);
   const basePrice = variantBase > 0 ? variantBase : Number(item?.price ?? 0);
   const finalPrice = hasDiscount
     ? Math.round(basePrice * (1 - Number(item.discount_percentage) / 100))
     : Number(item?.final_price ?? basePrice);
 
-  const supportsShoppingCart = Boolean(item?.policies?.returnable);
+  // Shopping items get the dual cart (quote + shopping); every other journey
+  // step gets a single "Add to cart" (quotation/inquiry).
+  const isShoppingItem = String(step?.slug || "").toLowerCase() === "shopping";
   const stepNature = useMemo(() => resolveStepNature(step), [step]);
 
   const rating = useMemo(() => (item ? resolveRating(item) : null), [item]);
-  // Headline rating shown next to the title. Once the live approved-review
-  // summary arrives from <ProductReviews/> it becomes the source of truth so
-  // the count matches the list below (the stored item.review_count can be
-  // stale — this fixes the "N reviews up top, 0 below" mismatch). Until then
-  // we fall back gracefully to the stored rating.
   const headlineRating = useMemo(() => {
     if (reviewSummary) {
       const count = Number(reviewSummary.count) || 0;
@@ -492,6 +562,7 @@ export default function ProductDetailPage({ itemId }) {
     }
     return rating;
   }, [reviewSummary, rating]);
+
   const locationStr = useMemo(() => {
     if (!item) return "";
     return [item.location_city, item.location_state].filter(Boolean).join(", ");
@@ -503,9 +574,7 @@ export default function ProductDetailPage({ itemId }) {
   const outstationCharges = item?.attributes?.outstation_charges;
   const bulkSlabs = useMemo(() => {
     const raw = item?.attributes?.bulk_discount_slabs;
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw;
-    return [];
+    return Array.isArray(raw) ? raw : [];
   }, [item]);
 
   const countdown = useMemo(() => {
@@ -513,8 +582,6 @@ export default function ProductDetailPage({ itemId }) {
     return formatCountdown(item.discount?.ends_at);
   }, [hasDiscount, item]);
 
-  // Absolute savings + percentage for the premium price block. Only meaningful
-  // when a discount is live AND the MRP is actually higher than the sale price.
   const savings = useMemo(() => {
     if (!hasDiscount || basePrice <= finalPrice) return null;
     const amount = basePrice - finalPrice;
@@ -525,14 +592,10 @@ export default function ProductDetailPage({ itemId }) {
   function buildCartPayload() {
     if (!item) return null;
     const variantTag = matchedVariant
-      ? [matchedVariant.size, matchedVariant.color, matchedVariant.material]
-          .filter(Boolean)
-          .join(" / ")
+      ? [matchedVariant.size, matchedVariant.color, matchedVariant.material].filter(Boolean).join(" / ")
       : "";
     return {
       ...item,
-      // `images` and `image` reflect the currently-selected variant when one
-      // is picked, so the cart row shows the right colour photo.
       images,
       image: images[0],
       category_label: item.category_label || step?.title || "",
@@ -545,6 +608,9 @@ export default function ProductDetailPage({ itemId }) {
             variant_id: matchedVariant.variant_id,
             variant_sku: matchedVariant.sku || null,
             variant_label: variantTag,
+            variant_size: matchedVariant.size || "",
+            variant_color: matchedVariant.color || "",
+            variant_material: matchedVariant.material || "",
             variant_images: matchedVariant.images || [],
             price: basePrice,
             final_price: finalPrice,
@@ -563,10 +629,7 @@ export default function ProductDetailPage({ itemId }) {
     return cartState.shopping.find((c) => c.item_id === item.item_id) || null;
   }, [cartState.shopping, item]);
 
-  // Wishlist bucket — derived from step.slug. If the step hasn't loaded
-  // yet (or the slug is anything other than "shopping"), we default to
-  // "journey" because every non-shopping step is a journey step.
-  const wishlistKind = step?.slug === "shopping" ? "shopping" : "journey";
+  const wishlistKind = isShoppingItem ? "shopping" : "journey";
   const wishlisted = useIsWishlisted(wishlistKind, item?.item_id);
 
   function handleToggleWishlist() {
@@ -592,7 +655,7 @@ export default function ProductDetailPage({ itemId }) {
     const payload = buildCartPayload();
     if (!payload) return;
     addToCart("quotation", payload, 1);
-    toast.success("Added to inquiry");
+    toast.success("Added to quote cart");
     flashAdded("quotation");
   }
 
@@ -600,7 +663,7 @@ export default function ProductDetailPage({ itemId }) {
     const payload = buildCartPayload();
     if (!payload) return;
     addToCart("shopping", payload, 1);
-    toast.success("Added to cart");
+    toast.success("Added to shopping cart");
     flashAdded("shopping");
   }
 
@@ -625,7 +688,7 @@ export default function ProductDetailPage({ itemId }) {
           </p>
           <Link
             href="/"
-            className="mt-6 inline-flex items-center justify-center rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+            className="mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
           >
             Back to home
           </Link>
@@ -637,29 +700,21 @@ export default function ProductDetailPage({ itemId }) {
   const stepHref = step?.slug ? `/journey/${step.slug}` : "/";
   const categoryLabel = item.category_label || step?.title || "Catalog";
 
-  // Build the "View all in {category}" link. For products we send shoppers
-  // to /shopping with a category filter, otherwise to the journey step page.
   const viewAllHref = (() => {
     if (!step?.slug) return null;
     const slug = item.category_slug || "";
     if (stepNature === "product") {
       return slug ? `/shopping?category=${encodeURIComponent(slug)}` : "/shopping";
     }
-    return slug
-      ? `/journey/${step.slug}?category=${encodeURIComponent(slug)}`
-      : `/journey/${step.slug}`;
+    return slug ? `/journey/${step.slug}?category=${encodeURIComponent(slug)}` : `/journey/${step.slug}`;
   })();
 
-  // Detailed policy descriptors — surfaced in the Policies tab. Field names
-  // follow the shared policy contract (cancellation_window_hours, *_window_days,
-  // *_policy_text) with fallbacks to legacy names for resilience. Vendor-authored
-  // policy text, when present, is shown beneath the auto-generated summary line.
+  // Policy descriptors (canonical keys written by the admin/vendor item forms).
   const pol = item.policies || {};
-  const cancellationHours = pol.cancellation_window_hours ?? pol.cancellation_hours;
-  const returnDays = pol.return_window_days ?? pol.return_days;
-  const refundDays = pol.refund_window_days ?? pol.refund_days;
+  const cancellationHours = pol.cancellation_window_hours;
+  const returnDays = pol.return_window_days;
+  const refundDays = pol.refund_window_days;
   const replacementDays = pol.replacement_window_days;
-  // Renamed exchange_policy_text -> replacement_policy_text (fallback to legacy).
   const replacementText = pol.replacement_policy_text || pol.exchange_policy_text || null;
 
   const policyCards = [];
@@ -668,7 +723,7 @@ export default function ProductDetailPage({ itemId }) {
       icon: <Clock className="h-5 w-5 text-primary" aria-hidden />,
       title: "Cancellable",
       detail: cancellationHours
-        ? `Free cancellation up to ${cancellationHours}h before`
+        ? `Free cancellation up to ${cancellationHours}h after ordering`
         : "Free cancellation available",
       text: pol.cancellation_policy_text || null,
     });
@@ -677,7 +732,7 @@ export default function ProductDetailPage({ itemId }) {
     policyCards.push({
       icon: <RotateCcw className="h-5 w-5 text-primary" aria-hidden />,
       title: "Returnable",
-      detail: returnDays ? `Returns accepted within ${returnDays} days` : "Easy returns available",
+      detail: returnDays ? `Returns accepted within ${returnDays} days of delivery` : "Easy returns available",
       text: pol.return_policy_text || null,
     });
   }
@@ -685,7 +740,7 @@ export default function ProductDetailPage({ itemId }) {
     policyCards.push({
       icon: <ShieldCheck className="h-5 w-5 text-primary" aria-hidden />,
       title: "Refundable",
-      detail: refundDays ? `Refund issued within ${refundDays} days` : "Refund issued after pickup",
+      detail: refundDays ? `Refund processed within ${refundDays} days` : "Refund issued after pickup",
       text: pol.refund_policy_text || null,
     });
   }
@@ -694,7 +749,7 @@ export default function ProductDetailPage({ itemId }) {
       icon: <Package className="h-5 w-5 text-primary" aria-hidden />,
       title: "Replacement",
       detail: replacementDays
-        ? `Replacement within ${replacementDays} days`
+        ? `Replacement within ${replacementDays} day${replacementDays === 1 ? "" : "s"}`
         : "Wrong size or damage — swap on the house",
       text: replacementText,
     });
@@ -706,63 +761,27 @@ export default function ProductDetailPage({ itemId }) {
       detail: "Manufacturer-backed coverage on defects",
     });
   }
-  // Slim chip strip too — quick at-a-glance summary near the price.
+
   const policyChips = [];
   if (pol.cancellable) policyChips.push("Cancellable");
   if (pol.returnable) policyChips.push("Returnable");
   if (pol.refundable) policyChips.push("Refundable");
   if (pol.replaceable) policyChips.push("Replacement");
-  if (pol.warranty_years) {
-    policyChips.push(`${pol.warranty_years}y warranty`);
-  }
-
-  // Vendor card "X years on MyShaadiStore" — derive from vendor_created_at if
-  // shipped (not exposed yet); fall back to "Active member" copy so we never
-  // print a wrong year. NOTE backend: surface vendor.created_at on item API.
-  const vendorYears = (() => {
-    const created = item.vendor_created_at || item.vendor?.created_at;
-    if (!created) return null;
-    const ts = new Date(created).getTime();
-    if (!Number.isFinite(ts)) return null;
-    const years = Math.max(0, Math.floor((Date.now() - ts) / (365.25 * 24 * 3600 * 1000)));
-    return years;
-  })();
+  if (pol.warranty_years) policyChips.push(`${pol.warranty_years}y warranty`);
 
   const vendorInitial = (vendorName || "M").trim().charAt(0).toUpperCase();
+  const vendorLogo = item.vendor_logo_url || item.vendor?.logo_url || "";
   const stockStatus = item.stock_status;
   const minOrderQty = item.attributes?.min_order_qty;
 
-  const trustSignals = [
-    {
-      icon: <Lock className="h-5 w-5 text-primary" aria-hidden />,
-      title: "Secure payments",
-      body: "Encrypted checkout via Razorpay",
-    },
-    {
-      icon: <Headphones className="h-5 w-5 text-primary" aria-hidden />,
-      title: "Live support",
-      body: "10 AM – 8 PM, Monday to Saturday",
-    },
-    pol.returnable
-      ? {
-          icon: <RotateCcw className="h-5 w-5 text-primary" aria-hidden />,
-          title: "Easy returns",
-          body: returnDays
-            ? `Within ${returnDays} days of delivery`
-            : "Hassle-free returns",
-        }
-      : {
-          icon: <ShieldCheck className="h-5 w-5 text-primary" aria-hidden />,
-          title: "Verified vendors",
-          body: "Hand-picked, KYC-verified partners",
-        },
-  ];
+  const selectedStock = matchedVariant ? Number(matchedVariant.stock_quantity || 0) : null;
+  const selectedOutOfStock = matchedVariant != null && selectedStock <= 0;
 
-  const TABS = [
-    { id: "overview", label: "Overview" },
-    { id: "specs", label: "Specifications" },
-    { id: "policies", label: "Policies" },
-  ];
+  const hasSpecs = item.attributes && Object.keys(item.attributes).length > 0;
+  const desc = item.description || "";
+  const isLongDesc = desc.length > 280;
+
+  const galleryAspect = isShoppingItem ? "aspect-[4/5]" : "aspect-[4/3]";
 
   return (
     <main className="bg-surface pb-24 md:pb-0">
@@ -779,10 +798,7 @@ export default function ProductDetailPage({ itemId }) {
           {item.category_label ? (
             <>
               <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <Link
-                href={viewAllHref || stepHref}
-                className="hover:text-primary"
-              >
+              <Link href={viewAllHref || stepHref} className="hover:text-primary">
                 {item.category_label}
               </Link>
             </>
@@ -791,14 +807,18 @@ export default function ProductDetailPage({ itemId }) {
           <span className="truncate text-text">{item.name}</span>
         </nav>
 
-        {/* HERO: gallery (left) + sticky purchase column (right) */}
-        <section className="mt-6 grid gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-14 lg:items-start">
-          {/* Gallery — hero image with thumbnails below */}
-          <div className="space-y-4">
+        {/* Two-column: sticky gallery (left) + scrolling detail column (right) */}
+        <section className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-12 lg:items-start">
+          {/* LEFT — sticky gallery */}
+          <div
+            className="space-y-3 lg:sticky lg:top-24 lg:self-start"
+            onMouseEnter={() => setGalleryHover(true)}
+            onMouseLeave={() => setGalleryHover(false)}
+          >
             <button
               type="button"
               onClick={() => setZoomOpen(true)}
-              className="group relative block aspect-4/3 w-full overflow-hidden rounded-2xl bg-surface-muted shadow-[0_10px_40px_-12px_rgba(15,23,42,0.18)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className={`group relative mx-auto block ${galleryAspect} max-h-[78vh] w-full overflow-hidden rounded-lg bg-surface-muted shadow-[0_10px_40px_-12px_rgba(15,23,42,0.18)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40`}
               aria-label="Open image viewer"
             >
               <div
@@ -807,13 +827,12 @@ export default function ProductDetailPage({ itemId }) {
                 role="img"
                 aria-label={item.name}
               />
-              <div className="pointer-events-none absolute inset-0 rounded-2xl shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05),inset_0_-20px_60px_-25px_rgba(15,23,42,0.22)]" />
+              <div className="pointer-events-none absolute inset-0 rounded-lg shadow-[inset_0_0_0_1px_rgba(15,23,42,0.05)]" />
               {hasDiscount ? (
                 <span className="absolute left-4 top-4 rounded-md bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-sm">
                   {item.discount_percentage}% OFF
                 </span>
               ) : null}
-              {/* Zoom affordance — appears on hover */}
               <span className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-text/70 px-3 py-1.5 text-xs font-semibold text-primary-foreground opacity-0 backdrop-blur-sm transition-opacity duration-200 group-hover:opacity-100">
                 <ZoomIn className="h-3.5 w-3.5" aria-hidden />
                 Click to zoom
@@ -832,7 +851,7 @@ export default function ProductDetailPage({ itemId }) {
                     key={`${img}-${idx}`}
                     type="button"
                     onClick={() => setActiveImage(idx)}
-                    className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-md border bg-surface-muted transition ${
+                    className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border bg-surface-muted transition ${
                       idx === activeImage
                         ? "border-primary ring-2 ring-primary/40"
                         : "border-border hover:border-border-strong"
@@ -851,20 +870,16 @@ export default function ProductDetailPage({ itemId }) {
             ) : null}
           </div>
 
-          {/* Right column — sticky purchase panel */}
-          <div className="flex flex-col lg:sticky lg:top-24">
-            {(item.category_label || item.subcategory_label) ? (
+          {/* RIGHT — buy + detail column */}
+          <div className="min-w-0">
+            {item.category_label || item.subcategory_label ? (
               <div className="text-xs font-semibold uppercase tracking-wider text-primary">
-                {[item.category_label, item.subcategory_label]
-                  .filter(Boolean)
-                  .join(" · ")}
+                {[item.category_label, item.subcategory_label].filter(Boolean).join(" · ")}
               </div>
             ) : null}
 
             <div className="mt-2 flex items-start justify-between gap-3">
-              <h1 className="text-2xl font-bold leading-tight text-text sm:text-3xl">
-                {item.name}
-              </h1>
+              <h1 className="text-2xl font-medium leading-tight text-text">{item.name}</h1>
               <button
                 type="button"
                 onClick={handleToggleWishlist}
@@ -876,62 +891,50 @@ export default function ProductDetailPage({ itemId }) {
                     : "border-border-strong bg-surface text-text hover:border-primary hover:text-primary"
                 }`}
               >
-                <Heart
-                  className="h-5 w-5"
-                  fill={wishlisted ? "currentColor" : "none"}
-                  strokeWidth={2}
-                />
+                <Heart className="h-5 w-5" fill={wishlisted ? "currentColor" : "none"} strokeWidth={2} />
               </button>
             </div>
 
-            {/* Rating row — hidden entirely when reviews are disabled. Uses the
-                live approved-review summary once known so the count matches the
-                reviews list below. */}
-            {reviewsMode !== "disabled" && headlineRating ? (
-              <div className="mt-3 flex items-center gap-2 text-sm text-muted">
-                <StarRow value={headlineRating.value} size="lg" />
-                <span className="font-semibold text-text">{headlineRating.value.toFixed(1)}</span>
-                <span>({headlineRating.count} reviews)</span>
-              </div>
-            ) : null}
-
-            {/* Hero trust strip — vendor identity + inline rating in one
-                compact bordered row, just above the price. */}
-            <div className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-y border-border py-2.5 text-sm text-muted">
-              <span className="inline-flex items-center gap-1.5">
-                {isSellerVerified ? <VerifiedBadge size="sm" /> : (
-                  <Store className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {/* Vendor identity — avatar (left) · name · verified tick (right) + rating */}
+            <div className="mt-4 flex items-center gap-3 border-b border-border pb-4">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-soft text-sm font-bold text-primary">
+                {vendorLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={vendorLogo} alt={vendorName} className="h-full w-full object-cover" />
+                ) : (
+                  vendorInitial
                 )}
-                <span className="font-semibold text-text">{vendorName}</span>
               </span>
-              {reviewsMode !== "disabled" && headlineRating ? (
-                <>
-                  <span className="text-border-strong" aria-hidden>
-                    &middot;
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <Star className="h-4 w-4 text-warning" fill="currentColor" strokeWidth={2} aria-hidden />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold text-text">{vendorName}</span>
+                  {isSellerVerified ? <VerifiedBadge size="sm" /> : null}
+                </div>
+                {reviewsMode !== "disabled" && headlineRating ? (
+                  <div className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                    <Star className="h-3.5 w-3.5 text-warning" fill="currentColor" strokeWidth={2} aria-hidden />
                     <span className="font-semibold text-text">{headlineRating.value.toFixed(1)}</span>
-                    <span>({headlineRating.count} reviews)</span>
-                  </span>
-                </>
-              ) : null}
+                    <span>
+                      ({headlineRating.count} review{headlineRating.count === 1 ? "" : "s"})
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-0.5 text-xs text-muted">
+                    {whiteLabelOn ? "Fulfilled by MyShaadiStore" : "Verified partner"}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Price block — premium: left accent bar + larger price +
-                explicit savings line. */}
-            <div className="mt-6 flex gap-4 rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-              <span className="w-1 shrink-0 rounded-full bg-primary" aria-hidden />
+            {/* Price */}
+            <div className="mt-5 flex gap-4 rounded-lg border border-border bg-surface p-5">
+              {/* <span className="w-1 shrink-0 rounded-full bg-primary" aria-hidden /> */}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-3">
-                  <span className="text-3xl font-bold text-text sm:text-4xl">
-                    {formatRupees(finalPrice)}
-                  </span>
+                  <span className="text-3xl font-semibold text-text sm:text-4xl">{formatRupees(finalPrice)}</span>
                   {hasDiscount && basePrice > finalPrice ? (
                     <>
-                      <span className="text-sm text-muted line-through">
-                        {formatRupees(basePrice)}
-                      </span>
+                      <span className="text-sm text-muted line-through">{formatRupees(basePrice)}</span>
                       <span className="rounded-md bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
                         {item.discount_percentage}% OFF
                       </span>
@@ -943,9 +946,9 @@ export default function ProductDetailPage({ itemId }) {
                     You save {formatRupees(savings.amount)} ({savings.pct}%)
                   </div>
                 ) : null}
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-success">
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium">
                   <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-                  Best price guarantee
+                  Best price guarantee · inclusive of all taxes
                 </div>
                 {countdown ? (
                   <div className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
@@ -956,41 +959,21 @@ export default function ProductDetailPage({ itemId }) {
               </div>
             </div>
 
-            {/* Rating summary mini-card — compact at-a-glance review snapshot
-                near the price. Reuses headlineRating (no extra fetch); hidden
-                when reviews are off or there are no approved reviews yet. */}
-            {reviewsMode !== "disabled" && headlineRating && headlineRating.count > 0 ? (
-              <div className="mt-4 flex items-center gap-4 rounded-2xl border border-border bg-surface p-4 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-                <div className="flex shrink-0 flex-col items-center">
-                  <span className="text-3xl font-bold leading-none text-text">
-                    {headlineRating.value.toFixed(1)}
-                  </span>
-                  <span className="mt-0.5 text-[11px] font-medium text-muted">out of 5</span>
-                </div>
-                <div className="min-w-0">
-                  <StarRow value={headlineRating.value} size="lg" />
-                  <div className="mt-1 text-xs text-muted">
-                    Based on{" "}
-                    <span className="font-semibold text-text">{headlineRating.count}</span>{" "}
-                    verified review{headlineRating.count === 1 ? "" : "s"}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* Variant selector — only when this item has variants */}
+            {/* Variant selector */}
             {hasVariants ? (
               <VariantSelector
                 options={variantOptions}
                 allVariants={variantsData?.variants || []}
                 selected={selectedVariant}
-                onChange={(patch) => setSelectedVariant((prev) => ({ ...prev, ...patch }))}
+                onChange={pickVariant}
                 matched={matchedVariant}
+                showSizeChart={isShoppingItem && hasSizes}
+                onOpenSizeChart={() => setSizeChartOpen(true)}
               />
             ) : null}
 
-            {/* Location + product extras row */}
-            {(locationStr || stepNature === "product") ? (
+            {/* Location + product extras */}
+            {locationStr || stepNature === "product" ? (
               <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
                 {locationStr ? (
                   <span className="inline-flex items-center gap-1.5 font-medium text-text">
@@ -1002,10 +985,6 @@ export default function ProductDetailPage({ itemId }) {
                   <span className="rounded-md bg-success/10 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-success">
                     In stock
                   </span>
-                ) : stepNature === "product" && stockStatus === "made_to_order" ? (
-                  <span className="rounded-md bg-warning/15 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-warning">
-                    Made to order
-                  </span>
                 ) : null}
                 {stepNature === "product" && minOrderQty ? (
                   <span className="rounded-md border border-border bg-surface-muted px-2 py-1 text-xs font-medium text-text">
@@ -1015,7 +994,7 @@ export default function ProductDetailPage({ itemId }) {
               </div>
             ) : null}
 
-            {/* Policy chips — quick scan summary */}
+            {/* Policy chips */}
             {policyChips.length > 0 ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 {policyChips.map((chip) => (
@@ -1030,32 +1009,26 @@ export default function ProductDetailPage({ itemId }) {
               </div>
             ) : null}
 
-            {/* Action buttons / qty steppers — sit ABOVE the trust signals
-                so the primary CTA is the first thing in the purchase column
-                after the price/variant/policy chip block. */}
-            <div className="mt-6 space-y-3">
-              {supportsShoppingCart ? (
-                inShoppingCart ? (
+            {/* CTAs — shopping: dual cart; others: single Add to cart */}
+            {selectedOutOfStock ? (
+              <p className="mt-6 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm font-semibold text-danger">
+                This combination is out of stock. Pick another size or colour.
+              </p>
+            ) : null}
+
+            {isShoppingItem ? (
+              <div className="mt-6 grid gap-3">
+                {inShoppingCart ? (
                   <CartQtyStepper
-                    label="In cart"
+                    label="In shopping cart"
                     quantity={inShoppingCart.quantity}
                     onDecrease={() =>
-                      updateCartQuantity(
-                        "shopping",
-                        item.item_id,
-                        Math.max(1, inShoppingCart.quantity - 1),
-                      )
+                      updateCartQuantity("shopping", item.item_id, Math.max(1, inShoppingCart.quantity - 1))
                     }
-                    onIncrease={() =>
-                      updateCartQuantity(
-                        "shopping",
-                        item.item_id,
-                        inShoppingCart.quantity + 1,
-                      )
-                    }
+                    onIncrease={() => updateCartQuantity("shopping", item.item_id, inShoppingCart.quantity + 1)}
                     onRemove={() => {
                       removeFromCart("shopping", item.item_id);
-                      toast.message("Removed from cart");
+                      toast.message("Removed from shopping cart");
                     }}
                   />
                 ) : (
@@ -1063,310 +1036,271 @@ export default function ProductDetailPage({ itemId }) {
                     primary
                     onClick={handleAddToShoppingCart}
                     icon={<ShoppingCart className="h-4 w-4" aria-hidden />}
-                    label="Add to Cart"
+                    label="Add to shopping cart"
                     justAdded={justAdded.shopping}
+                    disabled={selectedOutOfStock}
                   />
-                )
-              ) : null}
+                )}
 
-              {inInquiryCart ? (
-                <CartQtyStepper
-                  label="In inquiry"
-                  quantity={inInquiryCart.quantity}
-                  onDecrease={() =>
-                    updateCartQuantity(
-                      "quotation",
-                      item.item_id,
-                      Math.max(1, inInquiryCart.quantity - 1),
-                    )
-                  }
-                  onIncrease={() =>
-                    updateCartQuantity(
-                      "quotation",
-                      item.item_id,
-                      inInquiryCart.quantity + 1,
-                    )
-                  }
-                  onRemove={() => {
-                    removeFromCart("quotation", item.item_id);
-                    toast.message("Removed from inquiry");
-                  }}
-                />
-              ) : (
-                <AddButton
-                  primary={!supportsShoppingCart}
-                  onClick={handleAddToInquiry}
-                  icon={<ClipboardList className="h-4 w-4" aria-hidden />}
-                  label="Add to Cart"
-                  justAdded={justAdded.quotation}
-                />
-              )}
-            </div>
-
-            {/* Trust signal cards — sit below the CTA so the user reads
-                "Secure payments / Live support / Easy returns" right after
-                committing to add, not before. 3 across desktop, scrollable
-                strip on mobile. */}
-            <div className="mt-6 -mx-1 flex gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:px-0">
-              {trustSignals.map((sig) => (
-                <div
-                  key={sig.title}
-                  className="flex min-w-45 shrink-0 flex-col gap-2 rounded-2xl border border-border bg-surface p-3 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] sm:min-w-0 sm:shrink"
-                >
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary-soft">
-                    {sig.icon}
-                  </span>
-                  <div>
-                    <div className="text-xs font-semibold text-text">{sig.title}</div>
-                    <div className="mt-0.5 text-[11px] leading-4 text-muted">{sig.body}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Vendor info card */}
-            <div className="mt-6 rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-              <div className="flex items-start gap-3">
-                <div
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-soft text-lg font-bold text-primary"
-                  aria-hidden
-                >
-                  {vendorInitial}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className="truncate text-base font-bold text-text">{vendorName}</div>
-                    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-success/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success">
-                      <BadgeCheck className="h-3 w-3" aria-hidden />
-                      Verified
-                    </span>
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted">
-                    {whiteLabelOn
-                      ? "Fulfilled end-to-end by MyShaadiStore"
-                      : vendorYears != null
-                      ? `${vendorYears === 0 ? "New" : `${vendorYears}+ year${vendorYears === 1 ? "" : "s"}`} on MyShaadiStore`
-                      : "Active member on MyShaadiStore"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* TABS: Overview / Specifications / Policies / Reviews */}
-        <section className="mt-14">
-          <div className="border-b border-border">
-            <div className="-mx-1 flex gap-1 overflow-x-auto px-1">
-              {TABS.map((tab) => {
-                const active = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`relative shrink-0 px-4 py-3 text-sm transition-colors duration-200 ${
-                      active
-                        ? "font-bold text-text"
-                        : "font-medium text-muted hover:text-text"
-                    }`}
-                    aria-current={active ? "true" : undefined}
-                  >
-                    {tab.label}
-                    <span
-                      className={`absolute inset-x-3 -bottom-px h-0.5 rounded-t-md bg-primary transition-all duration-300 ${
-                        active ? "opacity-100" : "opacity-0"
-                      }`}
-                      aria-hidden
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-6">
-            {activeTab === "overview" ? (
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-10">
-                <div className="space-y-6">
-                  {item.description ? (
-                    <div>
-                      <h2 className="text-base font-bold text-text">About this item</h2>
-                      <p className="mt-2 text-sm leading-7 text-muted">{item.description}</p>
-                    </div>
-                  ) : null}
-
-                  {/* What's included (package) */}
-                  {stepNature === "package" && inclusions.length > 0 ? (
-                    <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-                      <div className="mb-3 flex items-center gap-2">
-                        <Package className="h-5 w-5 text-primary" aria-hidden />
-                        <h3 className="text-base font-bold text-text">What&apos;s included</h3>
-                      </div>
-                      <ul className="grid gap-2 sm:grid-cols-2">
-                        {inclusions.map((line) => (
-                          <li key={line} className="flex items-start gap-2 text-sm text-text">
-                            <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
-                            <span>{line}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-
-                  {/* Product: bulk pricing slabs */}
-                  {stepNature === "product" && bulkSlabs.length > 0 ? (
-                    <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-                      <h3 className="mb-3 text-base font-bold text-text">Bulk pricing</h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                              <th className="py-2 pr-4 font-semibold">Quantity</th>
-                              <th className="py-2 pr-4 font-semibold">Price / unit</th>
-                              <th className="py-2 font-semibold">You save</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {bulkSlabs.map((slab, idx) => (
-                              <tr key={idx} className="border-b border-border last:border-0">
-                                <td className="py-2 pr-4 text-text">
-                                  {slab.min_qty ? `${slab.min_qty}+` : slab.range || `Tier ${idx + 1}`}
-                                </td>
-                                <td className="py-2 pr-4 text-text">
-                                  {slab.price != null ? formatRupees(slab.price) : "—"}
-                                </td>
-                                <td className="py-2 text-success">
-                                  {slab.discount_pct ? `${slab.discount_pct}% off` : ""}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Side panel: service details (package only) */}
-                <div className="space-y-6">
-                  {stepNature === "package" &&
-                  (durationLabel || citiesServed.length > 0 || outstationCharges) ? (
-                    <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-                      <h3 className="mb-4 text-base font-bold text-text">Service details</h3>
-                      <div className="space-y-4 text-sm">
-                        {durationLabel ? (
-                          <div className="flex items-start gap-3">
-                            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary-soft">
-                              <Clock className="h-4 w-4 text-primary" aria-hidden />
-                            </span>
-                            <div className="min-w-0">
-                              <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-                                Duration
-                              </div>
-                              <div className="mt-0.5 text-sm font-medium text-text">
-                                {durationLabel}
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
-                        {citiesServed.length > 0 ? (
-                          <div className="flex items-start gap-3">
-                            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary-soft">
-                              <MapPin className="h-4 w-4 text-primary" aria-hidden />
-                            </span>
-                            <div className="min-w-0">
-                              <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-                                Cities served
-                              </div>
-                              <div className="mt-1 flex flex-wrap gap-1.5">
-                                {citiesServed.map((c) => (
-                                  <span
-                                    key={c}
-                                    className="rounded-md border border-border bg-surface-muted px-2 py-0.5 text-xs text-text"
-                                  >
-                                    {c}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
-                        {outstationCharges ? (
-                          <div className="flex items-start gap-3">
-                            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary-soft">
-                              <Truck className="h-4 w-4 text-primary" aria-hidden />
-                            </span>
-                            <div className="min-w-0">
-                              <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-                                Outstation charges
-                              </div>
-                              <div className="mt-0.5 text-sm font-medium text-text">
-                                {typeof outstationCharges === "number" || /^\d/.test(String(outstationCharges))
-                                  ? formatRupees(outstationCharges)
-                                  : String(outstationCharges)}
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
-            {activeTab === "specs" ? (
-              <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-6">
-                {item.attributes && Object.keys(item.attributes).length > 0 ? (
-                  <ItemAttributesSpec item={item} schema={schema} />
+                {inInquiryCart ? (
+                  <CartQtyStepper
+                    label="In quote cart"
+                    quantity={inInquiryCart.quantity}
+                    onDecrease={() =>
+                      updateCartQuantity("quotation", item.item_id, Math.max(1, inInquiryCart.quantity - 1))
+                    }
+                    onIncrease={() => updateCartQuantity("quotation", item.item_id, inInquiryCart.quantity + 1)}
+                    onRemove={() => {
+                      removeFromCart("quotation", item.item_id);
+                      toast.message("Removed from quote cart");
+                    }}
+                  />
                 ) : (
-                  <p className="text-sm text-muted">
-                    No specifications listed for this item yet.
-                  </p>
+                  <AddButton
+                    primary={false}
+                    onClick={handleAddToInquiry}
+                    icon={<ClipboardList className="h-4 w-4" aria-hidden />}
+                    label="Add to quote cart"
+                    justAdded={justAdded.quotation}
+                    disabled={selectedOutOfStock}
+                  />
                 )}
               </div>
-            ) : null}
+            ) : (
+              <div className="mt-6">
+                {inInquiryCart ? (
+                  <CartQtyStepper
+                    label="In cart"
+                    quantity={inInquiryCart.quantity}
+                    onDecrease={() =>
+                      updateCartQuantity("quotation", item.item_id, Math.max(1, inInquiryCart.quantity - 1))
+                    }
+                    onIncrease={() => updateCartQuantity("quotation", item.item_id, inInquiryCart.quantity + 1)}
+                    onRemove={() => {
+                      removeFromCart("quotation", item.item_id);
+                      toast.message("Removed from cart");
+                    }}
+                  />
+                ) : (
+                  <AddButton
+                    primary
+                    onClick={handleAddToInquiry}
+                    icon={<ClipboardList className="h-4 w-4" aria-hidden />}
+                    label="Add to cart"
+                    justAdded={justAdded.quotation}
+                  />
+                )}
+              </div>
+            )}
 
-            {activeTab === "policies" ? (
-              policyCards.length > 0 ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {policyCards.map((p) => (
-                    <div
-                      key={p.title}
-                      className="flex items-start gap-4 rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
+            {/* ── Detail sections (stacked, no tabs) ── */}
+            <div className="mt-10 space-y-6">
+              {desc ? (
+                <Section title="About this item">
+                  <p
+                    className={`whitespace-pre-line text-sm leading-7 text-muted ${
+                      !descExpanded && isLongDesc ? "line-clamp-4" : ""
+                    }`}
+                  >
+                    {desc}
+                  </p>
+                  {isLongDesc ? (
+                    <button
+                      type="button"
+                      onClick={() => setDescExpanded((v) => !v)}
+                      className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary-hover"
                     >
-                      <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-soft">
-                        {p.icon}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-sm font-bold text-text">{p.title}</div>
-                        <div className="mt-1 text-xs leading-5 text-muted">{p.detail}</div>
-                        {p.text ? (
-                          <p className="mt-2 whitespace-pre-line text-xs leading-5 text-muted">
-                            {p.text}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted">No policy information available.</p>
-              )
-            ) : null}
+                      {descExpanded ? "Show less" : "Show more"}
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${descExpanded ? "rotate-180" : ""}`}
+                        aria-hidden
+                      />
+                    </button>
+                  ) : null}
+                </Section>
+              ) : null}
 
+              {stepNature === "package" && inclusions.length > 0 ? (
+                <Section title="What's included">
+                  <ul className="grid gap-2 sm:grid-cols-2">
+                    {inclusions.map((line) => (
+                      <li key={line} className="flex items-start gap-2 text-sm text-text">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              ) : null}
+
+              {stepNature === "product" && bulkSlabs.length > 0 ? (
+                <Section title="Bulk pricing">
+                  <div className="overflow-x-auto rounded-lg border border-border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-surface-muted text-left text-xs uppercase tracking-wide text-muted">
+                          <th className="px-3 py-2 font-semibold">Quantity</th>
+                          <th className="px-3 py-2 font-semibold">Price / unit</th>
+                          <th className="px-3 py-2 font-semibold">You save</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkSlabs.map((slab, idx) => (
+                          <tr key={idx} className="border-b border-border last:border-0">
+                            <td className="px-3 py-2 text-text">
+                              {slab.min_qty ? `${slab.min_qty}+` : slab.range || `Tier ${idx + 1}`}
+                            </td>
+                            <td className="px-3 py-2 text-text">
+                              {slab.price != null ? formatRupees(slab.price) : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-success">
+                              {slab.discount_pct ? `${slab.discount_pct}% off` : ""}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Section>
+              ) : null}
+
+              {hasSpecs || matchedVariant ? (
+                <Section title="Specifications">
+                  <div className="space-y-6 rounded-lg border border-border bg-surface p-4 sm:p-5">
+                    {/* The selected variant's own attributes — updates live as the
+                        shopper switches colour / size / material. */}
+                    {matchedVariant ? (
+                      <div>
+                        <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-subtle">
+                          Selected variant
+                        </h4>
+                        <dl className="divide-y divide-border/70">
+                          {[
+                            ["Colour", matchedVariant.color],
+                            ["Size", matchedVariant.size],
+                            ["Material", matchedVariant.material],
+                            ["SKU", matchedVariant.sku],
+                          ]
+                            .filter(([, v]) => v)
+                            .map(([label, v]) => (
+                              <div key={label} className="flex items-start justify-between gap-6 py-2.5">
+                                <dt className="text-sm text-muted">{label}</dt>
+                                <dd className="max-w-[60%] text-right text-sm font-medium text-text">{v}</dd>
+                              </div>
+                            ))}
+                        </dl>
+                      </div>
+                    ) : null}
+                    {hasSpecs ? <ItemAttributesSpec item={item} schema={schema} /> : null}
+                  </div>
+                </Section>
+              ) : null}
+
+              {stepNature === "package" && (durationLabel || citiesServed.length > 0 || outstationCharges) ? (
+                <Section title="Service details">
+                  <div className="space-y-4 text-sm">
+                    {durationLabel ? (
+                      <div className="flex items-start gap-3">
+                        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary-soft">
+                          <Clock className="h-4 w-4 text-primary" aria-hidden />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-muted">Duration</div>
+                          <div className="mt-0.5 text-sm font-medium text-text">{durationLabel}</div>
+                        </div>
+                      </div>
+                    ) : null}
+                    {citiesServed.length > 0 ? (
+                      <div className="flex items-start gap-3">
+                        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary-soft">
+                          <MapPin className="h-4 w-4 text-primary" aria-hidden />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-muted">Cities served</div>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            {citiesServed.map((c) => (
+                              <span
+                                key={c}
+                                className="rounded-md border border-border bg-surface-muted px-2 py-0.5 text-xs text-text"
+                              >
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                    {outstationCharges ? (
+                      <div className="flex items-start gap-3">
+                        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary-soft">
+                          <Truck className="h-4 w-4 text-primary" aria-hidden />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-muted">
+                            Outstation charges
+                          </div>
+                          <div className="mt-0.5 text-sm font-medium text-text">
+                            {typeof outstationCharges === "number" || /^\d/.test(String(outstationCharges))
+                              ? formatRupees(outstationCharges)
+                              : String(outstationCharges)}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                </Section>
+              ) : null}
+
+              {policyCards.length > 0 ? (
+                <Section title="Returns & policies">
+                  {/* Collapsed chips by default — tap a policy to expand its details. */}
+                  <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+                    {policyCards.map((p) => {
+                      const open = !!openPolicies[p.title];
+                      const expandable = !!p.text;
+                      const Row = expandable ? "button" : "div";
+                      return (
+                        <div key={p.title}>
+                          <Row
+                            type={expandable ? "button" : undefined}
+                            onClick={
+                              expandable
+                                ? () => setOpenPolicies((s) => ({ ...s, [p.title]: !s[p.title] }))
+                                : undefined
+                            }
+                            aria-expanded={expandable ? open : undefined}
+                            className={`flex w-full items-center gap-3 px-4 py-3 text-left ${
+                              expandable ? "transition hover:bg-surface-muted" : ""
+                            }`}
+                          >
+                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary-soft">
+                              {p.icon}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-bold text-text">{p.title}</span>
+                              <span className="block text-xs text-muted">{p.detail}</span>
+                            </span>
+                            {expandable ? (
+                              <ChevronDown
+                                className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`}
+                                aria-hidden
+                              />
+                            ) : null}
+                          </Row>
+                          {expandable && open ? (
+                            <p className="whitespace-pre-line border-t border-border bg-surface-muted/40 px-4 py-3 text-xs leading-5 text-muted">
+                              {p.text}
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Section>
+              ) : null}
+            </div>
           </div>
         </section>
-
-        {/* Ratings & Reviews — its own section, below the tabs. Skipped
-            entirely when reviews are disabled. The onSummary callback lifts
-            the live approved-review count up so the headline rating matches. */}
-        {reviewsMode !== "disabled" ? (
-          <section className="mt-12">
-            <ProductReviews itemId={item.item_id} onSummary={handleReviewSummary} />
-          </section>
-        ) : null}
 
         {/* "You might also like" */}
         {relatedItems.length > 0 ? (
@@ -1386,8 +1320,6 @@ export default function ProductDetailPage({ itemId }) {
                 </Link>
               ) : null}
             </div>
-            {/* Horizontal scroll-snap carousel (no JS deps). Negative margins
-                let cards bleed to the viewport edge on mobile for a premium feel. */}
             <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 [scrollbar-width:thin]">
               {relatedItems.map((rel) => {
                 const wlRel = !rel.vendor_id;
@@ -1395,20 +1327,19 @@ export default function ProductDetailPage({ itemId }) {
                   ? "MyShaadiStore"
                   : rel.vendor_business_name || rel.vendor_name || "Vendor";
                 return (
-                  <div
-                    key={rel.item_id}
-                    className="w-[260px] shrink-0 snap-start sm:w-[280px]"
-                  >
-                    <ItemCardV2
-                      item={rel}
-                      vendorName={relVendor}
-                      whiteLabelOn={wlRel}
-                      step={step}
-                    />
+                  <div key={rel.item_id} className="w-[260px] shrink-0 snap-start sm:w-[280px]">
+                    <ItemCardV2 item={rel} vendorName={relVendor} whiteLabelOn={wlRel} step={step} />
                   </div>
                 );
               })}
             </div>
+          </section>
+        ) : null}
+
+        {/* Ratings & Reviews — last. Skipped entirely when reviews are disabled. */}
+        {reviewsMode !== "disabled" ? (
+          <section className="mt-14 border-t border-border pt-10">
+            <ProductReviews itemId={item.item_id} onSummary={handleReviewSummary} />
           </section>
         ) : null}
       </div>
@@ -1420,98 +1351,82 @@ export default function ProductDetailPage({ itemId }) {
             {inShoppingCart ? (
               <CartQtyStepper
                 compact
-                label="In cart"
+                label="In shopping cart"
                 quantity={inShoppingCart.quantity}
                 onDecrease={() =>
-                  updateCartQuantity(
-                    "shopping",
-                    item.item_id,
-                    Math.max(1, inShoppingCart.quantity - 1),
-                  )
+                  updateCartQuantity("shopping", item.item_id, Math.max(1, inShoppingCart.quantity - 1))
                 }
-                onIncrease={() =>
-                  updateCartQuantity(
-                    "shopping",
-                    item.item_id,
-                    inShoppingCart.quantity + 1,
-                  )
-                }
+                onIncrease={() => updateCartQuantity("shopping", item.item_id, inShoppingCart.quantity + 1)}
                 onRemove={() => {
                   removeFromCart("shopping", item.item_id);
-                  toast.message("Removed from cart");
+                  toast.message("Removed from shopping cart");
                 }}
               />
             ) : null}
             {inInquiryCart ? (
               <CartQtyStepper
                 compact
-                label="In inquiry"
+                label="In quote cart"
                 quantity={inInquiryCart.quantity}
                 onDecrease={() =>
-                  updateCartQuantity(
-                    "quotation",
-                    item.item_id,
-                    Math.max(1, inInquiryCart.quantity - 1),
-                  )
+                  updateCartQuantity("quotation", item.item_id, Math.max(1, inInquiryCart.quantity - 1))
                 }
-                onIncrease={() =>
-                  updateCartQuantity(
-                    "quotation",
-                    item.item_id,
-                    inInquiryCart.quantity + 1,
-                  )
-                }
+                onIncrease={() => updateCartQuantity("quotation", item.item_id, inInquiryCart.quantity + 1)}
                 onRemove={() => {
                   removeFromCart("quotation", item.item_id);
-                  toast.message("Removed from inquiry");
+                  toast.message("Removed from quote cart");
                 }}
               />
             ) : null}
-            <Link
-              href="/cart"
-              className="block text-center text-[11px] font-semibold text-muted hover:text-primary"
-            >
+            <Link href="/cart" className="block text-center text-[11px] font-semibold text-muted hover:text-primary">
               View basket →
             </Link>
           </div>
         ) : (
           <div className="flex gap-2">
-            {supportsShoppingCart ? (
+            {isShoppingItem ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleAddToShoppingCart}
+                  disabled={selectedOutOfStock}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-bold shadow-sm transition-all duration-300 disabled:opacity-50 ${
+                    justAdded.shopping
+                      ? "bg-success text-primary-foreground"
+                      : "bg-primary text-primary-foreground hover:bg-primary-hover"
+                  }`}
+                >
+                  {justAdded.shopping ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden /> : <ShoppingCart className="h-4 w-4" aria-hidden />}
+                  {justAdded.shopping ? "Added" : "Shopping cart"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddToInquiry}
+                  disabled={selectedOutOfStock}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-bold transition-all duration-300 disabled:opacity-50 ${
+                    justAdded.quotation
+                      ? "bg-success text-primary-foreground"
+                      : "border border-primary bg-surface text-primary hover:bg-primary-soft"
+                  }`}
+                >
+                  {justAdded.quotation ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden /> : <ClipboardList className="h-4 w-4" aria-hidden />}
+                  {justAdded.quotation ? "Added" : "Quote cart"}
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                onClick={handleAddToShoppingCart}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-3 text-sm font-bold shadow-sm transition-all duration-300 ${
-                  justAdded.shopping
+                onClick={handleAddToInquiry}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm font-bold transition-all duration-300 ${
+                  justAdded.quotation
                     ? "bg-success text-primary-foreground"
-                    : "bg-primary text-primary-foreground hover:bg-primary-hover"
+                    : "bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover"
                 }`}
               >
-                {justAdded.shopping ? (
-                  <Check className="h-4 w-4" strokeWidth={3} aria-hidden />
-                ) : (
-                  <ShoppingCart className="h-4 w-4" aria-hidden />
-                )}
-                {justAdded.shopping ? "Added" : "Add to Cart"}
+                {justAdded.quotation ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden /> : <ClipboardList className="h-4 w-4" aria-hidden />}
+                {justAdded.quotation ? "Added" : "Add to cart"}
               </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={handleAddToInquiry}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-3 text-sm font-bold transition-all duration-300 ${
-                justAdded.quotation
-                  ? "bg-success text-primary-foreground"
-                  : supportsShoppingCart
-                  ? "border border-primary bg-surface text-primary hover:bg-primary-soft"
-                  : "bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover"
-              }`}
-            >
-              {justAdded.quotation ? (
-                <Check className="h-4 w-4" strokeWidth={3} aria-hidden />
-              ) : (
-                <ClipboardList className="h-4 w-4" aria-hidden />
-              )}
-              {justAdded.quotation ? "Added" : "Add to Cart"}
-            </button>
+            )}
           </div>
         )}
       </div>
@@ -1520,35 +1435,28 @@ export default function ProductDetailPage({ itemId }) {
         <BasketButton floating />
       </div>
 
-      {/* Click-to-zoom modal */}
       {zoomOpen ? (
-        <ImageZoomModal
-          images={images}
-          index={activeImage}
-          onClose={() => setZoomOpen(false)}
-          onIndex={setActiveImage}
-        />
+        <ImageZoomModal images={images} index={activeImage} onClose={() => setZoomOpen(false)} onIndex={setActiveImage} />
       ) : null}
+      {sizeChartOpen ? <SizeChartModal onClose={() => setSizeChartOpen(false)} /> : null}
     </main>
   );
 }
 
 /* ------------------------- Small subcomponents ------------------------- */
 
-function AddButton({ onClick, icon, label, primary = true, justAdded = false }) {
-  const flashCls = "bg-success text-primary-foreground shadow-[0_8px_22px_rgba(34,197,94,0.35)]";
-  // Primary CTA carries more visual weight: larger padding, bigger text and a
-  // lifted shadow vs. the lighter secondary (outline) action.
+function AddButton({ onClick, icon, label, primary = true, justAdded = false, disabled = false }) {
+  const flashCls = "bg-success text-primary-foreground";
   const baseCls = primary
-    ? "bg-primary text-primary-foreground shadow-[0_10px_24px_-8px_var(--primary)] hover:bg-primary-hover hover:shadow-[0_14px_30px_-8px_var(--primary)]"
+    ? "bg-primary text-primary-foreground hover:bg-primary-hover"
     : "border border-primary bg-surface text-primary hover:bg-primary-soft";
   const sizeCls = primary ? "px-5 py-3.5 text-base" : "px-5 py-3 text-sm";
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={justAdded}
-      className={`flex w-full items-center justify-center gap-2 rounded-md font-bold transition-all duration-300 ${sizeCls} ${
+      disabled={justAdded || disabled}
+      className={`flex w-full items-center justify-center gap-2 rounded-lg font-semibold transition-all duration-300 disabled:opacity-50 ${sizeCls} ${
         justAdded ? flashCls : baseCls
       }`}
     >
@@ -1563,26 +1471,13 @@ function AddButton({ onClick, icon, label, primary = true, justAdded = false }) 
 }
 
 /**
- * Variant selector — renders only the option groups the item actually has.
- * Currently shown groups: size, color, material. Backend may expose more
- * keys later (length / pattern / finish) — extend `GROUPS` to surface them.
- *
- * `matched` is the concrete variant row that pairs with the current
- * selection; we use it to print stock state + SKU below the chips so the
- * shopper understands what they're about to buy.
- */
-/**
- * Helpers for the variant selector.
- *
- * bestVariantForValue: when the user hovers/picks a single dimension's value,
- * pick the most-relevant variant for that value while preserving the other
- * dimensions if they're still compatible. Used to source the thumbnail
- * image for the colour swatch and to detect whether a value is in stock.
+ * Variant selector — renders only the option groups the item actually has
+ * (colour swatches with thumbnails; size + material pills). `matched` is the
+ * concrete variant for the current selection; used for stock + SKU display.
  */
 function bestVariantForValue(allVariants, dim, value, selection, allDims) {
   const candidates = allVariants.filter((v) => v[dim] === value);
   if (!candidates.length) return null;
-  // Score: prefer in-stock + matches as many other selected dimensions as possible
   return candidates
     .map((v) => {
       let score = 0;
@@ -1595,11 +1490,23 @@ function bestVariantForValue(allVariants, dim, value, selection, allDims) {
     .sort((a, b) => b.score - a.score)[0]?.v;
 }
 
-function valueInStock(allVariants, dim, value) {
-  return allVariants.some((v) => v[dim] === value && (v.stock_quantity ?? 0) > 0);
+// A value is AVAILABLE only if some in-stock variant has that value AND agrees
+// with the current selection on every OTHER dimension. So picking size "L"
+// greys out "Velvet" when no in-stock L+Velvet variant exists, and so on for
+// every other permutation.
+function valueAvailable(allVariants, dim, value, selected, dims) {
+  return allVariants.some((v) => {
+    if (v[dim] !== value) return false;
+    if ((v.stock_quantity ?? 0) <= 0) return false;
+    for (const d of dims) {
+      if (d === dim) continue;
+      if (selected[d] && v[d] !== selected[d]) return false;
+    }
+    return true;
+  });
 }
 
-function VariantSelector({ options, allVariants, selected, onChange, matched }) {
+function VariantSelector({ options, allVariants, selected, onChange, matched, showSizeChart, onOpenSizeChart }) {
   const GROUPS = [
     { key: "color", label: "Colour", values: options.colors || [] },
     { key: "size", label: "Size", values: options.sizes || [] },
@@ -1609,12 +1516,11 @@ function VariantSelector({ options, allVariants, selected, onChange, matched }) 
   if (GROUPS.length === 0) return null;
 
   const dims = GROUPS.map((g) => g.key);
-
   const stock = matched ? Number(matched.stock_quantity || 0) : null;
   const outOfStock = matched && stock <= 0;
 
   return (
-    <div className="mt-5 rounded-2xl border border-border bg-surface p-5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
+    <div className="mt-5 rounded-lg border border-border bg-surface p-5">
       <div className="space-y-5">
         {GROUPS.map((group) => (
           <div key={group.key}>
@@ -1622,15 +1528,27 @@ function VariantSelector({ options, allVariants, selected, onChange, matched }) 
               <span className="font-semibold uppercase tracking-wide text-muted">
                 {group.label}: <span className="text-text">{selected[group.key] || "Pick one"}</span>
               </span>
-              <span className="text-[11px] text-muted">{group.values.length} option{group.values.length === 1 ? "" : "s"}</span>
+              {group.key === "size" && showSizeChart ? (
+                <button
+                  type="button"
+                  onClick={onOpenSizeChart}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-hover"
+                >
+                  <Ruler className="h-3.5 w-3.5" aria-hidden />
+                  Size chart
+                </button>
+              ) : (
+                <span className="text-[11px] text-muted">
+                  {group.values.length} option{group.values.length === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
 
             {group.key === "color" ? (
-              // Amazon/Flipkart-style colour swatches with thumbnails
               <div className="flex flex-wrap gap-2.5">
                 {group.values.map((v) => {
                   const active = selected[group.key] === v;
-                  const inStock = valueInStock(allVariants, group.key, v);
+                  const inStock = valueAvailable(allVariants, group.key, v, selected, dims);
                   const bestV = bestVariantForValue(allVariants, group.key, v, selected, dims);
                   const thumb = bestV?.images?.[0];
                   return (
@@ -1640,14 +1558,14 @@ function VariantSelector({ options, allVariants, selected, onChange, matched }) 
                       onClick={() => onChange({ [group.key]: v })}
                       disabled={!inStock}
                       aria-pressed={active}
-                      title={v + (inStock ? "" : " (out of stock)")}
-                      className={`group relative flex flex-col items-center gap-1 ${!inStock ? "opacity-50 cursor-not-allowed" : ""}`}
+                      title={v + (inStock ? "" : " (unavailable for this selection)")}
+                      className={`group relative flex flex-col items-center gap-1 ${
+                        !inStock ? "cursor-not-allowed opacity-40" : ""
+                      }`}
                     >
                       <span
                         className={`relative block size-14 overflow-hidden rounded-lg border-2 transition ${
-                          active
-                            ? "border-primary ring-2 ring-primary/30"
-                            : "border-border hover:border-border-strong"
+                          active ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-border-strong"
                         }`}
                       >
                         {thumb ? (
@@ -1666,21 +1584,22 @@ function VariantSelector({ options, allVariants, selected, onChange, matched }) 
                         )}
                         {!inStock && (
                           <span className="absolute inset-0 flex items-center justify-center bg-surface/70 text-[9px] font-bold uppercase tracking-wider text-danger">
-                            OOS
+                            N/A
                           </span>
                         )}
                       </span>
-                      <span className={`max-w-16 truncate text-[11px] font-medium ${active ? "text-primary" : "text-text"}`}>{v}</span>
+                      <span className={`max-w-16 truncate text-[11px] font-medium ${active ? "text-primary" : "text-text"}`}>
+                        {v}
+                      </span>
                     </button>
                   );
                 })}
               </div>
             ) : (
-              // Pill buttons for size / material
               <div className="flex flex-wrap gap-2">
                 {group.values.map((v) => {
                   const active = selected[group.key] === v;
-                  const inStock = valueInStock(allVariants, group.key, v);
+                  const inStock = valueAvailable(allVariants, group.key, v, selected, dims);
                   return (
                     <button
                       key={v}
@@ -1693,7 +1612,7 @@ function VariantSelector({ options, allVariants, selected, onChange, matched }) 
                           ? "border-primary bg-primary-soft text-primary shadow-[0_0_0_1px_var(--primary)_inset]"
                           : inStock
                           ? "border-border bg-surface text-text hover:border-border-strong"
-                          : "border-border bg-surface-muted text-muted line-through cursor-not-allowed"
+                          : "cursor-not-allowed border-border bg-surface-muted text-muted line-through"
                       }`}
                     >
                       {v}
@@ -1742,16 +1661,14 @@ function CartQtyStepper({ label, quantity, onDecrease, onIncrease, onRemove, com
 
   return (
     <div
-      className={`flex items-center justify-between gap-3 rounded-xl border border-success/30 bg-success/5 ${padCls} shadow-[0_1px_0_rgba(15,23,42,0.02)]`}
+      className={`flex items-center justify-between gap-3 rounded-lg border border-success/30 bg-success/5 ${padCls} shadow-[0_1px_0_rgba(15,23,42,0.02)]`}
     >
-      <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex min-w-0 items-center gap-2.5">
         <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success text-primary-foreground">
           <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
         </span>
         <div className="min-w-0">
-          <div className={`font-semibold uppercase tracking-wide text-success ${titleCls}`}>
-            {label}
-          </div>
+          <div className={`font-semibold uppercase tracking-wide text-success ${titleCls}`}>{label}</div>
           <div className={`font-bold leading-tight text-text ${qtyCls}`}>
             {quantity} <span className="text-xs font-medium text-muted">in basket</span>
           </div>
@@ -1768,7 +1685,7 @@ function CartQtyStepper({ label, quantity, onDecrease, onIncrease, onRemove, com
           >
             &minus;
           </button>
-          <span className={`min-w-6 text-center text-sm font-bold text-text`}>{quantity}</span>
+          <span className="min-w-6 text-center text-sm font-bold text-text">{quantity}</span>
           <button
             type="button"
             onClick={onIncrease}

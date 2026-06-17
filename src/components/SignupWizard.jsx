@@ -1087,11 +1087,11 @@ export default function SignupWizard({ step }) {
           {visibleBudgetPresets.length > 0 && (
             <div>
               <div className="mb-2.5 flex items-baseline justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
+                {/* <span className="text-xs font-semibold uppercase tracking-wide text-subtle">
                   Quick start
-                </span>
-                <span className="text-[11px] font-medium text-subtle">
-                  Tap to auto-fill, then fine-tune
+                </span> */}
+                <span className="text-xs font-medium text-subtle">
+                  Tap to auto-fill, and then you can fine-tune
                 </span>
               </div>
               <div
@@ -1105,7 +1105,7 @@ export default function SignupWizard({ step }) {
                       key={preset.slug}
                       type="button"
                       onClick={() => applyPreset(preset.slug)}
-                      className={`flex w-36 shrink-0 snap-start flex-col gap-1 rounded-2xl border px-3.5 py-3 text-left transition ${
+                      className={`flex w-44 shrink-0 snap-start flex-col gap-1 rounded-2xl border px-3.5 py-3 text-left transition ${
                         isActive
                           ? "border-primary bg-primary-soft shadow-[0_0_0_1px_var(--color-primary)]"
                           : "border-border bg-surface hover:border-primary/40 hover:bg-primary-soft/30"

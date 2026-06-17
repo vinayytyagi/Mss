@@ -41,7 +41,7 @@ export default function ShoppingItemsGrid({ items = [] }) {
 
   return (
     <>
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {paged.map((item) => {
           // WL detection: customer API strips vendor_id whenever WL is on.
           const whiteLabelOn = !item.vendor_id;

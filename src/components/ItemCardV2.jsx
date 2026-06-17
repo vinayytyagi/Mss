@@ -51,8 +51,9 @@ function wishlistKindFromCartKind(cartKind) {
   return cartKind === "shopping" ? "shopping" : "journey";
 }
 
-const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=80";
+const FALLBACK_IMAGE =""
+
+// "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=80";
 
 function formatRupees(value) {
   const amount = Number(value || 0);
@@ -279,7 +280,7 @@ export default function ItemCardV2({
     >
       <Link
         href={href}
-        className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_4px_18px_rgba(15,23,42,0.05)] transition-transform duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_18px_44px_rgba(15,23,42,0.1)]"
+        className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-[0_4px_18px_rgba(15,23,42,0.05)] transition-transform duration-300 hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_18px_44px_rgba(15,23,42,0.1)]"
       >
         {/* Image — rounded only at top so it meets the body flush. */}
         <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden rounded-t-2xl bg-surface-muted">
@@ -378,7 +379,7 @@ export default function ItemCardV2({
           </div>
 
           {/* Step-aware highlight bullets */}
-          {bullets.length > 0 ? (
+          {/* {bullets.length > 0 ? (
             <ul className="space-y-1 text-[11px] text-muted">
               {bullets.map((bullet) => (
                 <li key={bullet} className="flex items-start gap-1.5">
@@ -390,10 +391,10 @@ export default function ItemCardV2({
                 </li>
               ))}
             </ul>
-          ) : null}
+          ) : null} */}
 
           {/* Extra meta chips — capacity / min booking days / stock */}
-          {(capacityVal || minBookingDays || stockStatus) ? (
+          {/* {(capacityVal || minBookingDays || stockStatus) ? (
             <div className="flex flex-wrap gap-1.5 pt-0.5">
               {capacityVal ? (
                 <span className="rounded-md bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-text">
@@ -415,7 +416,7 @@ export default function ItemCardV2({
                 </span>
               ) : null}
             </div>
-          ) : null}
+          ) : null} */}
 
           {/* Price + add-to-basket */}
           <div className="mt-auto flex items-end justify-between gap-3 pt-3">

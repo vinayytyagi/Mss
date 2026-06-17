@@ -77,6 +77,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import Dropdown from "@/components/ui/Dropdown";
+import CityStateDropdown from "@/components/CityStateDropdown";
 import { fetchPackageDefinition } from "@/lib/api";
 import { addPackageToCart, getEventDate, setEventDate } from "@/lib/cartStore";
 import { formatINR } from "@/lib/journeyStepUi";
@@ -206,7 +207,7 @@ const detailInputClass =
 
 function SectionShell({ index, title, subtitle, engaged, children }) {
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 shadow-[0_12px_30px_rgba(0,0,0,0.03)] sm:p-6">
+    <section className="rounded-xl border border-border bg-surface p-5 shadow-[0_12px_30px_rgba(0,0,0,0.03)] sm:p-6">
       <div className="flex items-center gap-2.5">
         <div
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
@@ -256,7 +257,7 @@ function OptionCard({ option, active, multi, onToggle, children }) {
   const hasImage = Boolean(option?.image_url);
   return (
     <div
-      className={`rounded-2xl border transition-all ${
+      className={`rounded-xl border transition-all ${
         active
           ? "border-2 border-primary bg-primary-soft"
           : "border-border hover:border-primary"
@@ -486,63 +487,6 @@ function QuantityControl({ options, quantity, onSelect }) {
   );
 }
 
-function DetailFields({ fields, details, setDetail, startIndex }) {
-  if (!Array.isArray(fields) || fields.length === 0) return null;
-  return (
-    <SectionShell
-      index={startIndex}
-      title="Your details"
-      subtitle="A few specifics so we can quote accurately"
-    >
-      <div className="grid gap-3 sm:grid-cols-2">
-        {fields.map((f) => {
-          const wide = f.type === "textarea";
-          return (
-            <div key={f.key} className={wide ? "sm:col-span-2" : ""}>
-              <FieldLabel>
-                {f.label}
-                {f.required ? <span className="text-primary"> *</span> : null}
-              </FieldLabel>
-              {f.type === "select" ? (
-                <Dropdown
-                  value={details[f.key] || ""}
-                  onChange={(v) => setDetail(f.key, v)}
-                  placeholder="Select…"
-                  ariaLabel={f.label}
-                  options={(f.options || []).map((o) => ({
-                    value: o,
-                    label: o,
-                  }))}
-                />
-              ) : f.type === "textarea" ? (
-                <textarea
-                  value={details[f.key] || ""}
-                  onChange={(e) => setDetail(f.key, e.target.value)}
-                  rows={3}
-                  className="w-full rounded-xl border border-border-strong bg-surface px-3 py-2.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-                />
-              ) : (
-                <input
-                  type={
-                    f.type === "number"
-                      ? "number"
-                      : f.type === "date"
-                        ? "date"
-                        : "text"
-                  }
-                  value={details[f.key] || ""}
-                  onChange={(e) => setDetail(f.key, e.target.value)}
-                  className={detailInputClass}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </SectionShell>
-  );
-}
-
 /* ------------------------------ helpers ---------------------------- */
 
 function emptySectionValue(section) {
@@ -676,7 +620,13 @@ export default function SectionsBuilder({
         if (!alive) return;
         setDefinition(def);
         const seed = {};
-        for (const s of def?.sections || []) seed[s.id] = emptySectionValue(s);
+        for (const s of def?.sections || []) {
+          // A "tabs" section (category / type toggle) defaults to its first option.
+          seed[s.id] =
+            s.role === "tabs" && s.options?.[0]
+              ? { optionIds: [s.options[0].id], subItems: {} }
+              : emptySectionValue(s);
+        }
         setState(seed);
         setDetails({});
       } finally {
@@ -694,6 +644,23 @@ export default function SectionsBuilder({
     [definition],
   );
 
+  // Optional "tabs" section: a category / type toggle rendered as pills at the
+  // top. Sections carrying a matching `group` only show under the active tab;
+  // sections without a `group` always show.
+  const tabsSection = useMemo(() => sections.find((s) => s.role === "tabs") || null, [sections]);
+  const activeTab = tabsSection
+    ? state[tabsSection.id]?.optionIds?.[0] || tabsSection.options?.[0]?.id || null
+    : null;
+  const visibleSections = useMemo(
+    () =>
+      sections.filter((s) => {
+        if (s.role === "tabs") return false; // rendered separately as pills
+        if (s.group) return s.group === activeTab;
+        return true;
+      }),
+    [sections, activeTab],
+  );
+
   const { total, priced } = useMemo(
     () => computeIndicativeTotal(sections, state),
     [sections, state],
@@ -707,6 +674,7 @@ export default function SectionsBuilder({
   const hasSelection = useMemo(
     () =>
       sections.some((s) => {
+        if (s.role === "tabs") return false; // the category tab alone isn't a pick
         const v = state[s.id] || {};
         return (v.optionIds || []).length > 0 || (Number(v.quantity) || 0) > 0;
       }),
@@ -776,7 +744,7 @@ export default function SectionsBuilder({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-3xl border border-border bg-surface px-6 py-24">
+      <div className="flex items-center justify-center rounded-xl border border-border bg-surface px-6 py-24">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
@@ -784,7 +752,7 @@ export default function SectionsBuilder({
 
   if (!definition || sections.length === 0) {
     return (
-      <div className="rounded-3xl border border-border bg-surface px-6 py-24 text-center shadow-[0_28px_60px_rgba(15,23,42,0.06)]">
+      <div className="rounded-xl border border-border bg-surface px-6 py-24 text-center shadow-[0_28px_60px_rgba(15,23,42,0.06)]">
         <PackagePlus
           className="mx-auto h-12 w-12 text-primary/50"
           strokeWidth={1.5}
@@ -800,7 +768,6 @@ export default function SectionsBuilder({
     );
   }
 
-  const totalSteps = sections.length + (detailFields.length ? 1 : 0);
 
   return (
     <div className="space-y-5">
@@ -808,7 +775,29 @@ export default function SectionsBuilder({
         <p className="text-center text-sm text-muted">{definition.subtitle}</p>
       ) : null}
 
-      {sections.map((section, idx) => (
+      {/* Category / type tabs — segmented control (like makeup/mehndi). */}
+      {tabsSection ? (
+        <div className="mx-auto flex w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
+          {(tabsSection.options || []).map((opt) => {
+            const active = activeTab === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setSection(tabsSection.id, { optionIds: [opt.id], subItems: {} })}
+                aria-pressed={active}
+                className={`flex-1 rounded-xl px-3 py-2.5 text-center text-sm font-medium transition-all ${
+                  active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted hover:bg-surface-muted"
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {visibleSections.map((section, idx) => (
         <SectionBlock
           key={section.id}
           section={section}
@@ -818,15 +807,72 @@ export default function SectionsBuilder({
         />
       ))}
 
-      <DetailFields
-        fields={detailFields}
-        details={details}
-        setDetail={setDetail}
-        startIndex={totalSteps}
-      />
+      {/* Your details — asked at the BOTTOM of every step (date + detail fields). */}
+      <SectionShell index={visibleSections.length + 1} title="Your details" subtitle="A few specifics so we can quote accurately">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <FieldLabel>
+              {definition?.date_label || "Event date"} <span className="text-primary">*</span>
+            </FieldLabel>
+            <input
+              type="date"
+              value={eventDate}
+              min={todayStr}
+              onChange={(e) => handleEventDate(e.target.value)}
+              className={`h-11 w-full rounded-xl border bg-surface px-3 text-sm font-medium text-text outline-none transition focus:ring-2 focus:ring-primary/15 ${
+                hasDate ? "border-border-strong focus:border-primary" : "border-danger/50 focus:border-danger"
+              }`}
+            />
+            {!hasDate ? (
+              <p className="mt-1 text-[11px] font-medium text-danger">
+                Add your {(definition?.date_label || "event date").toLowerCase()} to continue.
+              </p>
+            ) : null}
+          </div>
+          {detailFields.map((f) => {
+            const wide = f.type === "textarea";
+            return (
+              <div key={f.key} className={wide ? "sm:col-span-2" : ""}>
+                <FieldLabel>
+                  {f.label}
+                  {f.required ? <span className="text-primary"> *</span> : null}
+                </FieldLabel>
+                {f.type === "city_state" ? (
+                  <CityStateDropdown
+                    value={details[f.key] || ""}
+                    onChange={(sel) => setDetail(f.key, sel?.label || "")}
+                  />
+                ) : f.type === "select" ? (
+                  <Dropdown
+                    value={details[f.key] || ""}
+                    onChange={(v) => setDetail(f.key, v)}
+                    placeholder="Select…"
+                    ariaLabel={f.label}
+                    options={(f.options || []).map((o) => ({ value: o, label: o }))}
+                  />
+                ) : f.type === "textarea" ? (
+                  <textarea
+                    value={details[f.key] || ""}
+                    onChange={(e) => setDetail(f.key, e.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl border border-border-strong bg-surface px-3 py-2.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  />
+                ) : (
+                  <input
+                    type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
+                    value={details[f.key] || ""}
+                    onChange={(e) => setDetail(f.key, e.target.value)}
+                    className={detailInputClass}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </SectionShell>
 
       {/* ---------------------- Rich summary panel ---------------------- */}
-      <div className="overflow-hidden rounded-3xl border border-primary/30 bg-surface shadow-[0_12px_30px_rgba(255,79,134,0.08)]">
+      <div className="overflow-hidden rounded-xl border border-primary/30 bg-surface shadow-[0_12px_30px_rgba(255,79,134,0.08)]">
         <div className="flex items-center gap-2 border-b border-primary/15 bg-primary-soft px-5 py-4">
           <ClipboardList className="h-5 w-5 text-primary" aria-hidden />
           <h2 className="text-base font-bold text-text-strong">
@@ -861,7 +907,7 @@ export default function SectionsBuilder({
 
           {/* Selected sections as chips */}
           {summaryRows.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border-strong bg-surface-muted px-4 py-6 text-center text-sm text-muted">
+            <p className="rounded-xl border border-dashed border-border-strong bg-surface-muted px-4 py-6 text-center text-sm text-muted">
               Nothing selected yet — pick options above and they&apos;ll appear
               here.
             </p>
@@ -870,7 +916,7 @@ export default function SectionsBuilder({
               {summaryRows.map((row) => (
                 <li
                   key={row.id}
-                  className="rounded-2xl border border-border bg-surface-muted/40 p-3.5"
+                  className="rounded-xl border border-border bg-surface-muted/40 p-3.5"
                 >
                   <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">
                     {row.title}
@@ -904,7 +950,7 @@ export default function SectionsBuilder({
           )}
 
           {/* Indicative total / custom quote */}
-          <div className="flex flex-wrap items-end justify-between gap-3 rounded-2xl border border-primary/20 bg-primary-soft px-4 py-3.5">
+          <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-primary/20 bg-primary-soft px-4 py-3.5">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-wider text-primary/70">
                 Indicative total
@@ -921,7 +967,7 @@ export default function SectionsBuilder({
           </div>
 
           {/* What happens next */}
-          <div className="flex items-start gap-2.5 rounded-2xl bg-surface-muted px-4 py-3 text-xs text-muted">
+          <div className="flex items-start gap-2.5 rounded-xl bg-surface-muted px-4 py-3 text-xs text-muted">
             <Wand2
               className="mt-0.5 h-4 w-4 shrink-0 text-violet-500"
               aria-hidden
@@ -941,7 +987,7 @@ export default function SectionsBuilder({
             type="button"
             onClick={handleAdd}
             disabled={adding || !hasSelection || !hasDate}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-[0_10px_24px_rgba(255,79,134,0.35)] transition-all hover:bg-primary-hover active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-[0_10px_24px_rgba(255,79,134,0.35)] transition-all hover:bg-primary-hover active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {adding ? (
               <Loader2 className="h-4 w-4 animate-spin" />

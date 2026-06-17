@@ -422,10 +422,15 @@ const LISTING = {
   shopping: {
     filters: [
       {
-        key: "for_gender",
+        // Reads the canonical item.audience (bride|groom|both) — the single
+        // dulha/dulhan source — instead of a duplicate for_gender attribute.
+        key: "shop_for",
         label: "Shop for",
-        options: ["Dulhan", "Dulha"].map((v) => ({ value: v, label: v })),
-        match: (item, v) => strAttr(item, "for_gender") === v,
+        options: [
+          { value: "bride", label: "Dulhan" },
+          { value: "groom", label: "Dulha" },
+        ],
+        match: (item, v) => String(item?.audience || "").toLowerCase() === v,
       },
       {
         key: "occasion",
@@ -468,7 +473,7 @@ const LISTING = {
         [strAttr(item, "brand"), strAttr(item, "fabric_material")].filter(Boolean).join(" · "),
       chips: (item) =>
         [
-          strAttr(item, "for_gender"),
+          item?.audience === "bride" ? "Dulhan" : item?.audience === "groom" ? "Dulha" : null,
           arrAttr(item, "occasion")[0],
           strAttr(item, "fabric_material") || strAttr(item, "purity"),
           arrAttr(item, "work_embroidery")[0] || arrAttr(item, "stone_type")[0],

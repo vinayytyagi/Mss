@@ -6,6 +6,14 @@ export async function fetchHeroSlideshow() {
 }
 
 /**
+ * Admin-managed size-chart tables for the customer /size-chart page.
+ * No-store so admin edits show up promptly. Returns { heading, intro, tables }.
+ */
+export async function fetchSizeChart() {
+  return apiFetch("/size-chart", { cacheMode: "no-store" });
+}
+
+/**
  * Public global feature toggles (reviews submit, refund visibility, replacement).
  * Falls back to safe defaults if the endpoint is unreachable so the storefront
  * never breaks on a config fetch.

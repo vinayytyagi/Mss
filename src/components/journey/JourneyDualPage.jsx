@@ -24,17 +24,24 @@ import TrustStrip from "@/components/journey/TrustStrip";
 import ProductCard from "@/components/journey/ProductCard";
 import SectionsBuilder from "@/components/journey/SectionsBuilder";
 import BasketButton from "@/components/BasketButton";
+import Pagination from "@/components/Pagination";
+
+// Match the other listing grids: paginate once a step has more than 24 items.
+const DUAL_PAGE_SIZE = 24;
 import { getListingConfig, getTrustItems } from "@/lib/journeyStepUi";
 import { dualConfig, packageModeKey } from "@/lib/journeyMode";
 
-const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=80";
+const FALLBACK_IMAGE =""
+
+// "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=80";
 
 function ProductGrid({ step, items, cardCfg }) {
   const list = Array.isArray(items) ? items : [];
+  const [page, setPage] = useState(1);
+
   if (list.length === 0) {
     return (
-      <div className="rounded-3xl border border-border bg-surface px-6 py-24 text-center shadow-[0_28px_60px_rgba(15,23,42,0.06)]">
+      <div className="rounded-xl border border-border bg-surface px-6 py-24 text-center shadow-[0_28px_60px_rgba(15,23,42,0.06)]">
         <LayoutGrid className="mx-auto h-12 w-12 text-primary/50" strokeWidth={1.5} />
         <p className="mt-4 text-base font-semibold text-text">Nothing listed here yet</p>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted">
@@ -43,19 +50,27 @@ function ProductGrid({ step, items, cardCfg }) {
       </div>
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(list.length / DUAL_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = list.slice((currentPage - 1) * DUAL_PAGE_SIZE, currentPage * DUAL_PAGE_SIZE);
+
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {list.map((item) => (
-        <ProductCard
-          key={item.item_id}
-          item={item}
-          cardCfg={cardCfg}
-          step={step}
-          fallbackImage={FALLBACK_IMAGE}
-          cartKind="quotation"
-        />
-      ))}
-    </div>
+    <>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {paged.map((item) => (
+          <ProductCard
+            key={item.item_id}
+            item={item}
+            cardCfg={cardCfg}
+            step={step}
+            fallbackImage={FALLBACK_IMAGE}
+            cartKind="quotation"
+          />
+        ))}
+      </div>
+      <Pagination page={currentPage} pageSize={DUAL_PAGE_SIZE} total={list.length} onPageChange={setPage} />
+    </>
   );
 }
 
@@ -81,7 +96,7 @@ export default function JourneyDualPage({ steps, step, items }) {
       <TrustStrip items={trustItems} />
 
       {/* Tab switcher: product listing vs package builder */}
-      <div className="mx-auto mt-6 flex max-w-2xl overflow-hidden rounded-2xl border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
+      <div className="mx-auto mt-6 flex max-w-2xl overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
         <button
           type="button"
           onClick={() => setTab("product")}
