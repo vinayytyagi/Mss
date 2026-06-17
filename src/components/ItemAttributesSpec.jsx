@@ -1,7 +1,5 @@
 "use client";
 
-import { Info, Tag, Layers, Ruler, Sparkles, Package } from "lucide-react";
-
 /**
  * Customer-facing "spec sheet" for an item.
  *
@@ -13,8 +11,8 @@ import { Info, Tag, Layers, Ruler, Sparkles, Package } from "lucide-react";
  *
  *   <ItemAttributesSpec item={item} schema={schema} />
  *
- * Styling uses the shared design tokens (text / muted / border / primary)
- * so it matches the rest of the product detail page.
+ * Clean key → value rows (label muted on the left, value on the right),
+ * grouped under a small section label, separated by hairline dividers.
  */
 
 function formatValue(field, value) {
@@ -31,39 +29,25 @@ function formatValue(field, value) {
   return String(value);
 }
 
-// Pick a generic, on-brand icon for a group heading based on its name.
-// Falls back to a neutral Info icon so every group reads consistently.
-function iconForGroup(groupName) {
-  const g = String(groupName || "").toLowerCase();
-  if (/(dimension|size|measure|weight|length|width|height)/.test(g)) return Ruler;
-  if (/(material|fabric|finish|style|design|look)/.test(g)) return Sparkles;
-  if (/(category|type|tag|label|brand)/.test(g)) return Tag;
-  if (/(package|content|include|kit|bundle|set)/.test(g)) return Package;
-  if (/(spec|detail|feature|attribute|layer|variant)/.test(g)) return Layers;
-  return Info;
-}
-
 function SpecRow({ field, value }) {
   const isUrl = field?.type === "url";
   const formatted = formatValue(field, value);
   if (formatted == null) return null;
   return (
-    <div className="flex items-baseline justify-between gap-3 py-2">
-      <dt className="shrink-0 text-sm text-muted">{field?.label || formatted}</dt>
-      <dd className="text-right">
+    <div className="flex items-start justify-between gap-6 py-2.5">
+      <dt className="text-sm text-muted">{field?.label || formatted}</dt>
+      <dd className="max-w-[60%] text-right text-sm font-medium text-text">
         {isUrl ? (
           <a
             href={formatted}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block rounded-md bg-primary-soft px-2 py-0.5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+            className="font-semibold text-primary hover:underline"
           >
             View&nbsp;↗
           </a>
         ) : (
-          <span className="inline-block rounded-md bg-surface-muted px-2 py-0.5 text-sm font-semibold text-text">
-            {formatted}
-          </span>
+          formatted
         )}
       </dd>
     </div>
@@ -91,7 +75,7 @@ export default function ItemAttributesSpec({ item, schema }) {
     attrs[key] !== "" &&
     !(Array.isArray(attrs[key]) && attrs[key].length === 0);
 
-  // With schema: render grouped sections with labels + help text.
+  // With schema: grouped sections with labels.
   if (schema?.attributes) {
     const groupsWithValues = groupFieldsBySection(schema)
       .map(([groupName, fields]) => [groupName, fields.filter((f) => hasValue(f.key))])
@@ -99,26 +83,20 @@ export default function ItemAttributesSpec({ item, schema }) {
     if (!groupsWithValues.length) return null;
 
     return (
-      <section className="space-y-8">
-        {groupsWithValues.map(([groupName, fields]) => {
-          const GroupIcon = iconForGroup(groupName);
-          return (
-            <div key={groupName}>
-              <div className="mb-3 flex items-center gap-2 border-b border-border pb-2">
-                <GroupIcon className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-                <h4 className="text-[11px] font-bold uppercase tracking-wide text-muted">
-                  {groupName}
-                </h4>
-              </div>
-              <dl className="grid grid-cols-1 gap-x-10 gap-y-0.5 sm:grid-cols-2">
-                {fields.map((f) => (
-                  <SpecRow key={f.key} field={f} value={attrs[f.key]} />
-                ))}
-              </dl>
-            </div>
-          );
-        })}
-      </section>
+      <div className="space-y-6">
+        {groupsWithValues.map(([groupName, fields]) => (
+          <div key={groupName}>
+            <h4 className="mb-1 text-[11px] font-bold uppercase tracking-wide text-subtle">
+              {groupName}
+            </h4>
+            <dl className="divide-y divide-border/70">
+              {fields.map((f) => (
+                <SpecRow key={f.key} field={f} value={attrs[f.key]} />
+              ))}
+            </dl>
+          </div>
+        ))}
+      </div>
     );
   }
 
@@ -126,13 +104,11 @@ export default function ItemAttributesSpec({ item, schema }) {
   const entries = Object.entries(attrs).filter(([key]) => hasValue(key));
   if (!entries.length) return null;
   return (
-    <section>
-      <dl className="grid grid-cols-1 gap-x-10 gap-y-0.5 sm:grid-cols-2">
-        {entries.map(([key, value]) => {
-          const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-          return <SpecRow key={key} field={{ label }} value={value} />;
-        })}
-      </dl>
-    </section>
+    <dl className="divide-y divide-border/70">
+      {entries.map(([key, value]) => {
+        const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        return <SpecRow key={key} field={{ label }} value={value} />;
+      })}
+    </dl>
   );
 }

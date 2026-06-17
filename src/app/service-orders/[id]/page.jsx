@@ -225,7 +225,9 @@ export default function CustomerServiceOrderDetailPage() {
           {/* Compiled quote — line items */}
           {lines.length > 0 ? (
             <div className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-subtle">Your quote</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-subtle">
+                {data.quote_finalized ? "Your quote" : "Your requested services"}
+              </h2>
               <div className="mt-4 divide-y divide-border">
                 {lines.map((line) => (
                   <div
@@ -237,6 +239,7 @@ export default function CustomerServiceOrderDetailPage() {
                       <p className="text-xs text-muted">
                         {line.category_label || "—"}
                         {line.quantity != null ? ` · ×${line.quantity}` : ""}
+                        {line.is_indicative ? " · indicative" : ""}
                       </p>
                       {line.vendor?.business_name ? (
                         <p className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-primary">
@@ -245,13 +248,15 @@ export default function CustomerServiceOrderDetailPage() {
                       ) : null}
                     </div>
                     <span className="shrink-0 text-sm font-semibold text-text-strong">
-                      {formatCurrency(line.line_total)}
+                      {Number(line.line_total) > 0 ? formatCurrency(line.line_total) : "—"}
                     </span>
                   </div>
                 ))}
               </div>
               <div className="mt-4 flex items-baseline justify-between border-t border-border pt-4">
-                <span className="text-sm font-semibold text-text-strong">Total</span>
+                <span className="text-sm font-semibold text-text-strong">
+                  {data.quote_finalized ? "Total" : "Indicative total"}
+                </span>
                 <span className="text-xl font-bold text-text-strong">{formatCurrency(data.quote_total)}</span>
               </div>
 

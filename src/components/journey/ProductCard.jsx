@@ -46,8 +46,9 @@ import { formatINR } from "@/lib/journeyStepUi";
 import useSiteConfig from "@/lib/useSiteConfig";
 import VerifiedBadge from "@/components/VerifiedBadge";
 
-const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=80";
+const FALLBACK_IMAGE =""
+
+  // "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&w=900&q=80";
 
 // Colored tones for the overlaid spec badge (driven by cardCfg.badge).
 const BADGE_TONES = {
@@ -94,8 +95,8 @@ function genericChipsFor(item) {
   // Catering
   push(first(a.cuisine_types));
   push(a.food_type);
-  // Shopping
-  push(a.for_gender);
+  // Shopping — bride/groom from the canonical item.audience (single source).
+  push(item?.audience === "bride" ? "Dulhan" : item?.audience === "groom" ? "Dulha" : null);
   push(a.fabric_material);
   push(first(a.occasion));
   push(first(a.work_embroidery));
@@ -340,7 +341,7 @@ export default function ProductCard({
     >
       <Link
         href={href}
-        className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_4px_18px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_18px_44px_rgba(15,23,42,0.12)]"
+        className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-[0_4px_18px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_18px_44px_rgba(15,23,42,0.12)]"
       >
         {/* Image with overlays */}
         <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden rounded-t-2xl bg-surface-muted">
@@ -581,7 +582,7 @@ export default function ProductCard({
             role="dialog"
             aria-modal="true"
             aria-label="Decor details"
-            className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+            className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();

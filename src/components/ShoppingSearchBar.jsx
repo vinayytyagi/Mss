@@ -36,8 +36,10 @@ export default function ShoppingSearchBar({
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 flex w-full items-center justify-center">
-      <div className="flex w-full max-w-2xl items-center gap-3 rounded-2xl bg-surface px-5 py-4 shadow-[0_16px_36px_rgba(15,23,42,0.06)] ring-1 ring-border">
+    // Width + outer spacing are owned by the parent wrapper; this just fills it
+    // and scales its padding/button down on mobile + tablet.
+    <form onSubmit={submit} className="w-full">
+      <div className="flex w-full items-center gap-2 rounded-2xl bg-surface px-3 py-2.5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] ring-1 ring-border sm:gap-3 sm:px-5 sm:py-4">
         <Search className="h-5 w-5 shrink-0 text-subtle" aria-hidden="true" />
         <input
           value={value}
@@ -54,13 +56,13 @@ export default function ShoppingSearchBar({
               );
             }
           }}
-          className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-text outline-none placeholder:text-subtle"
+          className="min-w-0 flex-1 bg-transparent text-sm font-medium text-text outline-none placeholder:text-subtle sm:text-[15px]"
           placeholder={placeholder}
           aria-label="Search shopping"
         />
         <button
           type="submit"
-          className="h-11 shrink-0 rounded-2xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
+          className="h-9 shrink-0 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover sm:h-11 sm:rounded-2xl sm:px-5"
         >
           Search
         </button>

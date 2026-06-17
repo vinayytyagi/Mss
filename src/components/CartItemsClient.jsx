@@ -33,7 +33,7 @@ function PackageRow({ item, onRemove }) {
   return (
     <div className="flex gap-4 py-5 first:pt-0 last:pb-0">
       {/* Package icon thumbnail */}
-      <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary-soft sm:h-28 sm:w-28">
+      <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary-soft sm:h-28 sm:w-28">
         <PackageOpen className="h-9 w-9 text-primary" strokeWidth={1.5} />
       </div>
 
@@ -124,9 +124,9 @@ function CartRow({ item, cartType, onRemove, onQuantityChange }) {
   return (
     <div className="flex gap-4 py-5 first:pt-0 last:pb-0">
       {/* Thumbnail */}
-      <div className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-border bg-primary-soft sm:h-28 sm:w-28">
+      <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border bg-primary-soft sm:h-28 sm:w-28">
         <div
-          className="h-full w-full bg-contain bg-center bg-no-repeat"
+          className="h-full w-full bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: safeCssUrl(item.image || item.images?.[0] || "") }}
         />
       </div>
@@ -226,7 +226,7 @@ function EmptyState({ cartType }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
       <div
-        className={`flex h-16 w-16 items-center justify-center rounded-2xl ${
+        className={`flex h-16 w-16 items-center justify-center rounded-lg ${
           isQuote ? "bg-[#d4720a]/10 text-[#d4720a]" : "bg-primary-soft text-primary"
         }`}
       >
@@ -263,7 +263,7 @@ export default function CartItemsClient({ activeCart = "shopping" }) {
   const isQuote = activeCart === "quotation";
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-border bg-surface shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+    <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
       {/* Panel header */}
       <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
         <div>

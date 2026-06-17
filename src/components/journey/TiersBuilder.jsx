@@ -44,6 +44,7 @@ import { apiFetch } from "@/lib/api";
 import { addPackageToCart, getEventDate, setEventDate } from "@/lib/cartStore";
 import { formatINR } from "@/lib/journeyStepUi";
 import Dropdown from "@/components/ui/Dropdown";
+import CityStateDropdown from "@/components/CityStateDropdown";
 
 /* Rotating accent icons for tier headers (colourful, not emojis). */
 const TIER_ICONS = [Sparkles, Star, Crown];
@@ -290,7 +291,7 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
 
       {/* Tabs (makeup | mehndi) */}
       {tabs.length > 1 ? (
-        <div className="mx-auto flex max-w-md overflow-hidden rounded-2xl border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
+        <div className="mx-auto flex max-w-md overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
           {tabs.map((tab) => {
             const active = tab.key === activeTab;
             return (
@@ -298,7 +299,7 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 rounded-xl px-4 py-2.5 text-center text-sm font-bold transition-all ${
+                className={`flex-1 rounded-xl px-4 py-2.5 text-center text-sm font-medium transition-all ${
                   active
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted hover:bg-surface-muted"
@@ -325,7 +326,7 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
               type="button"
               onClick={() => selectTier(tier.id)}
               aria-pressed={selected}
-              className={`relative flex h-full flex-col overflow-hidden rounded-2xl border bg-surface text-left shadow-[0_4px_18px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-1 ${
+              className={`relative flex h-full flex-col overflow-hidden rounded-xl border bg-surface text-left shadow-[0_4px_18px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-1 ${
                 selected
                   ? "border-primary ring-2 ring-primary/30 shadow-[0_18px_44px_rgba(15,23,42,0.12)]"
                   : "border-border hover:border-primary/40 hover:shadow-[0_18px_44px_rgba(15,23,42,0.12)]"
@@ -425,7 +426,7 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
       {/* Add-ons — gated until a base tier is selected */}
       {addons.length ? (
         <div
-          className={`rounded-2xl border bg-surface p-5 transition ${
+          className={`rounded-xl border bg-surface p-5 transition ${
             addonsLocked ? "border-border" : "border-border"
           }`}
         >
@@ -503,8 +504,10 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
         </div>
       ) : null}
 
-      {/* Detail fields + required event date */}
-      <div className="rounded-2xl border border-border bg-surface p-5">
+      {/* DETAILS_BLOCK_START */}
+      {/* Detail fields + required event date — rendered at the BOTTOM (below the
+          sample gallery) so the date / details are the last thing asked. */}
+      <div className="rounded-xl border border-border bg-surface p-5" data-details-block>
         <h3 className="flex items-center gap-2 text-sm font-bold text-text-strong">
           <Receipt className="h-4 w-4 text-primary" /> Your event details
         </h3>
@@ -513,7 +516,7 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-subtle">
               <span className="inline-flex items-center gap-1.5">
-                <CalendarDays className="h-3.5 w-3.5 text-primary" /> Event date
+                <CalendarDays className="h-3.5 w-3.5 text-primary" /> {definition?.date_label || "Event date"}
               </span>
               <span className="ml-0.5 text-danger">*</span>
             </label>
@@ -543,6 +546,17 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
             const fieldClass =
               "h-11 w-full rounded-xl border border-border-strong bg-surface px-3.5 text-sm font-medium text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
 
+            if (field.type === "city_state") {
+              return (
+                <div key={field.key} className="sm:col-span-2">
+                  {labelEl}
+                  <CityStateDropdown
+                    value={value}
+                    onChange={(sel) => setDetail(field.key, sel?.label || "")}
+                  />
+                </div>
+              );
+            }
             if (field.type === "textarea") {
               return (
                 <div key={field.key} className="sm:col-span-2">
@@ -589,9 +603,9 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
         </div>
       </div>
 
-      {/* Photography sample gallery — "Our work" */}
+      {/* Photography sample gallery — "Our work" (kept at the very bottom, below the form). */}
       {gallery.length ? (
-        <div className="rounded-2xl border border-border bg-surface p-5">
+        <div className="rounded-lg border border-border bg-surface p-5" data-gallery-block>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="flex items-center gap-2 text-sm font-bold text-text-strong">
               <Camera className="h-4 w-4 text-primary" /> Our work — samples
@@ -658,7 +672,7 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
       ) : null}
 
       {/* Rich summary + CTA */}
-      <div className=" bottom-4 z-10 overflow-hidden rounded-2xl border border-primary/30 bg-surface">
+      <div className=" bottom-4 z-10 overflow-hidden rounded-xl border border-primary/30 bg-surface">
         <div className="border-b border-border bg-primary-soft/40 px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-primary">
             <ShoppingBag className="h-3.5 w-3.5" /> Your selection

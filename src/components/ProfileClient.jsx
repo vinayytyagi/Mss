@@ -551,7 +551,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
       )}
 
       {/* Tabs */}
-      <div className="scrollbar-soft mt-6 flex gap-1 overflow-x-auto rounded-2xl border border-border bg-surface/80 p-1 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+      <div className="no-scrollbar mt-6 flex gap-1 overflow-x-auto rounded-2xl border border-border bg-surface/80 p-1 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
         {tabs.map((tab) => (
           <Link
             key={tab.id}
@@ -778,7 +778,15 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                 </div>
                 <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
                   <p className="text-xs text-subtle">Wedding Month</p>
-                  <p className="mt-1 text-sm font-bold text-text">{onboarding.wedding_month || "—"}</p>
+                  <p className="mt-1 text-sm font-bold text-text">
+                    {onboarding.wedding_month ||
+                      (onboarding.wedding_date
+                        ? new Date(onboarding.wedding_date).toLocaleDateString("en-IN", {
+                            month: "long",
+                            year: "numeric",
+                          })
+                        : "—")}
+                  </p>
                 </div>
                 <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
                   <p className="text-xs text-subtle">Current Budget</p>
