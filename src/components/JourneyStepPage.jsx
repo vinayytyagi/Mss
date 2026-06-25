@@ -28,12 +28,11 @@ import JourneyListingCard from "@/components/journey/JourneyListingCard";
 import JourneyStepStrip from "@/components/journey/JourneyStepStrip";
 import JourneyStepNav from "@/components/journey/JourneyStepNav";
 import TrustStrip from "@/components/journey/TrustStrip";
-import { getListingConfig, getTrustItems } from "@/lib/journeyStepUi";
+import { getListingConfig, resolveTrustItems } from "@/lib/journeyStepUi";
 import { capturesDetails } from "@/lib/journeyMode";
 
-// Customer journey page items grid pagination — 24 divides evenly into the
-// responsive grid (1 / 2 / 3 columns) so the last row never sits half-empty.
-const JOURNEY_PAGE_SIZE = 24;
+// Customer journey page items grid pagination — 12 per page.
+const JOURNEY_PAGE_SIZE = 12;
 
 // Results sort options for mockup-configured listing steps (venue / decor …).
 const JOURNEY_SORT_OPTIONS = [
@@ -161,6 +160,7 @@ function buildJourneyHref(
     priceMax = null,
     guestCount,
     venueLoc,
+    attrs = null,
   } = {},
 ) {
   const qs = new URLSearchParams();
@@ -188,6 +188,13 @@ function buildJourneyHref(
   }
   if (venueLoc != null && venueLoc !== undefined && String(venueLoc).trim()) {
     qs.set("venueLoc", String(venueLoc).trim());
+  }
+  // Schema-driven attribute filters → one param per facet: attr_<key>=v1,v2.
+  if (attrs && typeof attrs === "object") {
+    for (const [key, vals] of Object.entries(attrs)) {
+      const list = (Array.isArray(vals) ? vals : [vals]).map((v) => String(v).trim()).filter(Boolean);
+      if (list.length) qs.set(`attr_${key}`, list.join(","));
+    }
   }
   const q = qs.toString();
   return `/journey/${slug}${q ? `?${q}` : ""}`;
@@ -923,6 +930,10 @@ export default function JourneyStepPage({
   venueLocForUrl = undefined,
   effectiveGuestCount = 0,
   effectiveVenueLocation = "",
+  // Schema-driven customer filters (admin owns which fields + choices show in
+  // the filter bar). selectedAttributes is { key: string[] } from the URL.
+  attributeFacets = [],
+  selectedAttributes = {},
 }) {
   const router = useRouter();
   const authUser = useAuthUser();
@@ -949,7 +960,7 @@ export default function JourneyStepPage({
   // recipe + trust strip (venue / decor / catering / gifting / shopping).
   // Null only for steps that keep the legacy generic layout.
   const listingCfg = useMemo(() => getListingConfig(step.slug), [step.slug]);
-  const trustItems = useMemo(() => getTrustItems(step.slug), [step.slug]);
+  const trustItems = useMemo(() => resolveTrustItems(step), [step]);
   const [attrFilters, setAttrFilters] = useState({});
   const [sortBy, setSortBy] = useState("recommended");
   // Per-item price-range modal (decor / shopping "Price" pill). The matching
@@ -982,6 +993,8 @@ export default function JourneyStepPage({
       venueLoc: venueLocForUrl,
       matchLocOff,
       matchGuestsOff,
+      // Carry the active schema filters across category/search/etc. clicks.
+      attrs: selectedAttributes,
       ...capOrBudgetQs,
       ...overrides,
     };
@@ -1226,7 +1239,9 @@ export default function JourneyStepPage({
     !capOffActive && appliedBudgetCap != null && Number.isFinite(Number(appliedBudgetCap));
   // Count of active attribute-filter dropdowns — drives the "Filters" badge
   // + the "Clear all" affordance on the per-step filter bar.
-  const activeAttrCount = Object.values(attrFilters).filter(Boolean).length;
+  const activeAttrCount =
+    Object.values(attrFilters).filter(Boolean).length +
+    Object.keys(selectedAttributes || {}).length;
 
   const categorySearchLower = categorySearch.trim().toLowerCase();
   const filteredCategories = categorySearchLower
@@ -1662,48 +1677,60 @@ export default function JourneyStepPage({
             cuisine / theme / packaging dropdowns etc. Applied client-side
             over the loaded item set; items without the attribute stay
             visible. Rendered inline in the same scrollable strip. */}
-        {listingCfg ? (
+        {/* Price-range pill (from listing config — price isn't a schema
+            attribute, so it stays a client-side modal filter). */}
+        {priceFilterCfg ? (
           <div className="flex shrink-0 items-center gap-2.5">
-            {listingCfg.filters.map((f) => {
-              // Price-range filter renders a pill button that opens the
-              // dual-thumb PriceRangeModal; its value is { min, max } | null.
-              if (f.kind === "price-range") {
-                const range = attrFilters[f.key] || null;
-                const rangeActive = !!range;
-                return (
-                  <button
-                    key={f.key}
-                    type="button"
-                    onClick={() => setPriceModalOpen(true)}
-                    aria-label={f.label}
-                    className={`flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition-colors ${
-                      rangeActive
-                        ? "border-primary bg-primary-soft text-primary"
-                        : "border-border bg-surface text-text hover:border-primary/40"
-                    }`}
-                  >
-                    <Tags className="h-4 w-4 shrink-0" aria-hidden />
-                    <span className="whitespace-nowrap">
-                      {describePriceRange(range, f.label)}
-                    </span>
-                  </button>
-                );
-              }
-              const active = !!attrFilters[f.key];
+            {(() => {
+              const range = attrFilters[priceFilterCfg.key] || null;
+              const rangeActive = !!range;
+              return (
+                <button
+                  type="button"
+                  onClick={() => setPriceModalOpen(true)}
+                  aria-label={priceFilterCfg.label}
+                  className={`flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition-colors ${
+                    rangeActive
+                      ? "border-primary bg-primary-soft text-primary"
+                      : "border-border bg-surface text-text hover:border-primary/40"
+                  }`}
+                >
+                  <Tags className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="whitespace-nowrap">
+                    {describePriceRange(range, priceFilterCfg.label)}
+                  </span>
+                </button>
+              );
+            })()}
+          </div>
+        ) : null}
+
+        {/* Schema-driven attribute filters — the admin owns which fields show
+            here, their choices, and the "In filter bar" toggle (item form).
+            URL-driven (?attr_<key>=) so filtering happens SERVER-SIDE in /items;
+            any new admin filter auto-appears with no code change. */}
+        {attributeFacets.length ? (
+          <div className="flex shrink-0 items-center gap-2.5">
+            {attributeFacets.map((facet) => {
+              const current = (selectedAttributes[facet.key] || [])[0] || "";
+              const active = !!current;
               const filterOptions = [
-                { value: "", label: f.label },
-                ...f.options.map((o) => ({ value: o.value, label: o.label })),
+                { value: "", label: facet.label },
+                ...facet.options.map((o) => ({ value: o, label: o })),
               ];
               return (
                 <Dropdown
-                  key={f.key}
-                  value={attrFilters[f.key] || ""}
-                  onChange={(next) =>
-                    setAttrFilters((prev) => ({ ...prev, [f.key]: next }))
-                  }
+                  key={facet.key}
+                  value={current}
+                  onChange={(next) => {
+                    const nextAttrs = { ...selectedAttributes };
+                    if (next) nextAttrs[facet.key] = [next];
+                    else delete nextAttrs[facet.key];
+                    router.push(makeJourneyHref({ attrs: nextAttrs }));
+                  }}
                   options={filterOptions}
-                  placeholder={f.label}
-                  ariaLabel={f.label}
+                  placeholder={facet.label}
+                  ariaLabel={facet.label}
                   className={`shrink-0 w-auto min-w-44 max-w-56 ${
                     active
                       ? "[&>button]:border-primary [&>button]:bg-primary-soft [&>button]:text-primary"
@@ -1719,7 +1746,10 @@ export default function JourneyStepPage({
         {activeAttrCount > 0 ? (
           <button
             type="button"
-            onClick={() => setAttrFilters({})}
+            onClick={() => {
+              setAttrFilters({});
+              router.push(makeJourneyHref({ attrs: {} }));
+            }}
             className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-muted transition-colors hover:bg-surface-muted hover:text-primary"
           >
             <X className="h-3.5 w-3.5" aria-hidden />

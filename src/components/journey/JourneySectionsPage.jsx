@@ -17,11 +17,11 @@ import JourneyStepNav from "@/components/journey/JourneyStepNav";
 import TrustStrip from "@/components/journey/TrustStrip";
 import SectionsBuilder from "@/components/journey/SectionsBuilder";
 import BasketButton from "@/components/BasketButton";
-import { getTrustItems } from "@/lib/journeyStepUi";
+import { resolveTrustItems } from "@/lib/journeyStepUi";
 
 export default function JourneySectionsPage({ steps, step }) {
   const router = useRouter();
-  const trustItems = getTrustItems(step.slug);
+  const trustItems = resolveTrustItems(step);
 
   const activeIndex = Math.max(0, steps.findIndex((s) => s.step_id === step.step_id));
   const prevStep = activeIndex > 0 ? steps[activeIndex - 1] : null;

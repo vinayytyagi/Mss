@@ -4,7 +4,7 @@ import { ChevronRight, ChevronsDown, SlidersHorizontal } from "lucide-react";
 import BasketButton from "@/components/BasketButton";
 import ShoppingItemsGrid from "@/components/ShoppingItemsGrid";
 import ShoppingSidebar from "@/components/ShoppingSidebar";
-import { isProductItem } from "@/lib/shopUi";
+import { isProductItem, matchesAttribute } from "@/lib/shopUi";
 import { categoryIconPath } from "@/lib/categoryIcon";
 import ShoppingSearchBar from "@/components/ShoppingSearchBar";
 import SubcategoryStrip from "@/components/shopping/SubcategoryStrip";
@@ -80,6 +80,8 @@ export default function ShoppingCatalog({
   minPrice = null,
   maxPrice = null,
   selectedFabrics = [],
+  attributeFacets = [],
+  selectedAttributes = {},
 }) {
   const productItems = items.filter(isProductItem);
   const topCategories = categories.filter((category) => !category.parent_category_id);
@@ -114,10 +116,13 @@ export default function ShoppingCatalog({
   // Multi-sub narrowing always runs client-side. Even when the server
   // already filtered (one sub picked), walking the chain here is cheap
   // and keeps the rule in one place.
+  const attrEntries = Object.entries(selectedAttributes || {});
   const filteredItems = productItems
     .filter((item) => itemBelongsToAny(item, selectedSubcategoryIds, parentByCategoryId))
     .filter((item) => matchesFabric(item, selectedFabrics))
-    .filter((item) => matchesPrice(item, minPrice, maxPrice));
+    .filter((item) => matchesPrice(item, minPrice, maxPrice))
+    // Schema-driven admin filters (multi-select per facet, AND across facets).
+    .filter((item) => attrEntries.every(([key, vals]) => matchesAttribute(item, key, vals)));
 
   // Render every top category — the strip itself scrolls horizontally
   // once more than ~6 cards no longer fit on a typical desktop.
@@ -346,6 +351,8 @@ export default function ShoppingCatalog({
           selectedFabrics={selectedFabrics}
           minPrice={minPrice}
           maxPrice={maxPrice}
+          attributeFacets={attributeFacets}
+          selectedAttributes={selectedAttributes}
         />
 
         <div>

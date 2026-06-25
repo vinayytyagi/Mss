@@ -71,6 +71,8 @@ export default function ShoppingSidebar({
   selectedFabrics = [],
   minPrice = null,
   maxPrice = null,
+  attributeFacets = [],
+  selectedAttributes = {},
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -105,6 +107,11 @@ export default function ShoppingSidebar({
     fabric: selectedFabrics,
     minPrice: minPrice ?? "",
     maxPrice: maxPrice ?? "",
+    // Schema-driven attribute filters — one `attr_<key>` param per facet so
+    // they survive navigation through the other facets.
+    ...Object.fromEntries(
+      Object.entries(selectedAttributes || {}).map(([k, v]) => [`attr_${k}`, v]),
+    ),
   };
 
   function navigateTo(patch) {
@@ -124,6 +131,12 @@ export default function ShoppingSidebar({
       ? selectedFabrics.filter((f) => f !== fabric)
       : [...selectedFabrics, fabric];
     navigateTo({ fabric: next });
+  }
+
+  function toggleAttribute(key, value) {
+    const cur = Array.isArray(selectedAttributes[key]) ? selectedAttributes[key] : [];
+    const next = cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value];
+    navigateTo({ [`attr_${key}`]: next });
   }
 
   function applyPrice() {
@@ -154,7 +167,11 @@ export default function ShoppingSidebar({
     (selectedFabrics?.length || 0) +
     (minPrice != null ? 1 : 0) +
     (maxPrice != null ? 1 : 0) +
-    selectedSubcategoryIds.length;
+    selectedSubcategoryIds.length +
+    Object.values(selectedAttributes || {}).reduce(
+      (n, arr) => n + (Array.isArray(arr) ? arr.length : 0),
+      0,
+    );
   const hasAnyFilter = activeCount > 0;
 
   const content = (
@@ -268,6 +285,59 @@ export default function ShoppingSidebar({
           <div className="h-px w-full bg-primary-accent" />
         </>
       ) : null}
+
+      {/* Schema-driven attribute facets (admin owns these via the item form's
+          "In filter bar" toggle). Multi-select, URL-driven (?attr_<key>=). */}
+      {attributeFacets.map((facet) => {
+        const selected = Array.isArray(selectedAttributes[facet.key])
+          ? selectedAttributes[facet.key]
+          : [];
+        return (
+          <div key={facet.key}>
+            <p className="text-sm font-medium text-secondary">{facet.label}</p>
+            <div className="mt-2 space-y-1 text-sm text-secondary">
+              {facet.options.map((opt) => {
+                const active = selected.includes(opt);
+                return (
+                  <button
+                    type="button"
+                    key={opt}
+                    onClick={() => toggleAttribute(facet.key, opt)}
+                    className={`flex w-full items-center gap-2 rounded px-1 py-1 text-left transition hover:bg-primary-soft/50 ${
+                      active ? "font-semibold" : ""
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        active
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-primary-accent bg-surface"
+                      }`}
+                      aria-hidden
+                    >
+                      {active ? (
+                        <svg
+                          viewBox="0 0 16 16"
+                          className="h-3 w-3"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 8.5l3 3 7-7" />
+                        </svg>
+                      ) : null}
+                    </span>
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 h-px w-full bg-primary-accent" />
+          </div>
+        );
+      })}
 
       <div>
         <p className="text-sm font-medium text-secondary">Price</p>

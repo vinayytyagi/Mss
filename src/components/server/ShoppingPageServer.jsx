@@ -1,6 +1,16 @@
 import { notFound } from "next/navigation";
 import ShoppingCatalog from "@/components/ShoppingCatalog";
-import { fetchItems, fetchJourneySteps, fetchStepCategories } from "@/lib/api";
+import {
+  fetchItems,
+  fetchJourneySteps,
+  fetchStepCategories,
+  fetchAttributeSchema,
+} from "@/lib/api";
+import { facetsFromSchema, parseSelectedAttributes } from "@/lib/shopUi";
+
+// Filter keys already covered by the dedicated Fabric facet — kept out of the
+// schema-driven facet list so /shopping never shows a duplicate fabric filter.
+const SHOPPING_FACET_EXCLUDE = new Set(["fabric", "fabric_material", "material"]);
 
 function resolveShoppingStep(steps = []) {
   return (
@@ -68,7 +78,7 @@ export default async function ShoppingPageServer({ searchParams }) {
     const serverSubcategoryId =
       selectedSubcategoryIds.length === 1 ? selectedSubcategoryIds[0] : "";
 
-    const [categories, itemsRes] = await Promise.all([
+    const [categories, itemsRes, schemaRes] = await Promise.all([
       fetchStepCategories(shoppingStep.slug),
       fetchItems(
         {
@@ -81,7 +91,19 @@ export default async function ShoppingPageServer({ searchParams }) {
         },
         { cacheMode: "no-store" },
       ),
+      fetchAttributeSchema(shoppingStep.slug),
     ]);
+
+    // Schema-driven customer filters (admin owns which fields are filterable).
+    // Fabric keeps its own dedicated facet, so exclude fabric keys. Applied
+    // client-side in ShoppingCatalog (same model as fabric/price).
+    const attributeFacets = facetsFromSchema(schemaRes?.schema, itemsRes.items || []).filter(
+      (f) => !SHOPPING_FACET_EXCLUDE.has(f.key),
+    );
+    const selectedAttributes = parseSelectedAttributes(
+      resolvedSearchParams,
+      attributeFacets.map((f) => f.key),
+    );
 
     return (
       <ShoppingCatalog
@@ -95,6 +117,8 @@ export default async function ShoppingPageServer({ searchParams }) {
         minPrice={minPrice}
         maxPrice={maxPrice}
         selectedFabrics={selectedFabrics}
+        attributeFacets={attributeFacets}
+        selectedAttributes={selectedAttributes}
       />
     );
   } catch {

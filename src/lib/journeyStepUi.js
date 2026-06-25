@@ -21,17 +21,23 @@
 
 import {
   ShieldCheck,
+  BadgeCheck,
   CalendarCheck,
   UserCheck,
   Image as ImageIcon,
   Palette,
   Truck,
   Sparkles,
+  Star,
   Package,
+  Gift,
   Camera,
   Clock,
   Receipt,
   Home,
+  Heart,
+  MapPin,
+  Award,
 } from "lucide-react";
 
 const PACKAGE_SLUGS = new Set(["photography", "makeup-and-mehndi"]);
@@ -41,7 +47,7 @@ const SECTIONS_SLUGS = new Set(["wedding-invitation", "streedhan", "pagfera", "h
 // DUAL steps — a product-listing tab + a SectionsBuilder tab.
 const DUAL_SLUGS = new Set(["catering", "gifting"]);
 // Pure product-listing steps — the shared ProductCard grid.
-const LISTING_SLUGS = new Set(["venue", "decor", "shopping"]);
+const LISTING_SLUGS = new Set(["venues", "decor", "shopping"]);
 
 export function getJourneyPageMode(slug) {
   const s = String(slug || "").trim().toLowerCase();
@@ -94,43 +100,40 @@ function isIncluded(v) {
 
 /* --------------------------- trust strips -------------------------- */
 
-const TRUST = {
-  venue: [
-    { icon: ShieldCheck, label: "All venues verified by MyShaadiStore" },
-    { icon: CalendarCheck, label: "We handle booking & advance" },
-    { icon: UserCheck, label: "Coordinator on event day" },
-  ],
-  decor: [
-    { icon: ImageIcon, label: "Real past work — no stock photos" },
-    { icon: Palette, label: "Custom colours on request" },
-    { icon: UserCheck, label: "Coordinator on event day" },
-  ],
-  catering: [
-    { icon: ShieldCheck, label: "All caterers verified by MyShaadi" },
-    { icon: Sparkles, label: "500+ events catered" },
-    { icon: UserCheck, label: "Coordinator on event day" },
-  ],
-  gifting: [
-    { icon: Truck, label: "Delivered to your door" },
-    { icon: Sparkles, label: "Fully personalised" },
-    { icon: Package, label: "Bulk orders accepted" },
-    { icon: ShieldCheck, label: "Verified vendors only" },
-  ],
-  photography: [
-    { icon: Camera, label: "Candid + traditional both" },
-    { icon: Clock, label: "20–30 day delivery" },
-    { icon: ShieldCheck, label: "Verified teams only" },
-    { icon: Receipt, label: "No hidden fees" },
-  ],
-  "makeup-and-mehndi": [
-    { icon: Home, label: "Home visit options" },
-    { icon: Sparkles, label: "Professional products" },
-    { icon: UserCheck, label: "Event-day coordination" },
-  ],
+// String icon name → lucide component, for ADMIN-EDITABLE trust chips. Keep in
+// sync with the admin journey-steps edit page icon picker.
+const TRUST_ICON_MAP = {
+  ShieldCheck,
+  BadgeCheck,
+  CalendarCheck,
+  UserCheck,
+  Sparkles,
+  Star,
+  Truck,
+  Package,
+  Gift,
+  Camera,
+  Clock,
+  Receipt,
+  Home,
+  Palette,
+  Image: ImageIcon,
+  Heart,
+  MapPin,
+  Award,
 };
 
-export function getTrustItems(slug) {
-  return TRUST[String(slug || "").toLowerCase()] || [];
+/**
+ * Trust chips for a step, from admin-set `step.trust_items`
+ * (`[{ icon: <name>, label }]`), resolved to icon components. Empty when none
+ * are configured — there's no hardcoded fallback; the defaults live in the DB
+ * (per-step `trust_items`, editable in admin → Journey Steps).
+ */
+export function resolveTrustItems(step) {
+  const custom = Array.isArray(step?.trust_items) ? step.trust_items : [];
+  return custom
+    .map((t) => ({ icon: TRUST_ICON_MAP[t?.icon] || ShieldCheck, label: String(t?.label || "").trim() }))
+    .filter((t) => t.label);
 }
 
 /* ------------------------- listing configs ------------------------- */
@@ -180,7 +183,7 @@ function priceRangeFilter(stepSlug) {
 }
 
 const LISTING = {
-  venue: {
+  venues: {
     filters: [
       {
         key: "venue_type",

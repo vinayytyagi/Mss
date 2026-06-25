@@ -28,7 +28,7 @@ import Pagination from "@/components/Pagination";
 
 // Match the other listing grids: paginate once a step has more than 24 items.
 const DUAL_PAGE_SIZE = 24;
-import { getListingConfig, getTrustItems } from "@/lib/journeyStepUi";
+import { getListingConfig, resolveTrustItems } from "@/lib/journeyStepUi";
 import { dualConfig, packageModeKey } from "@/lib/journeyMode";
 
 const FALLBACK_IMAGE =""
@@ -79,7 +79,7 @@ export default function JourneyDualPage({ steps, step, items }) {
   const dual = useMemo(() => dualConfig(step.slug), [step.slug]);
   const modeKey = useMemo(() => packageModeKey(step.slug), [step.slug]);
   const cardCfg = useMemo(() => getListingConfig(step.slug)?.card || null, [step.slug]);
-  const trustItems = getTrustItems(step.slug);
+  const trustItems = resolveTrustItems(step);
 
   const [tab, setTab] = useState("product"); // "product" | "package"
 

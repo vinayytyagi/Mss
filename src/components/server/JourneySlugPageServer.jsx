@@ -1,11 +1,17 @@
 import { notFound } from "next/navigation";
 import JourneyStepPage from "@/components/JourneyStepPage";
-import JourneyEnquiryPage from "@/components/journey/JourneyEnquiryPage";
 import JourneyPackagesPage from "@/components/journey/JourneyPackagesPage";
 import JourneySectionsPage from "@/components/journey/JourneySectionsPage";
 import JourneyDualPage from "@/components/journey/JourneyDualPage";
 import { getJourneyPageMode } from "@/lib/journeyStepUi";
-import { fetchItems, fetchJourneyStep, fetchJourneySteps, fetchStepCategories } from "@/lib/api";
+import {
+  fetchItems,
+  fetchJourneyStep,
+  fetchJourneySteps,
+  fetchStepCategories,
+  fetchAttributeSchema,
+} from "@/lib/api";
+import { facetsFromSchema, parseSelectedAttributes } from "@/lib/shopUi";
 import { getAuthUserServer } from "@/lib/authCookiesServer";
 
 const SPECIAL_STEP_KINDS = {
@@ -262,18 +268,6 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
 
   const pageMode = getJourneyPageMode(step.slug);
 
-  // Enquiry steps (legacy "we'll call you" form). No slug maps here anymore
-  // — the four enquiry steps now render the SectionsBuilder — but the branch
-  // is kept so a step explicitly set to "enquiry" still works.
-  if (pageMode === "enquiry") {
-    const enquirySteps = await fetchJourneySteps();
-    return (
-      <main>
-        <JourneyEnquiryPage steps={enquirySteps} step={step} />
-      </main>
-    );
-  }
-
   // Sections steps (wedding-invitation / streedhan / pagfera / honeymoon)
   // render the SectionsBuilder package assembler — no vendor item grid, so
   // skip the catalog fetch + filter plumbing entirely.
@@ -345,10 +339,24 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
     appliedBudgetCap = budgetCap > 0 ? budgetCap : null;
   }
 
-  const [steps, categories] = await Promise.all([
+  const [steps, categories, schemaRes] = await Promise.all([
     fetchJourneySteps(),
     fetchStepCategories(slug),
+    fetchAttributeSchema(step.slug),
   ]);
+
+  // Schema-driven customer filters: the admin owns which fields are filterable
+  // (item form "In filter bar" toggle) and their choices. Facets are built from
+  // the schema so any new admin filter auto-appears; selected values come from
+  // the URL (?attr_<key>=) and are applied SERVER-SIDE via /items?attrs=.
+  const attributeFacets = facetsFromSchema(schemaRes?.schema, []);
+  const selectedAttributes = parseSelectedAttributes(
+    resolvedSearchParams,
+    attributeFacets.map((f) => f.key),
+  );
+  const attrsParam = Object.keys(selectedAttributes).length
+    ? JSON.stringify(selectedAttributes)
+    : "";
 
   const sel = resolveJourneyCategorySelection(
     categories,
@@ -372,6 +380,8 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
       ...(search ? { search } : {}),
       // Dulha/Dulhan shopping filter — server-side narrowing via ?audience=.
       ...(audienceFilter ? { audience: audienceFilter } : {}),
+      // Schema-driven attribute filters — server-side via ?attrs={key:[vals]}.
+      ...(attrsParam ? { attrs: attrsParam } : {}),
       limit: 500,
     },
     { cacheMode: "revalidate", revalidateSeconds: 60 },
@@ -470,6 +480,8 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
         venueLocForUrl={venueLocFromUrl ? venueLocFromUrl : undefined}
         effectiveGuestCount={effectiveGuestCount}
         effectiveVenueLocation={effectiveVenueLocation}
+        attributeFacets={attributeFacets}
+        selectedAttributes={selectedAttributes}
       />
     </main>
   );

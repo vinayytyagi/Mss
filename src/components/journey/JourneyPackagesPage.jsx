@@ -18,7 +18,7 @@ import TrustStrip from "@/components/journey/TrustStrip";
 import PackageCard from "@/components/journey/PackageCard";
 import TiersBuilder from "@/components/journey/TiersBuilder";
 import BasketButton from "@/components/BasketButton";
-import { getPackagesConfig, getTrustItems } from "@/lib/journeyStepUi";
+import { getPackagesConfig, resolveTrustItems } from "@/lib/journeyStepUi";
 import { builderType } from "@/lib/journeyMode";
 
 export default function JourneyPackagesPage({
@@ -30,7 +30,7 @@ export default function JourneyPackagesPage({
   selectedCategorySlug = "",
 }) {
   const config = getPackagesConfig(step.slug);
-  const trustItems = getTrustItems(step.slug);
+  const trustItems = resolveTrustItems(step);
   // Tiers steps (photography, makeup-and-mehndi) render the admin-defined
   // TiersBuilder; its tabs/tiers come from the package definition API, so we
   // skip the catalog grid and the category-tab strip for them.
