@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getAuthToken, getAuthUser } from "@/lib/authCookies";
 import { clearCart, getEventDate, useCartState, useCartSummary } from "@/lib/cartStore";
+import { markCartConverted } from "@/lib/api/cartSyncApi";
+import { trackEvent } from "@/lib/attribution";
 import CityStateDropdown from "@/components/CityStateDropdown";
 import {
   createShoppingOrder,
@@ -386,6 +388,14 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
 
       const idempotencyKey = makeIdempotencyKey("quotation-requests", payload);
       const response = await submitQuotationRequest(payload, { idempotencyKey });
+      // Record the win for abandoned-cart tracking + the analytics funnel
+      // BEFORE clearing the local cart (which fires an empty snapshot).
+      markCartConverted("quotation");
+      const quotationValue = carts.quotation.reduce(
+        (sum, it) => sum + (Number(it.final_price) || Number(it.price) || Number(it.indicative_total) || 0) * (Number(it.quantity) || 1),
+        0,
+      );
+      trackEvent("inquiry_submitted", { items: carts.quotation.length, value: Math.round(quotationValue) });
       clearCart("quotation");
       setQuotationForm({ name: "", phone: "", email: "", note: "" });
       const successMessage = response.message || "Quotation sent successfully.";
@@ -434,7 +444,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
       if (!checkoutForm.state.trim()) throw new Error("State is required.");
       if (!checkoutForm.pincode.trim()) throw new Error("Pincode is required.");
       if (!PINCODE_REGEX.test(checkoutForm.pincode.trim())) throw new Error("Please enter a valid 6-digit pincode.");
-      if (carts.shopping.length === 0) throw new Error("Add items to shopping cart first.");
+      if (carts.shopping.length === 0) throw new Error("Add items to shop cart first.");
 
       const loaded = await loadRazorpayScript();
       if (!loaded) throw new Error("Failed to load Razorpay. Check your internet connection.");
@@ -466,6 +476,8 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
 
       // Fully paid by store credit — no Razorpay step. Land on the order page.
       if (response.fully_paid_by_credit) {
+        markCartConverted("order");
+        trackEvent("purchase", { order_number: orderNumber, items: carts.shopping.length, value: Math.round(shoppingTotal) });
         clearCart("shopping");
         setCheckoutState({ loading: false, error: "", success: "Order placed using store credit!", orderNumber });
         toast.success("Order placed using store credit!");
@@ -494,6 +506,8 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
             };
             const verifyIdempotencyKey = makeIdempotencyKey("orders/verify-payment", verifyPayload);
             const verifyRes = await verifyRazorpayPayment(verifyPayload, { idempotencyKey: verifyIdempotencyKey });
+            markCartConverted("order");
+            trackEvent("purchase", { order_number: orderNumber, items: carts.shopping.length, value: Math.round(shoppingTotal) });
             clearCart("shopping");
             setCheckoutState({
               loading: false,
@@ -546,7 +560,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
     return (
       <form
         onSubmit={handleSubmitQuotation}
-        className="rounded-3xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6"
+        className="rounded-xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6"
       >
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#d4720a]/10 text-[#d4720a]">
@@ -577,9 +591,11 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
             <label className={labelClass}>Phone number</label>
             <input
               type="tel"
+              inputMode="numeric"
+              maxLength={10}
               placeholder="10-digit mobile number"
               value={quotationForm.phone}
-              onChange={(e) => setQuotationForm((c) => ({ ...c, phone: e.target.value }))}
+              onChange={(e) => setQuotationForm((c) => ({ ...c, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
               className={inputClass}
             />
           </div>
@@ -663,7 +679,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
   return (
     <form onSubmit={handleCheckout} className="space-y-5">
       {/* Price details */}
-      <div className="rounded-3xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6">
+      <div className="rounded-xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-subtle">Price details</h3>
         <div className="mt-4 space-y-3">
           <div className="flex items-center justify-between text-sm text-muted">
@@ -786,7 +802,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
       </div>
 
       {/* Contact details */}
-      <div className="rounded-3xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6">
+      <div className="rounded-xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6">
         <h3 className="text-base font-semibold text-text-strong">Contact details</h3>
         <div className="mt-4 space-y-3.5">
           <div>
@@ -804,9 +820,11 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
               <label className={labelClass}>Phone</label>
               <input
                 type="tel"
+                inputMode="numeric"
+                maxLength={10}
                 placeholder="Mobile number"
                 value={checkoutForm.phone}
-                onChange={(e) => setCheckoutForm((c) => ({ ...c, phone: e.target.value.replace(/[^\d+]/g, "") }))}
+                onChange={(e) => setCheckoutForm((c) => ({ ...c, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
                 className={inputClass}
               />
             </div>
@@ -825,7 +843,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
       </div>
 
       {/* Delivery address */}
-      <div className="rounded-3xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6">
+      <div className="rounded-xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <h3 className="flex items-center gap-2 text-base font-semibold text-text-strong">
             <MapPin className="h-5 w-5 text-primary" />
@@ -1033,7 +1051,7 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
         </div>
       ) : null}
 
-      <div className="rounded-3xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6">
+      <div className="rounded-xl border border-border bg-surface p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:p-6">
         <button
           type="submit"
           disabled={checkoutDisabled}

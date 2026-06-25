@@ -26,7 +26,7 @@ export default function BasketButton({ floating = false, className = "" }) {
         <div className="h-5 w-px bg-border" aria-hidden="true" />
         <Link
           href="/cart?tab=shopping"
-          aria-label={`Shopping cart — ${shoppingCount} item${shoppingCount !== 1 ? "s" : ""}`}
+          aria-label={`Shop cart — ${shoppingCount} item${shoppingCount !== 1 ? "s" : ""}`}
           className="flex items-center gap-1.5 rounded-full px-3 py-1.5 transition hover:bg-surface-muted"
         >
           <ShoppingCart className="h-4 w-4 shrink-0 text-primary" strokeWidth={2} />
@@ -58,8 +58,8 @@ export default function BasketButton({ floating = false, className = "" }) {
       </Link>
       <Link
         href="/cart?tab=shopping"
-        aria-label={`Shopping cart — ${shoppingCount} items`}
-        title="Shopping cart"
+        aria-label={`Shop cart — ${shoppingCount} items`}
+        title="Shop cart"
         className="flex h-10 items-center gap-1.5 rounded-xl border border-border-strong px-3 text-text transition hover:bg-surface-muted"
       >
         <ShoppingCart className="h-4 w-4 shrink-0 text-primary" strokeWidth={2} />

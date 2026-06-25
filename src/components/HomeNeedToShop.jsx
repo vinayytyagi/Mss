@@ -54,7 +54,7 @@ export default function HomeNeedToShop({ ctaHref = "/#wedding-showcase" }) {
               width={1200}
               height={900}
               sizes="(min-width: 1024px) 48rem, 100vw"
-              className="h-auto w-full rounded-2xl object-contain sm:rounded-3xl"
+              className="h-auto w-full rounded-2xl object-contain sm:rounded-xl"
               priority
             />
           </div>

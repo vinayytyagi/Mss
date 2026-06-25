@@ -81,7 +81,7 @@ export default function AuthScene({
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-3xl border border-surface/50 bg-primary-soft p-8 shadow-[0_30px_90px_rgba(0,0,0,0.45)] ring-1 ring-text-strong/5 backdrop-blur-sm sm:p-10">
+              <div className="overflow-hidden rounded-xl border border-surface/50 bg-primary-soft p-8 shadow-[0_30px_90px_rgba(0,0,0,0.45)] ring-1 ring-text-strong/5 backdrop-blur-sm sm:p-10">
                 <div className="mb-8 text-center">
                   <h1 className="text-3xl font-semibold leading-tight tracking-tight text-text-strong sm:text-4xl">
                     {title || "Plan Your Dream Wedding"}
@@ -97,7 +97,7 @@ export default function AuthScene({
             </div>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-3xl border border-surface/50 bg-primary-soft p-8 shadow-[0_30px_90px_rgba(0,0,0,0.45)] ring-1 ring-text-strong/5 backdrop-blur-sm sm:p-10">
+          <div className="overflow-hidden rounded-xl border border-surface/50 bg-primary-soft p-8 shadow-[0_30px_90px_rgba(0,0,0,0.45)] ring-1 ring-text-strong/5 backdrop-blur-sm sm:p-10">
             <div className="mb-10 text-center">
               <h1 className="text-3xl font-semibold leading-tight tracking-tight text-text-strong sm:text-4xl">
                 {title || "Plan Your Dream Wedding"}

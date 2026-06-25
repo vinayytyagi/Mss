@@ -244,7 +244,7 @@ export default function ItemCardV2({
     e.preventDefault();
     e.stopPropagation();
     addToCart(cartKind, item, 1);
-    toast.success(isShoppingKind ? "Added to cart" : "Added to basket", {
+    toast.success(isShoppingKind ? "Added to Shop cart" : "Added to Quote cart", {
       description: item.name,
     });
     // Flash the in-button "Added" state for a moment.
@@ -269,8 +269,8 @@ export default function ItemCardV2({
   const addLabel = justAdded
     ? "Added"
     : isShoppingKind
-      ? "Add to cart"
-      : "Add to basket";
+      ? "Add to Shop cart"
+      : "Add to Quote cart";
 
   return (
     <article

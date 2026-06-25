@@ -54,7 +54,7 @@ export default function PackageCard({ item, groups = [], ribbon }) {
     e.preventDefault();
     e.stopPropagation();
     addToCart("quotation", item, 1);
-    toast.success("Added to basket", { description: item.name });
+    toast.success("Added to Quote cart", { description: item.name });
     setJustAdded(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setJustAdded(false), 1600);
@@ -189,7 +189,7 @@ export default function PackageCard({ item, groups = [], ribbon }) {
             type="button"
             onClick={handleAdd}
             disabled={justAdded}
-            aria-label={justAdded ? "Added" : "Add to basket"}
+            aria-label={justAdded ? "Added" : "Add to Quote cart"}
             aria-pressed={justAdded}
             className={[
               "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold shadow-sm transition-all duration-300 transform-gpu",
@@ -207,7 +207,7 @@ export default function PackageCard({ item, groups = [], ribbon }) {
                 aria-hidden
               />
             )}
-            <span>{justAdded ? "Added" : "Add to basket"}</span>
+            <span>{justAdded ? "Added" : "Add to Quote cart"}</span>
           </button>
         </div>
       </div>

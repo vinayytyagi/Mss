@@ -233,7 +233,7 @@ function EmptyState({ cartType }) {
         {isQuote ? <Receipt className="h-7 w-7" /> : <ShoppingBag className="h-7 w-7" />}
       </div>
       <h3 className="mt-4 text-lg font-semibold text-text-strong">
-        {isQuote ? "Your quotation cart is empty" : "Your shopping cart is empty"}
+        {isQuote ? "Your Quote cart is empty" : "Your Shop cart is empty"}
       </h3>
       <p className="mt-1.5 max-w-xs text-sm text-muted">
         {isQuote
@@ -268,7 +268,7 @@ export default function CartItemsClient({ activeCart = "shopping" }) {
       <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
         <div>
           <h2 className="text-base font-semibold text-text-strong sm:text-lg">
-            {isQuote ? "Quotation Cart" : "Shopping Cart"}
+            {isQuote ? "Quote Cart" : "Shop Cart"}
           </h2>
           <p className="mt-0.5 text-xs text-muted sm:text-sm">
             {items.length > 0

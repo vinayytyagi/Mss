@@ -12,7 +12,7 @@
  *
  * Cart wiring:
  *   - Shopping items (step.slug === "shopping"): TWO buttons —
- *     "Add to shopping cart" (shopping) + "Add to quote cart" (quotation).
+ *     "Add to Shop cart" (shopping) + "Add to quote cart" (quotation).
  *   - Every other journey step: ONE "Add to cart" → quotation (inquiry).
  *
  * Variants: per-variant size / colour / material with per-variant images. The
@@ -663,7 +663,7 @@ export default function ProductDetailPage({ itemId }) {
     const payload = buildCartPayload();
     if (!payload) return;
     addToCart("shopping", payload, 1);
-    toast.success("Added to shopping cart");
+    toast.success("Added to Shop cart");
     flashAdded("shopping");
   }
 
@@ -1020,7 +1020,7 @@ export default function ProductDetailPage({ itemId }) {
               <div className="mt-6 grid gap-3">
                 {inShoppingCart ? (
                   <CartQtyStepper
-                    label="In shopping cart"
+                    label="In Shop cart"
                     quantity={inShoppingCart.quantity}
                     onDecrease={() =>
                       updateCartQuantity("shopping", item.item_id, Math.max(1, inShoppingCart.quantity - 1))
@@ -1028,7 +1028,7 @@ export default function ProductDetailPage({ itemId }) {
                     onIncrease={() => updateCartQuantity("shopping", item.item_id, inShoppingCart.quantity + 1)}
                     onRemove={() => {
                       removeFromCart("shopping", item.item_id);
-                      toast.message("Removed from shopping cart");
+                      toast.message("Removed from Shop cart");
                     }}
                   />
                 ) : (
@@ -1036,7 +1036,7 @@ export default function ProductDetailPage({ itemId }) {
                     primary
                     onClick={handleAddToShoppingCart}
                     icon={<ShoppingCart className="h-4 w-4" aria-hidden />}
-                    label="Add to shopping cart"
+                    label="Add to Shop cart"
                     justAdded={justAdded.shopping}
                     disabled={selectedOutOfStock}
                   />
@@ -1060,7 +1060,7 @@ export default function ProductDetailPage({ itemId }) {
                     primary={false}
                     onClick={handleAddToInquiry}
                     icon={<ClipboardList className="h-4 w-4" aria-hidden />}
-                    label="Add to quote cart"
+                    label="Add to Quote cart"
                     justAdded={justAdded.quotation}
                     disabled={selectedOutOfStock}
                   />
@@ -1086,7 +1086,7 @@ export default function ProductDetailPage({ itemId }) {
                     primary
                     onClick={handleAddToInquiry}
                     icon={<ClipboardList className="h-4 w-4" aria-hidden />}
-                    label="Add to cart"
+                    label="Add to Quote cart"
                     justAdded={justAdded.quotation}
                   />
                 )}
@@ -1351,7 +1351,7 @@ export default function ProductDetailPage({ itemId }) {
             {inShoppingCart ? (
               <CartQtyStepper
                 compact
-                label="In shopping cart"
+                label="In Shop cart"
                 quantity={inShoppingCart.quantity}
                 onDecrease={() =>
                   updateCartQuantity("shopping", item.item_id, Math.max(1, inShoppingCart.quantity - 1))
@@ -1359,7 +1359,7 @@ export default function ProductDetailPage({ itemId }) {
                 onIncrease={() => updateCartQuantity("shopping", item.item_id, inShoppingCart.quantity + 1)}
                 onRemove={() => {
                   removeFromCart("shopping", item.item_id);
-                  toast.message("Removed from shopping cart");
+                  toast.message("Removed from Shop cart");
                 }}
               />
             ) : null}
@@ -1397,7 +1397,7 @@ export default function ProductDetailPage({ itemId }) {
                   }`}
                 >
                   {justAdded.shopping ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden /> : <ShoppingCart className="h-4 w-4" aria-hidden />}
-                  {justAdded.shopping ? "Added" : "Shopping cart"}
+                  {justAdded.shopping ? "Added" : "Shop cart"}
                 </button>
                 <button
                   type="button"
@@ -1424,7 +1424,7 @@ export default function ProductDetailPage({ itemId }) {
                 }`}
               >
                 {justAdded.quotation ? <Check className="h-4 w-4" strokeWidth={3} aria-hidden /> : <ClipboardList className="h-4 w-4" aria-hidden />}
-                {justAdded.quotation ? "Added" : "Add to cart"}
+                {justAdded.quotation ? "Added" : "Add to Quote cart"}
               </button>
             )}
           </div>

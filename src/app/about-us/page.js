@@ -270,7 +270,7 @@ export default function AboutUsPage() {
         </Section>
 
         {/* ── Stats strip — quick at-a-glance proof points ────────── */}
-        <section className="-mt-4 mb-12 overflow-hidden rounded-3xl border border-border bg-surface">
+        <section className="-mt-4 mb-12 overflow-hidden rounded-xl border border-border bg-surface">
           <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
             {[
               { icon: MapPin, title: "3 Cities", sub: "Mumbai · Delhi · Lucknow" },
@@ -362,7 +362,7 @@ export default function AboutUsPage() {
 
         {/* ── Founder ─ editorial magazine spread ────────────────── */}
         <Section eyebrow="Meet the founder" title="The person behind MyShaadiStore">
-          <div className="overflow-hidden rounded-3xl border border-border bg-surface">
+          <div className="overflow-hidden rounded-xl border border-border bg-surface">
             <div className="grid gap-0 lg:grid-cols-[340px_1fr]">
               {/* Portrait side */}
               <aside className="relative flex flex-col items-center justify-start gap-5 bg-primary-soft px-8 py-12 text-center">
@@ -485,7 +485,7 @@ export default function AboutUsPage() {
         </Section>
 
         {/* ── Closing CTA ─ refined, less loud ────────────────────── */}
-        <section className="my-24 overflow-hidden rounded-3xl border border-border bg-surface">
+        <section className="my-24 overflow-hidden rounded-xl border border-border bg-surface">
           <div className="relative bg-primary-soft px-8 py-14 text-center sm:px-12 sm:py-20">
             <Flourish className="mx-auto h-5 w-20 text-primary" />
             <h2 className={`${serif} mt-5 text-4xl font-bold leading-tight text-text-strong sm:text-5xl`}>

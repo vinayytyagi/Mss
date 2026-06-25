@@ -486,8 +486,12 @@ export default function SignupWizard({ step }) {
         return;
       }
       const email = trimSignupEmail(form.email);
-      if (email && !isValidEmail(email)) {
-        toast.error("Enter a valid email address (or leave it blank).");
+      if (!email) {
+        toast.error("Email is required.");
+        return;
+      }
+      if (!isValidEmail(email)) {
+        toast.error("Enter a valid email address.");
         return;
       }
       saveState({
@@ -519,6 +523,12 @@ export default function SignupWizard({ step }) {
         router.replace(STEP_TO_PATH.signup);
         return;
       }
+      const email = trimSignupEmail(form.email);
+      if (!email || !isValidEmail(email)) {
+        toast.error("Email is required. Please complete sign up from the beginning.");
+        router.replace(STEP_TO_PATH.signup);
+        return;
+      }
       const passwordError = validatePasswordStrength(form.password);
       if (passwordError) throw new Error(passwordError);
       if (form.password !== form.confirmPassword) throw new Error("Passwords do not match.");
@@ -529,7 +539,7 @@ export default function SignupWizard({ step }) {
           name,
           phone,
           password: form.password,
-          email: trimSignupEmail(form.email),
+          email,
         },
         { idempotencyKey }
       );
@@ -611,13 +621,14 @@ export default function SignupWizard({ step }) {
             required
           />
           <input
-            type="text"
+            type="email"
             inputMode="email"
             autoComplete="email"
-            placeholder="Email (optional)"
+            placeholder="Enter your email address"
             value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             className="h-12 w-full rounded-xl border border-border-strong bg-surface px-4 text-sm font-medium text-text outline-none transition focus:border-primary"
+            required
           />
           <div className="relative flex items-center">
             <span className="absolute left-6 text-md font-semibold text-subtle">+91</span>

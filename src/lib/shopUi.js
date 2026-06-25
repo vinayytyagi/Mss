@@ -38,82 +38,63 @@ export function truncateText(value, maxLength = 90) {
   return `${text.slice(0, maxLength).trim()}...`;
 }
 
-/* ------------------------------------------------------------------ *
- * Schema-driven customer filters
+/**
+ * Attribute-driven facets for the /shopping sidebar.
  *
- * The admin owns the journey-step attribute schema (which fields exist,
- * their choices, and whether each shows "In filter bar"). The customer
- * filter UI is derived from that schema — NOT hardcoded — so any filter an
- * admin adds/removes auto-applies here. Server-side filtering is done by
- * passing `attrs` to GET /items (see ShoppingPageServer / JourneySlugPageServer).
- * ------------------------------------------------------------------ */
+ * Ordered list of the most useful filterable shopping attributes (the
+ * select / multiselect fields from the "shopping" step in
+ * `mss-admin/src/lib/itemAttributesSchema.js` — never free text or numbers).
+ * Each facet is rendered ONLY when the currently-loaded items have ≥2
+ * distinct values for its key, so a category only ever shows the filters
+ * that actually apply to it (Clothing → Fabric/Occasion/Work; Jewellery →
+ * Purity/Stone; …). The URL carries one comma-list param per `key`.
+ *
+ * `fabric` is the legacy param alias for `fabric_material` (old links and
+ * the search bar still work) — see `legacyParam`.
+ */
+export const SHOPPING_FACETS = Object.freeze([
+  { key: "fabric_material", label: "Fabric / Material", legacyParam: "fabric" },
+  { key: "occasion", label: "Occasion" },
+  { key: "work_embroidery", label: "Work / Embroidery" },
+  { key: "pieces_included", label: "Pieces" },
+  { key: "purity", label: "Purity" },
+  { key: "stone_type", label: "Stone" },
+]);
 
-/** Distinct attribute values present across items for a given key (original casing kept, deduped case-insensitively). */
+/** All distinct attribute values for an item under `key`, trimmed. Handles
+ *  both scalar string values and array (multiselect/tags) values. */
+export function itemAttributeValues(item, key) {
+  const raw = item?.attributes?.[key];
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    return t ? [t] : [];
+  }
+  if (Array.isArray(raw)) {
+    return raw.map((v) => String(v).trim()).filter(Boolean);
+  }
+  return [];
+}
+
+/** Distinct values for `key` across `items`, deduped case-insensitively
+ *  (first-seen casing wins), sorted alphabetically. Drives facet options. */
 export function facetValuesFromItems(items, key) {
-  const seen = new Map(); // lowercased -> original
-  for (const it of Array.isArray(items) ? items : []) {
-    const raw = it?.attributes?.[key];
-    const vals = Array.isArray(raw) ? raw : raw == null || raw === "" ? [] : [raw];
-    for (const v of vals) {
-      const s = String(v).trim();
-      if (!s) continue;
-      const lc = s.toLowerCase();
-      if (!seen.has(lc)) seen.set(lc, s);
+  const byLower = new Map();
+  for (const item of items || []) {
+    for (const v of itemAttributeValues(item, key)) {
+      const lower = v.toLowerCase();
+      if (!byLower.has(lower)) byLower.set(lower, v);
     }
   }
-  return [...seen.values()];
+  return Array.from(byLower.values()).sort((a, b) => a.localeCompare(b));
 }
 
-/**
- * Build customer filter facets from a journey-step attribute schema.
- * Only select / multiselect fields flagged filterable (filterable !== false)
- * become facets. Schema options come first (admin order); any extra values
- * found on the items are appended so legacy data still filters. Facets with
- * no options at all are dropped.
- *   facet: { key, label, type: "select" | "multiselect", options: string[] }
- */
-export function facetsFromSchema(schema, items = []) {
-  const fields = (schema?.attributes || []).filter(
-    (f) => (f.type === "select" || f.type === "multiselect") && f.filterable !== false,
-  );
-  return fields
-    .map((f) => {
-      const schemaOpts = (Array.isArray(f.options) ? f.options : []).map(String).map((s) => s.trim()).filter(Boolean);
-      const merged = [...schemaOpts];
-      for (const v of facetValuesFromItems(items, f.key)) {
-        if (!merged.some((o) => o.toLowerCase() === v.toLowerCase())) merged.push(v);
-      }
-      return { key: f.key, label: f.label || f.key, type: f.type, options: merged };
-    })
-    .filter((facet) => facet.options.length > 0);
-}
-
-/** Does an item's attribute[key] match any of the selected values (case-insensitive)? Empty selection = matches all. */
+/** True when `item` has at least one value for `key` that intersects
+ *  `selectedValues` (case-insensitive). Items missing the attribute are
+ *  EXCLUDED when the facet is active — matches the old fabric semantics. */
 export function matchesAttribute(item, key, selectedValues) {
-  const wanted = (Array.isArray(selectedValues) ? selectedValues : [selectedValues])
-    .map((v) => String(v).trim().toLowerCase())
-    .filter(Boolean);
-  if (!wanted.length) return true;
-  const raw = item?.attributes?.[key];
-  const have = (Array.isArray(raw) ? raw : raw == null ? [] : [raw]).map((v) => String(v).trim().toLowerCase());
-  return wanted.some((w) => have.includes(w));
-}
-
-/**
- * Parse selected attribute filters out of the URL search params, given the
- * known facet keys. Convention: one param per facet, `attr_<key>`, with
- * comma-separated values. Returns { key: string[] } (only non-empty).
- */
-export function parseSelectedAttributes(searchParams = {}, facetKeys = []) {
-  const out = {};
-  for (const key of facetKeys) {
-    const raw = searchParams?.[`attr_${key}`];
-    if (raw == null) continue;
-    const values = (Array.isArray(raw) ? raw.join(",") : String(raw))
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (values.length) out[key] = values;
-  }
-  return out;
+  if (!selectedValues?.length) return true;
+  const values = itemAttributeValues(item, key);
+  if (!values.length) return false;
+  const wanted = new Set(selectedValues.map((v) => v.toLowerCase()));
+  return values.some((v) => wanted.has(v.toLowerCase()));
 }

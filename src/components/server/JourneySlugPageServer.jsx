@@ -4,14 +4,7 @@ import JourneyPackagesPage from "@/components/journey/JourneyPackagesPage";
 import JourneySectionsPage from "@/components/journey/JourneySectionsPage";
 import JourneyDualPage from "@/components/journey/JourneyDualPage";
 import { getJourneyPageMode } from "@/lib/journeyStepUi";
-import {
-  fetchItems,
-  fetchJourneyStep,
-  fetchJourneySteps,
-  fetchStepCategories,
-  fetchAttributeSchema,
-} from "@/lib/api";
-import { facetsFromSchema, parseSelectedAttributes } from "@/lib/shopUi";
+import { fetchItems, fetchJourneyStep, fetchJourneySteps, fetchStepCategories, fetchAttributeSchema } from "@/lib/api";
 import { getAuthUserServer } from "@/lib/authCookiesServer";
 
 const SPECIAL_STEP_KINDS = {
@@ -188,6 +181,38 @@ function categoryUrlSegment(c) {
   return s || c.category_id || "";
 }
 
+/** Filterable facets from the admin schema: every select/multiselect field, in
+ *  schema order, with its admin-managed options. Mirrors ShoppingPageServer so
+ *  the journey-listing filters are driven by the same Journey-Options CMS that
+ *  feeds the vendor listing form — add a field in admin and it becomes both a
+ *  listing field and a customer filter. */
+function facetsFromSchema(schema) {
+  const attrs = Array.isArray(schema?.attributes) ? schema.attributes : [];
+  return attrs
+    // select/multiselect fields the admin hasn't hidden from the filter bar
+    // (filterable === false → admin unchecked "Show in filter bar").
+    .filter((a) => (a.type === "select" || a.type === "multiselect") && a.filterable !== false)
+    .map((a) => ({
+      key: a.key,
+      label: a.label || a.key,
+      options: Array.isArray(a.options) ? a.options : [],
+    }));
+}
+
+/** Selected attribute filters from the URL → `{ key: [values] }` (one URL param
+ *  per facet, comma-separated). Drives BOTH the server-side `attrs` query and
+ *  the filter UI's active state. */
+function parseSelectedAttributes(sp, facets) {
+  const out = {};
+  for (const facet of facets || []) {
+    const raw = sp?.[facet.key];
+    if (!raw) continue;
+    const values = String(raw).split(",").map((s) => s.trim()).filter(Boolean);
+    if (values.length) out[facet.key] = values;
+  }
+  return out;
+}
+
 function resolveJourneyCategorySelection(categories, categoryParam, subcategoryParam, subSubcategoryParam, defaultToFirst = true) {
   const tops = categories.filter((c) => !c.parent_category_id);
   if (tops.length === 0) {
@@ -342,21 +367,17 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
   const [steps, categories, schemaRes] = await Promise.all([
     fetchJourneySteps(),
     fetchStepCategories(slug),
-    fetchAttributeSchema(step.slug),
+    // Admin-managed attribute schema → the journey-listing filter facets. A
+    // schema fetch failure must NOT break the page (filters fall back to the
+    // static listing config defined in journeyStepUi).
+    fetchAttributeSchema(step.slug).catch(() => null),
   ]);
-
-  // Schema-driven customer filters: the admin owns which fields are filterable
-  // (item form "In filter bar" toggle) and their choices. Facets are built from
-  // the schema so any new admin filter auto-appears; selected values come from
-  // the URL (?attr_<key>=) and are applied SERVER-SIDE via /items?attrs=.
-  const attributeFacets = facetsFromSchema(schemaRes?.schema, []);
-  const selectedAttributes = parseSelectedAttributes(
-    resolvedSearchParams,
-    attributeFacets.map((f) => f.key),
-  );
-  const attrsParam = Object.keys(selectedAttributes).length
-    ? JSON.stringify(selectedAttributes)
-    : "";
+  const attributeFacets = facetsFromSchema(schemaRes?.schema);
+  // Selected filters from the URL → server-side `attrs` query (so filtering
+  // happens in Mongo, and any admin-added filter works automatically) + the
+  // filter UI's active state. Plus page + sort.
+  const selectedAttributes = parseSelectedAttributes(resolvedSearchParams, attributeFacets);
+  const attrsParam = Object.keys(selectedAttributes).length ? JSON.stringify(selectedAttributes) : undefined;
 
   const sel = resolveJourneyCategorySelection(
     categories,
@@ -380,7 +401,7 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
       ...(search ? { search } : {}),
       // Dulha/Dulhan shopping filter — server-side narrowing via ?audience=.
       ...(audienceFilter ? { audience: audienceFilter } : {}),
-      // Schema-driven attribute filters — server-side via ?attrs={key:[vals]}.
+      // Dynamic attribute filters — server-side (Mongo) narrowing.
       ...(attrsParam ? { attrs: attrsParam } : {}),
       limit: 500,
     },
@@ -460,6 +481,8 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
         step={step}
         categories={categories}
         items={items}
+        attributeFacets={attributeFacets}
+        selectedAttributes={selectedAttributes}
         selectedCategoryId={sel.effectiveCategoryId}
         selectedSubcategoryId={sel.effectiveSubcategoryId}
         selectedSubSubcategoryId={sel.effectiveSubSubcategoryId}
@@ -480,8 +503,6 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
         venueLocForUrl={venueLocFromUrl ? venueLocFromUrl : undefined}
         effectiveGuestCount={effectiveGuestCount}
         effectiveVenueLocation={effectiveVenueLocation}
-        attributeFacets={attributeFacets}
-        selectedAttributes={selectedAttributes}
       />
     </main>
   );

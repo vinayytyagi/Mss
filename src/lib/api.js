@@ -60,3 +60,5 @@ export {
 } from "./api/userApi";
 
 export { uploadOracleImage } from "./api/uploadApi";
+
+export { syncCartSnapshot, markCartConverted } from "./api/cartSyncApi";

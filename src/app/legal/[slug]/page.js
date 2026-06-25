@@ -246,7 +246,7 @@ export default async function LegalPage({ params }) {
             ))}
 
             {/* Contact card — always at the bottom */}
-            <section className="overflow-hidden rounded-3xl border border-border bg-surface">
+            <section className="overflow-hidden rounded-xl border border-border bg-surface">
               <div className="border-b border-border bg-primary-soft px-6 py-5 sm:px-8">
                 <p className={`${serif} text-xl font-bold text-secondary`}>Need help?</p>
                 <p className="mt-1 text-sm text-muted">Reach out — we respond {SUPPORT_HOURS}.</p>

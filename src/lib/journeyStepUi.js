@@ -2,16 +2,12 @@
  * journeyStepUi — per-step UI configuration for the customer journey
  * pages, derived from the Part 1 / Part 2 design mockups.
  *
- * Every journey step renders in one of four page modes:
- *   "listing"  — product-listing grid of vendor items rendered with the
- *                shared ProductCard; add-to-quote drops a PRODUCT line
- *                (venue, decor, shopping, catering, gifting)
- *   "packages" — tier package builder (photography, makeup-and-mehndi):
- *                JourneyPackagesPage renders the admin-defined TiersBuilder
- *                (builder_type "tiers" in journeyMode) — selectable tier cards
- *                + add-ons + detail fields that add a PACKAGE quote-cart line.
- *   "enquiry"  — request-builder form, no item grid
- *                (honeymoon, pagfera, streedhan, wedding-invitation)
+ * Every journey step renders in one of these page modes (getJourneyPageMode):
+ *   "listing"  — product-listing grid of vendor items (venue, decor, shopping)
+ *   "dual"     — product grid + package builder tabs (catering, gifting)
+ *   "packages" — tier package builder (photography, makeup-and-mehndi)
+ *   "sections" — SectionsBuilder package assembler (honeymoon, pagfera,
+ *                streedhan, wedding-invitation)
  *   "legacy"   — the original generic grid (any new/unconfigured step)
  *
  * Listing/package configs map mockup card fields onto the real item
@@ -100,8 +96,10 @@ function isIncluded(v) {
 
 /* --------------------------- trust strips -------------------------- */
 
-// String icon name → lucide component, for ADMIN-EDITABLE trust chips. Keep in
-// sync with the admin journey-steps edit page icon picker.
+// String icon name → lucide component, for ADMIN-EDITABLE trust chips. The
+// admin trust-strip editor offers exactly these names; an unknown name falls
+// back to ShieldCheck. Keep this list in sync with TRUST_ICON_NAMES in the
+// admin journey-steps edit page.
 const TRUST_ICON_MAP = {
   ShieldCheck,
   BadgeCheck,
@@ -245,7 +243,7 @@ const LISTING = {
             : null,
         ].filter(Boolean),
       priceCaption: "Starting price",
-      ctaLabel: "Add to basket",
+      ctaLabel: "Add to Quote cart",
     },
   },
 
@@ -363,7 +361,7 @@ const LISTING = {
         ].filter(Boolean),
       pricePrefix: "Starting ",
       priceCaption: "Starting price",
-      ctaLabel: "Add to basket",
+      ctaLabel: "Add to Quote cart",
     },
   },
 
@@ -418,7 +416,7 @@ const LISTING = {
         ].filter(Boolean),
       stats: () => [],
       priceLabel: "Per hamper",
-      ctaLabel: "Add to basket",
+      ctaLabel: "Add to Quote cart",
     },
   },
 
@@ -495,7 +493,7 @@ const LISTING = {
             : null,
         ].filter(Boolean),
       priceCaption: "Price",
-      ctaLabel: "Add to basket",
+      ctaLabel: "Add to Quote cart",
     },
   },
 };

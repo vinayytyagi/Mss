@@ -59,7 +59,7 @@ export default function CartPageExperienceClient() {
             active={activeCart === "quotation"}
             onClick={() => setActiveCart("quotation")}
             icon={Receipt}
-            label="Quotation"
+            label="Quote cart"
             count={quotationCount}
             accent="quote"
           />
@@ -67,7 +67,7 @@ export default function CartPageExperienceClient() {
             active={activeCart === "shopping"}
             onClick={() => setActiveCart("shopping")}
             icon={ShoppingCart}
-            label="Shopping Cart"
+            label="Shop cart"
             count={shoppingCount}
             accent="shop"
           />

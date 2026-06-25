@@ -9,7 +9,9 @@ import { updateMyProfile, deleteMyAccount, fetchMyServiceOrders, fetchMyCredit, 
 import ImageUpload from "@/components/ImageUpload";
 import CityStateDropdown from "@/components/CityStateDropdown";
 import Dropdown from "@/components/ui/Dropdown";
+import { useWishlistState } from "@/lib/wishlistStore";
 import { formatLakhs } from "@/lib/utils";
+import { isValidEmail } from "@/lib/authValidation";
 import { toast } from "sonner";
 import {
   Check,
@@ -29,6 +31,8 @@ import {
   Wallet,
   Calendar,
   Users,
+  Sparkles,
+  Clock,
 } from "lucide-react";
 
 /* ── Icons ─────────────────────────────────────────── */
@@ -167,6 +171,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
   const [creditInfo, setCreditInfo] = useState(null); // { balance_paise, ledger }
   const [topupAmount, setTopupAmount] = useState(""); // rupees, as typed
   const [adding, setAdding] = useState(false);
+  const wishlist = useWishlistState();
 
   useEffect(() => {
     const token = getAuthToken();
@@ -202,6 +207,18 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
     const rupees = Number(topupAmount);
     if (!rupees || rupees <= 0) {
       toast.error("Please enter an amount greater than zero.");
+      return;
+    }
+    if (!Number.isInteger(rupees)) {
+      toast.error("Please enter a whole rupee amount.");
+      return;
+    }
+    if (rupees < 10) {
+      toast.error("Minimum top-up is ₹10.");
+      return;
+    }
+    if (rupees > 100000) {
+      toast.error("Maximum top-up is ₹1,00,000.");
       return;
     }
     const amountPaise = Math.round(rupees * 100);
@@ -275,8 +292,17 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
   const [editBudgetAllocations, setEditBudgetAllocations] = useState(initialProfile?.onboarding?.budget_allocations || []);
 
   async function handleSaveBasic() {
-    setSaving(true);
     setSaveMsg("");
+    if (editName.trim().length > 80) {
+      toast.error("Name must be 80 characters or fewer.");
+      return;
+    }
+    const trimmedEmail = editEmail.trim();
+    if (trimmedEmail && !isValidEmail(trimmedEmail)) {
+      toast.error("Please enter a valid email.");
+      return;
+    }
+    setSaving(true);
     try {
       const token = getAuthToken();
       const result = await updateMyProfile(token, { name: editName, email: editEmail, image_url: editImage });
@@ -427,7 +453,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
   // Lazy-load the customer's service orders the first time the tab is opened.
   useEffect(() => {
-    if (activeTab !== "quotations" || serviceOrders !== null) return;
+    if ((activeTab !== "quotations" && activeTab !== "profile") || serviceOrders !== null) return;
     const token = getAuthToken();
     if (!token) {
       setServiceOrders([]);
@@ -444,7 +470,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
   if (!user && !hasServerSession) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
-        <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
+        <div className="rounded-xl border border-border bg-surface/80 px-8 py-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-primary to-primary-accent text-primary-foreground shadow-[0_20px_50px_rgba(255,79,134,0.3)]">
             <UserIcon />
           </div>
@@ -487,16 +513,34 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
   const editableBudgetTotal = editBudgetAllocations.reduce((sum, a) => sum + (Number(a.amount) || 0), 0);
   const recentOrders = orders.slice(0, 5);
 
+  // Account-overview derived stats (Profile tab dashboard).
+  const wishlistCount = (wishlist?.journey?.length || 0) + (wishlist?.shopping?.length || 0);
+  const totalSpent = orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+  const creditBalance = (creditInfo?.balance_paise || 0) / 100;
+  const quotationsCount = Array.isArray(serviceOrders) ? serviceOrders.length : null;
+  const memberSince = formatDate(profile?.created_at);
+  const defaultCity = addresses?.[0]?.city || onboarding.venue_location || "";
+  const daysToWedding = (() => {
+    if (!onboarding.wedding_date) return null;
+    const d = new Date(onboarding.wedding_date);
+    if (Number.isNaN(d.getTime())) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    d.setHours(0, 0, 0, 0);
+    const days = Math.round((d.getTime() - today.getTime()) / 86400000);
+    return days >= 0 ? days : null;
+  })();
+
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Hero / Avatar section */}
-      <div className="relative overflow-hidden rounded-3xl border border-border bg-linear-to-br from-primary/5 via-white to-primary-soft p-6 shadow-[0_8px_40px_rgba(0,0,0,0.04)] sm:p-8">
+      <div className="relative overflow-hidden rounded-xl border border-border bg-linear-to-br from-primary/5 via-white to-primary-soft p-6 shadow-[0_8px_40px_rgba(0,0,0,0.04)] sm:p-8">
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/5 blur-3xl" />
         <div className="absolute -left-10 bottom-0 h-32 w-32 rounded-full bg-primary-accent/10 blur-3xl" />
         <div className="relative flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           {/* Avatar */}
           <div className="relative shrink-0">
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-linear-to-br from-primary to-primary-accent text-2xl font-extrabold text-primary-foreground shadow-[0_20px_50px_rgba(255,79,134,0.3)]">
+            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl bg-linear-to-br from-primary to-primary-accent text-2xl font-extrabold text-primary-foreground shadow-[0_20px_50px_rgba(255,79,134,0.3)]">
               {profile?.image_url ? (
                 <Image
                   src={profile.image_url}
@@ -535,11 +579,32 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             </h1>
             <p className="mt-0.5 text-sm text-text-strong">+91 {profile?.phone || user?.phone || ""}</p>
             {profile?.email && <p className="text-sm text-text-strong">{profile.email}</p>}
-            <p className="mt-1 text-xs text-muted">Member since {formatDate(profile?.created_at)}</p>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+              <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-[11px] font-semibold text-muted">
+                <Clock className="h-3 w-3" /> Member since {memberSince}
+              </span>
+              {defaultCity ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2.5 py-1 text-[11px] font-semibold text-muted">
+                  <MapPin className="h-3 w-3" /> {defaultCity}
+                </span>
+              ) : null}
+              {creditBalance > 0 ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2.5 py-1 text-[11px] font-bold text-success">
+                  <Wallet className="h-3 w-3" /> {formatCurrency(creditBalance)} credit
+                </span>
+              ) : null}
+            </div>
           </div>
-          <div className="sm:ml-auto rounded-xl border border-primary-soft bg-surface/80 px-3 py-2 text-xs font-medium text-primary">
-            Account dashboard
-          </div>
+          {daysToWedding != null ? (
+            <div className="sm:ml-auto flex flex-col items-center rounded-xl border border-primary/30 bg-primary-soft/70 px-5 py-3 text-center">
+              <p className="text-3xl font-black leading-none text-primary">{daysToWedding}</p>
+              <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-primary/80">days to go</p>
+            </div>
+          ) : (
+            <div className="sm:ml-auto rounded-xl border border-primary-soft bg-surface/80 px-3 py-2 text-xs font-medium text-primary">
+              Account dashboard
+            </div>
+          )}
         </div>
       </div>
 
@@ -574,7 +639,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
         {activeTab === "wallet" && (
           <div className="space-y-4">
             {/* Balance card */}
-            <div className="rounded-3xl border border-primary/30 bg-linear-to-br from-primary-soft to-white p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+            <div className="rounded-xl border border-primary/30 bg-linear-to-br from-primary-soft to-white p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-subtle">
@@ -591,7 +656,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             </div>
 
             {/* Add money panel */}
-            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+            <div className="rounded-xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
               <h2 className="text-base font-semibold text-text">Add money</h2>
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 {[500, 1000, 2000].map((amt) => (
@@ -641,7 +706,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             </div>
 
             {/* Transaction ledger */}
-            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+            <div className="rounded-xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
               <h2 className="text-base font-semibold text-text">Transactions</h2>
               {Array.isArray(creditInfo?.ledger) && creditInfo.ledger.length ? (
                 <div className="scrollbar-soft mt-4 max-h-80 divide-y divide-border overflow-y-auto pr-1">
@@ -672,7 +737,33 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
         {/* ── Profile Tab ──────────────────────────────────── */}
         {activeTab === "profile" && (
-          <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+          <div className="space-y-6">
+            {/* Account snapshot — quick stats, each links to its section */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { label: "Orders", value: orders.length, sub: totalSpent ? `${formatCurrency(totalSpent)} spent` : "Shopping orders", href: "/profile/orders", icon: <Package className="h-5 w-5" /> },
+                { label: "Quotations", value: quotationsCount == null ? "—" : quotationsCount, sub: "Service requests", href: "/profile/quotations", icon: <Receipt className="h-5 w-5" /> },
+                { label: "Wishlist", value: wishlistCount, sub: "Saved favourites", href: "/favourites", icon: <Heart className="h-5 w-5" /> },
+                { label: "Wallet credit", value: formatCurrency(creditBalance), sub: "Auto-applied at checkout", href: "/profile/wallet", icon: <Wallet className="h-5 w-5" /> },
+              ].map((s) => (
+                <Link
+                  key={s.label}
+                  href={s.href}
+                  className="group rounded-xl border border-border bg-surface/80 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] backdrop-blur transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_16px_40px_rgba(255,79,134,0.10)]"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft text-primary">{s.icon}</span>
+                    <ArrowRight className="h-4 w-4 text-subtle transition group-hover:translate-x-0.5 group-hover:text-primary" />
+                  </div>
+                  <p className="mt-3 text-2xl font-black text-text">{s.value}</p>
+                  <p className="text-sm font-semibold text-text-strong">{s.label}</p>
+                  <p className="mt-0.5 text-xs text-subtle">{s.sub}</p>
+                </Link>
+              ))}
+            </div>
+
+            {/* Personal information */}
+            <div className="rounded-xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-text">Personal information</h2>
               {!editingBasic && (
@@ -691,6 +782,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   <label className="block text-xs font-semibold uppercase tracking-widest text-subtle">Name</label>
                   <input
                     type="text"
+                    maxLength={80}
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring focus:ring-primary/20"
@@ -795,8 +887,59 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                     {onboarding.budget_total ? formatCurrency(onboarding.budget_total) : "—"}
                   </p>
                 </div>
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Member Since</p>
+                  <p className="mt-1 text-sm font-bold text-text">{memberSince}</p>
+                </div>
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">City</p>
+                  <p className="mt-1 text-sm font-bold text-text">{defaultCity || "—"}</p>
+                </div>
               </div>
             )}
+            </div>
+
+            {/* Your wedding at a glance */}
+            <div className="rounded-xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+              <div className="flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-base font-semibold text-text">
+                  <Sparkles className="h-4 w-4 text-primary" /> Your wedding at a glance
+                </h2>
+                <Link
+                  href="/profile/wedding"
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary-soft"
+                >
+                  <PencilIcon /> Edit
+                </Link>
+              </div>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-2xl border border-primary/20 bg-linear-to-br from-primary-soft to-white px-5 py-4">
+                  <p className="text-xs text-subtle">Wedding date</p>
+                  <p className="mt-1 text-sm font-bold text-text">
+                    {onboarding.wedding_date ? formatDate(onboarding.wedding_date) : onboarding.wedding_month || "Not set"}
+                  </p>
+                  {daysToWedding != null ? (
+                    <p className="mt-0.5 text-xs font-semibold text-primary">{daysToWedding} days to go</p>
+                  ) : null}
+                </div>
+                <div className="rounded-2xl border border-primary/20 bg-linear-to-br from-primary-soft to-white px-5 py-4">
+                  <p className="text-xs text-subtle">Venue location</p>
+                  <p className="mt-1 text-sm font-bold text-text">{onboarding.venue_location || "—"}</p>
+                </div>
+                <div className="rounded-2xl border border-primary/20 bg-linear-to-br from-primary-soft to-white px-5 py-4">
+                  <p className="text-xs text-subtle">Guest count</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-text">
+                    <Users className="h-4 w-4 text-primary" /> {onboarding.guests_count || "—"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-primary/20 bg-linear-to-br from-primary-soft to-white px-5 py-4">
+                  <p className="text-xs text-subtle">Total budget</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-text">
+                    <IndianRupee className="h-4 w-4 text-primary" /> {onboarding.budget_total ? formatCurrency(onboarding.budget_total) : "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -824,7 +967,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
             </div>
 
             {orders.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-border bg-surface/70 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+              <div className="rounded-xl border border-dashed border-border bg-surface/70 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
                   <Package className="h-7 w-7" />
                 </div>
@@ -921,7 +1064,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                 ))}
               </div>
             ) : !serviceOrders || serviceOrders.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-border bg-surface/70 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+              <div className="rounded-xl border border-dashed border-border bg-surface/70 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
                   <Receipt className="h-7 w-7" />
                 </div>
@@ -1016,7 +1159,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
         {/* ── Wedding Details Tab ─────────────────────────── */}
         {activeTab === "wedding" && (
-          <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+          <div className="rounded-xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-text">Wedding details</h2>
               {!editingWedding && (
@@ -1123,7 +1266,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
         )}
 
         {activeTab === "budget" && (
-          <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
+          <div className="rounded-xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-text">Budget planner</h2>
               {!editingBudget && (
@@ -1249,7 +1392,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
             {/* Address cards */}
             {addresses.length === 0 && !showAddForm && (
-              <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
+              <div className="rounded-xl border border-border bg-surface/80 px-8 py-16 text-center shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
                 <LocationIcon />
                 <p className="mt-3 text-sm text-muted">No saved addresses</p>
                 <p className="text-xs text-subtle">Add an address so you can check out faster!</p>
@@ -1311,7 +1454,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
 
             {/* Add address form */}
             {showAddForm && (
-              <div className="rounded-3xl border border-primary/20 bg-surface/90 p-6 shadow-[0_8px_40px_rgba(255,79,134,0.08)] backdrop-blur">
+              <div className="rounded-xl border border-primary/20 bg-surface/90 p-6 shadow-[0_8px_40px_rgba(255,79,134,0.08)] backdrop-blur">
                 <h3 className="text-sm font-semibold text-text">{editingIndex != null ? "Edit Address" : "New Address"}</h3>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <div>

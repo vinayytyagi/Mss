@@ -5,7 +5,7 @@
  *
  * ShoppingCatalog is a server component; pagination needs `useState`. This
  * tiny client child holds the page state, slices the items prop, and
- * renders v2 item cards wired to the SHOPPING cart (not the quotation cart).
+ * renders v2 item cards wired to the Shop cart (not the quotation cart).
  */
 
 import { useEffect, useState } from "react";

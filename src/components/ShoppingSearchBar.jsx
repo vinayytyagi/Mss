@@ -39,7 +39,7 @@ export default function ShoppingSearchBar({
     // Width + outer spacing are owned by the parent wrapper; this just fills it
     // and scales its padding/button down on mobile + tablet.
     <form onSubmit={submit} className="w-full">
-      <div className="flex w-full items-center gap-2 rounded-2xl bg-surface px-3 py-2.5 shadow-[0_16px_36px_rgba(15,23,42,0.06)] ring-1 ring-border sm:gap-3 sm:px-5 sm:py-4">
+      <div className="flex w-full items-center gap-2 rounded-2xl bg-surface px-3 py-2.5 ring-1 ring-border sm:gap-3 sm:px-5 sm:py-4">
         <Search className="h-5 w-5 shrink-0 text-subtle" aria-hidden="true" />
         <input
           value={value}

@@ -9,8 +9,11 @@
  *            that opens an off-canvas drawer with the same content.
  *
  * Facets:
- *  - Subcategory (single-select, navigates via router.push)
- *  - Fabric (multi-select, toggles via router.push)
+ *  - Shop for (single-select audience)
+ *  - Subcategory (multi-select, toggles via router.push)
+ *  - Attribute facets (Fabric, Occasion, Work, … — driven by SHOPPING_FACETS;
+ *    each renders only when the current items have ≥2 distinct values for it,
+ *    so every category shows just its relevant filters)
  *  - Price (min/max with Apply)
  *
  * Selection state lives entirely in the URL so the server component
@@ -22,22 +25,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { SlidersHorizontal, X } from "lucide-react";
-
-function fabricsFromItems(items) {
-  const set = new Set();
-  for (const item of items || []) {
-    const f =
-      item?.attributes?.fabric_material || item?.attributes?.fabric || item?.attributes?.material;
-    if (typeof f === "string" && f.trim()) {
-      set.add(f.trim());
-    } else if (Array.isArray(f)) {
-      f.forEach((v) => {
-        if (typeof v === "string" && v.trim()) set.add(v.trim());
-      });
-    }
-  }
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
-}
+import { facetValuesFromItems } from "@/lib/shopUi";
 
 function priceBoundsFromItems(items) {
   const prices = (items || [])
@@ -64,20 +52,41 @@ function buildHref(pathname, current, patch) {
 
 export default function ShoppingSidebar({
   items = [],
+  facets = [],
   filterSubcategories = [],
   selectedCategoryId = "",
   selectedSubcategoryIds = [],
   search = "",
-  selectedFabrics = [],
+  selectedAttributes = {},
+  selectedAudience = "",
   minPrice = null,
   maxPrice = null,
-  attributeFacets = [],
-  selectedAttributes = {},
 }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const fabricFacets = useMemo(() => fabricsFromItems(items), [items]);
+  // Attribute-driven facet sections — fully schema-driven. The facet list,
+  // order, labels and options all come from the admin Journey-Options schema
+  // (passed in as `facets`). Options = the admin list (in admin order) + any
+  // extra values items carry. A facet appears once ≥1 item in scope uses it, so
+  // facets stay relevant per category (jewellery shows Purity/Stone, not Fabric)
+  // and a NEW filter shows as soon as a listing uses it.
+  const facetSections = useMemo(
+    () =>
+      (facets || [])
+        .map((facet) => {
+          const itemValues = facetValuesFromItems(items, facet.key);
+          const adminOpts = Array.isArray(facet.options) ? facet.options : [];
+          const seen = new Set(adminOpts.map((v) => String(v).toLowerCase()));
+          const values = [...adminOpts];
+          for (const v of itemValues) {
+            if (!seen.has(String(v).toLowerCase())) values.push(v);
+          }
+          return { ...facet, values, itemCount: itemValues.length };
+        })
+        .filter((facet) => facet.itemCount >= 1 && facet.values.length >= 2),
+    [items, facets],
+  );
   const bounds = useMemo(() => priceBoundsFromItems(items), [items]);
 
   // Price inputs are a draft so the user can type freely before Apply.
@@ -99,19 +108,30 @@ export default function ShoppingSidebar({
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileOpen]);
 
+  // Currently-selected values per facet key, read straight off the URL-driven
+  // `selectedAttributes` map so toggles preserve the other facets.
+  const selectedByKey = useMemo(() => {
+    const map = {};
+    for (const facet of facets || []) {
+      const v = selectedAttributes?.[facet.key];
+      map[facet.key] = Array.isArray(v) ? v : [];
+    }
+    return map;
+  }, [selectedAttributes, facets]);
+
   const currentParams = {
     category: selectedCategoryId,
     // Multi-select sub: stored as a comma list in the URL.
     subcategory: selectedSubcategoryIds.length > 0 ? selectedSubcategoryIds.join(",") : "",
     search,
-    fabric: selectedFabrics,
+    audience: selectedAudience,
     minPrice: minPrice ?? "",
     maxPrice: maxPrice ?? "",
-    // Schema-driven attribute filters — one `attr_<key>` param per facet so
-    // they survive navigation through the other facets.
-    ...Object.fromEntries(
-      Object.entries(selectedAttributes || {}).map(([k, v]) => [`attr_${k}`, v]),
-    ),
+    // One comma-list param per facet key. We always emit the legacy `fabric`
+    // alias as "" so a stale `?fabric=` from an old link is cleared once the
+    // user touches the canonical `fabric_material` facet.
+    fabric: "",
+    ...Object.fromEntries((facets || []).map((facet) => [facet.key, selectedByKey[facet.key]])),
   };
 
   function navigateTo(patch) {
@@ -126,17 +146,16 @@ export default function ShoppingSidebar({
     navigateTo({ subcategory: next.length > 0 ? next.join(",") : "" });
   }
 
-  function toggleFabric(fabric) {
-    const next = selectedFabrics.includes(fabric)
-      ? selectedFabrics.filter((f) => f !== fabric)
-      : [...selectedFabrics, fabric];
-    navigateTo({ fabric: next });
+  function toggleAudience(value) {
+    navigateTo({ audience: selectedAudience === value ? "" : value });
   }
 
-  function toggleAttribute(key, value) {
-    const cur = Array.isArray(selectedAttributes[key]) ? selectedAttributes[key] : [];
-    const next = cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value];
-    navigateTo({ [`attr_${key}`]: next });
+  function toggleFacet(key, value) {
+    const current = selectedByKey[key] || [];
+    const next = current.some((v) => v.toLowerCase() === value.toLowerCase())
+      ? current.filter((v) => v.toLowerCase() !== value.toLowerCase())
+      : [...current, value];
+    navigateTo({ [key]: next });
   }
 
   function applyPrice() {
@@ -163,15 +182,16 @@ export default function ShoppingSidebar({
     setMobileOpen(false);
   }
 
+  const selectedFacetCount = (facets || []).reduce(
+    (sum, facet) => sum + (selectedByKey[facet.key]?.length || 0),
+    0,
+  );
   const activeCount =
-    (selectedFabrics?.length || 0) +
+    selectedFacetCount +
+    (selectedAudience ? 1 : 0) +
     (minPrice != null ? 1 : 0) +
     (maxPrice != null ? 1 : 0) +
-    selectedSubcategoryIds.length +
-    Object.values(selectedAttributes || {}).reduce(
-      (n, arr) => n + (Array.isArray(arr) ? arr.length : 0),
-      0,
-    );
+    selectedSubcategoryIds.length;
   const hasAnyFilter = activeCount > 0;
 
   const content = (
@@ -188,6 +208,35 @@ export default function ShoppingSidebar({
           </button>
         ) : null}
       </div>
+
+      {/* Shop for — gender / audience facet (single-select) */}
+      <div>
+        <p className="text-sm font-medium text-secondary">Shop for</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {[
+            { label: "Women", value: "bride" },
+            { label: "Men", value: "groom" },
+          ].map((opt) => {
+            const active = selectedAudience === opt.value;
+            return (
+              <button
+                type="button"
+                key={opt.value}
+                onClick={() => toggleAudience(opt.value)}
+                aria-pressed={active}
+                className={`rounded-full border px-3 py-2 text-sm font-semibold transition ${
+                  active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-primary-accent bg-surface text-secondary hover:bg-primary-soft/50"
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="h-px w-full bg-primary-accent" />
 
       {filterSubcategories.length > 0 ? (
         <>
@@ -238,103 +287,57 @@ export default function ShoppingSidebar({
         </>
       ) : null}
 
-      {fabricFacets.length > 0 ? (
-        <>
-          <div>
-            <p className="text-sm font-medium text-secondary">Fabric</p>
-            <div className="mt-2 space-y-1 text-sm text-secondary">
-              {fabricFacets.map((fabric) => {
-                const active = selectedFabrics.includes(fabric);
-                return (
-                  <button
-                    type="button"
-                    key={fabric}
-                    onClick={() => toggleFabric(fabric)}
-                    className={`flex w-full items-center gap-2 rounded px-1 py-1 text-left transition hover:bg-primary-soft/50 ${
-                      active ? "font-semibold" : ""
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-primary-accent bg-surface"
-                      }`}
-                      aria-hidden
-                    >
-                      {active ? (
-                        <svg
-                          viewBox="0 0 16 16"
-                          className="h-3 w-3"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M3 8.5l3 3 7-7" />
-                        </svg>
-                      ) : null}
-                    </span>
-                    {fabric}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="h-px w-full bg-primary-accent" />
-        </>
-      ) : null}
-
-      {/* Schema-driven attribute facets (admin owns these via the item form's
-          "In filter bar" toggle). Multi-select, URL-driven (?attr_<key>=). */}
-      {attributeFacets.map((facet) => {
-        const selected = Array.isArray(selectedAttributes[facet.key])
-          ? selectedAttributes[facet.key]
-          : [];
+      {/* Attribute-driven facets — only the ones with ≥2 distinct values in
+          the current items render, so each category shows just its relevant
+          filters (Clothing → Fabric/Occasion/Work; Jewellery → Purity/Stone). */}
+      {facetSections.map((facet) => {
+        const selected = selectedByKey[facet.key] || [];
+        const selectedLower = new Set(selected.map((v) => v.toLowerCase()));
         return (
-          <div key={facet.key}>
-            <p className="text-sm font-medium text-secondary">{facet.label}</p>
-            <div className="mt-2 space-y-1 text-sm text-secondary">
-              {facet.options.map((opt) => {
-                const active = selected.includes(opt);
-                return (
-                  <button
-                    type="button"
-                    key={opt}
-                    onClick={() => toggleAttribute(facet.key, opt)}
-                    className={`flex w-full items-center gap-2 rounded px-1 py-1 text-left transition hover:bg-primary-soft/50 ${
-                      active ? "font-semibold" : ""
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-primary-accent bg-surface"
+          <div key={facet.key} className="contents">
+            <div>
+              <p className="text-sm font-medium text-secondary">{facet.label}</p>
+              <div className="mt-2 space-y-1 text-sm text-secondary">
+                {facet.values.map((value) => {
+                  const active = selectedLower.has(value.toLowerCase());
+                  return (
+                    <button
+                      type="button"
+                      key={value}
+                      onClick={() => toggleFacet(facet.key, value)}
+                      className={`flex w-full items-center gap-2 rounded px-1 py-1 text-left transition hover:bg-primary-soft/50 ${
+                        active ? "font-semibold" : ""
                       }`}
-                      aria-hidden
                     >
-                      {active ? (
-                        <svg
-                          viewBox="0 0 16 16"
-                          className="h-3 w-3"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M3 8.5l3 3 7-7" />
-                        </svg>
-                      ) : null}
-                    </span>
-                    {opt}
-                  </button>
-                );
-              })}
+                      <span
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                          active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-primary-accent bg-surface"
+                        }`}
+                        aria-hidden
+                      >
+                        {active ? (
+                          <svg
+                            viewBox="0 0 16 16"
+                            className="h-3 w-3"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M3 8.5l3 3 7-7" />
+                          </svg>
+                        ) : null}
+                      </span>
+                      {value}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="mt-4 h-px w-full bg-primary-accent" />
+            <div className="h-px w-full bg-primary-accent" />
           </div>
         );
       })}
@@ -387,8 +390,10 @@ export default function ShoppingSidebar({
 
   return (
     <>
-      {/* Desktop inline sidebar — visible at lg+ */}
-      <aside className="hidden h-fit rounded-[22px] bg-primary-soft p-5 lg:block">
+      {/* Desktop inline sidebar — visible at lg+. Sticky: scrolls with the page
+          until it reaches the top offset, then pins while the items column keeps
+          scrolling. max-h + overflow so a tall filter list can scroll internally. */}
+      <aside className="scrollbar-themed hidden h-fit rounded-[22px] bg-primary-soft p-5 lg:block lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
         {content}
       </aside>
 
@@ -427,7 +432,7 @@ export default function ShoppingSidebar({
                 <X className="h-5 w-5" aria-hidden />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4">{content}</div>
+            <div className="scrollbar-themed flex-1 overflow-y-auto px-5 py-4">{content}</div>
           </div>
         </div>
       ) : null}

@@ -16,6 +16,7 @@ import { organizationSchema, websiteSchema } from "@/lib/jsonld";
 import WhatsAppIcon from "@/components/icons/WhatsAppIcon";
 import Script from "next/script";
 import AttributionCapture from "@/components/AttributionCapture";
+import CartSync from "@/components/CartSync";
 
 const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
 
@@ -109,6 +110,7 @@ export default async function RootLayout({ children }) {
         <div className="flex min-h-screen flex-col overflow-x-clip bg-[radial-gradient(circle_at_top,var(--primary-soft)_0%,var(--background)_35%,var(--background)_100%)]">
           <SiteHeader steps={steps} initialUser={initialUser} />
           <AttributionCapture />
+          <CartSync />
           <JsonLd data={[organizationSchema(), websiteSchema()]} />
           <ScrollToTop />
           <ClientProgressBar />

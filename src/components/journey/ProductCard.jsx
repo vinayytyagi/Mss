@@ -251,7 +251,7 @@ export default function ProductCard({
   // `meta`. Product lines lock to the item's vendor_id (set on the item).
   function commitAdd(meta = null) {
     addToCart(cartKind, meta ? { ...item, meta } : item, 1);
-    toast.success(isShoppingKind ? "Added to cart" : "Added to basket", {
+    toast.success(isShoppingKind ? "Added to Shop cart" : "Added to Quote cart", {
       description: item.name,
     });
     setJustAdded(true);
@@ -328,7 +328,7 @@ export default function ProductCard({
     }
   }
 
-  const defaultCta = isShoppingKind ? "Add to cart" : "Add to basket";
+  const defaultCta = isShoppingKind ? "Add to Shop cart" : "Add to Quote cart";
   const ctaLabel = cardCfg?.ctaLabel || defaultCta;
   const addLabel = justAdded ? "Added" : ctaLabel;
   const priceCaption = cardCfg?.priceLabel || cardCfg?.priceCaption || "Starting from";
@@ -752,7 +752,7 @@ export default function ProductCard({
                 className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary-hover"
               >
                 <Plus className="h-4 w-4" aria-hidden />
-                Add to basket
+                Add to Quote cart
               </button>
             </div>
           </div>

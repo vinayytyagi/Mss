@@ -313,6 +313,9 @@ export default function LoginFlow({ initialSteps = [] }) {
       if (!isValidIndianPhone(phone)) {
         throw new Error("Enter a valid 10-digit Indian phone number.");
       }
+      if (!/^\d{6}$/.test(form.otp)) {
+        throw new Error("Enter the 6-digit OTP sent to your phone.");
+      }
       const payload = { phone, otp: form.otp, purpose: "reset" };
       const idempotencyKey = makeIdempotencyKey("auth/verify-reset-otp", payload);
       const data = await verifyUserOtp(phone, form.otp, "reset", { idempotencyKey });

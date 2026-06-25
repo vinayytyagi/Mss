@@ -233,7 +233,7 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
         },
         indicative_total: hasPrice ? total : 0,
       });
-      toast.success("Added to quote cart", { description: selectedTier.name });
+      toast.success("Added to Quote cart", { description: selectedTier.name });
       setSelectedTierId("");
       setSelectedAddonIds([]);
       setDetails({});
@@ -761,7 +761,7 @@ export default function TiersBuilder({ slug, modeKey = null, journeyStepId = "",
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_24px_rgba(255,79,134,0.22)] transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
-              Add to quote cart
+              Add to Quote cart
             </button>
           </div>
         </div>

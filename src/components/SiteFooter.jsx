@@ -193,7 +193,7 @@ export default function SiteFooter({ steps = [] }) {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col gap-6 rounded-3xl border border-surface/80 bg-surface/70 p-6 shadow-[0_18px_46px_rgba(15,23,42,0.06)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:p-8">
+        <div className="mt-14 flex flex-col gap-6 rounded-xl border border-surface/80 bg-surface/70 p-6 shadow-[0_18px_46px_rgba(15,23,42,0.06)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div>
             <p className="text-sm font-semibold text-text-strong">We are a message away</p>
             <p className="mt-1 text-sm text-muted">

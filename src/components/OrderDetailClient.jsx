@@ -16,7 +16,29 @@ import {
   trackOrder,
 } from "@/lib/api";
 import { makeIdempotencyKey } from "@/lib/idempotencyKey";
-import { ArrowRight, RefreshCw, Download, PackageOpen } from "lucide-react";
+import { statusTone, statusLabel, ORDER_STEPS, getOrderStepIndex } from "@/lib/orderStatusUi";
+import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  ArrowLeft,
+  ArrowRight,
+  RefreshCw,
+  Download,
+  PackageOpen,
+  Check,
+  Copy,
+  Truck,
+  MapPin,
+  Receipt,
+  AlertCircle,
+  ShoppingBag,
+  Package,
+  XCircle,
+  CalendarDays,
+  Layers,
+  Wallet,
+  Lock,
+  Navigation,
+} from "lucide-react";
 
 // Cancellation reasons offered before an order ships.
 const CANCEL_REASONS = [
@@ -26,6 +48,18 @@ const CANCEL_REASONS = [
   "Delivery is taking too long",
   "Other",
 ];
+
+// Card shell — reuse everywhere a card is needed.
+const CARD = "rounded-xl border border-border bg-surface p-6 shadow-[0_10px_30px_rgba(15,23,42,0.04)]";
+// Primary CTA.
+const CTA =
+  "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_24px_rgba(255,79,134,0.22)] transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60";
+// Secondary / outline action.
+const BTN_OUTLINE =
+  "inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface px-5 py-3 text-sm font-semibold text-text-strong transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60";
+
+// Join only non-empty meta parts with " · " — NEVER renders a bare dash.
+const joinMeta = (...parts) => parts.filter((p) => p != null && String(p).trim() !== "").join(" · ");
 
 function loadRazorpayScript() {
   return new Promise((resolve) => {
@@ -40,8 +74,14 @@ function loadRazorpayScript() {
 
 /* ── Helpers ────────────────────────────────────────── */
 function formatDate(dateStr) {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatCurrency(amount) {
@@ -49,7 +89,7 @@ function formatCurrency(amount) {
 }
 
 function formatDateShort(d) {
-  if (!d) return "—";
+  if (!d) return "";
   try {
     return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   } catch {
@@ -57,61 +97,154 @@ function formatDateShort(d) {
   }
 }
 
-/* ── Status steps for progress tracker ────────────── */
-const ORDER_STEPS = ["Placed", "Confirmed", "Shipped", "Delivered"];
-
-function getStepIndex(status, fulfillment) {
-  if (fulfillment === "Delivered" || status === "Delivered") return 3;
-  if (fulfillment === "Shipped" || status === "Shipped") return 2;
-  if (status === "Paid" || status === "Confirmed") return 1;
-  return 0;
-}
-
-/* ── Icons ──────────────────────────────────────────── */
-function ArrowLeft() {
+/* ── Hero header building blocks ────────────────────── */
+function StatTile({ icon: Icon, label, value }) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-      <path d="M15 10H5m0 0l4-4m-4 4l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
+    <div className="flex min-w-[9rem] flex-1 items-center gap-3 rounded-2xl border border-border bg-surface-muted/60 px-4 py-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+        <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-subtle">{label}</p>
+        <p className="truncate text-sm font-bold text-text-strong">{value}</p>
+      </div>
+    </div>
   );
 }
 
-function CheckCircle() {
+/* ── Sidebar section primitives ─────────────────────── */
+function SidebarCard({ title, icon: Icon, action, children }) {
   return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
-      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/>
-    </svg>
+    <section className={CARD}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-subtle">
+          {Icon ? <Icon className="h-4 w-4" aria-hidden="true" /> : null}
+          {title}
+        </h2>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
   );
 }
 
-function CopyIcon() {
+function InfoRow({ label, value, accent }) {
+  if (value == null || value === "") return null;
   return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-      <rect x="5" y="5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-      <path d="M4 14V5a2 2 0 012-2h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
+    <div className="flex items-baseline justify-between gap-4 text-sm">
+      <span className="text-muted">{label}</span>
+      <span className={`text-right font-semibold ${accent ? "text-success" : "text-text-strong"}`}>{value}</span>
+    </div>
   );
 }
 
-/* ── Status badge ───────────────────────────────────── */
-const statusColors = {
-  Pending: "bg-warning/15 text-warning-strong border-warning/40",
-  Paid: "bg-success/10 text-success border-success/40",
-  Confirmed: "bg-info/10 text-info border-info/40",
-  Processing: "bg-info/10 text-info border-info/40",
-  Shipped: "bg-info/10 text-info border-info/40",
-  Delivered: "bg-success/10 text-success border-success/40",
-  Cancelled: "bg-danger/10 text-danger border-danger/30",
-  Failed: "bg-danger/10 text-danger border-danger/30",
-  "Payment Failed": "bg-danger/10 text-danger border-danger/30",
-};
-
-function StatusBadge({ status }) {
-  const cls = statusColors[status] || "bg-surface-muted text-muted border-border-strong";
+/* ── Loading skeleton — mirrors the real layout ─────── */
+function DetailSkeleton() {
   return (
-    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${cls}`}>
-      {status}
-    </span>
+    <main className="mx-auto w-full max-w-[1700px] px-4 py-8 sm:px-6 lg:px-10">
+      <div className="space-y-6">
+        {/* Hero band */}
+        <div className={`${CARD} sm:p-8`}>
+          <Skeleton className="h-4 w-28" />
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-11 w-11 rounded-2xl" />
+              <Skeleton className="h-7 w-56" />
+            </div>
+            <Skeleton className="h-7 w-24 rounded-full" />
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-16 min-w-[9rem] flex-1 rounded-2xl" />
+            ))}
+          </div>
+        </div>
+        {/* Two-column body */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+          <div className="min-w-0 space-y-6">
+            <Skeleton className="h-28 rounded-xl" />
+            <div className={CARD}>
+              <Skeleton className="h-4 w-32" />
+              <div className="mt-5 space-y-5">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <Skeleton className="h-14 w-14 rounded-xl" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-3.5 w-1/2" />
+                      <Skeleton className="h-3 w-1/3" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="space-y-6 lg:sticky lg:top-24 self-start">
+            <Skeleton className="h-56 rounded-xl" />
+            <Skeleton className="h-40 rounded-xl" />
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+/* ── Horizontal stepper ─────────────────────────────── */
+function HorizontalStepper({ steps, currentIndex }) {
+  return (
+    <section className={CARD}>
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-subtle">Progress</h2>
+      <ol className="mt-6 flex min-w-max gap-0 overflow-x-auto pb-2 sm:min-w-0">
+        {steps.map((step, i) => {
+          const done = i < currentIndex;
+          const current = i === currentIndex;
+          return (
+            <li key={step.key} className="flex flex-1 flex-col items-center text-center" style={{ minWidth: "5.5rem" }}>
+              <div className="flex w-full items-center">
+                <span className={`h-0.5 flex-1 ${i === 0 ? "opacity-0" : done || current ? "bg-success" : "bg-border"}`} />
+                <span
+                  className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition ${
+                    done
+                      ? "bg-success text-primary-foreground"
+                      : current
+                      ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
+                      : "bg-surface-muted text-subtle"
+                  }`}
+                >
+                  {current ? <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-primary/30" /> : null}
+                  {done ? <Check className="h-4 w-4" strokeWidth={3} /> : <span className="relative">{i + 1}</span>}
+                </span>
+                <span className={`h-0.5 flex-1 ${i === steps.length - 1 ? "opacity-0" : done ? "bg-success" : "bg-border"}`} />
+              </div>
+              <p className={`mt-2 px-1 text-xs font-semibold ${done || current ? "text-text-strong" : "text-subtle"}`}>{step.label}</p>
+              {step.at ? <p className="mt-0.5 text-[11px] text-muted">{step.at}</p> : null}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+/* ── Centered state shell (empty / logged-out) ──────── */
+function CenteredState({ icon: Icon, tone = "primary", title, subtitle, children }) {
+  const tints =
+    tone === "danger"
+      ? "border-danger/30 bg-danger/5"
+      : "border-border bg-surface";
+  const iconTints =
+    tone === "danger"
+      ? "bg-danger/10 text-danger"
+      : "bg-gradient-to-br from-primary-soft to-primary-soft/40 text-primary";
+  return (
+    <div className={`flex flex-col items-center justify-center rounded-xl border px-6 py-16 text-center shadow-[0_10px_30px_rgba(15,23,42,0.04)] ${tints}`}>
+      <span className={`flex h-16 w-16 items-center justify-center rounded-2xl ${iconTints}`}>
+        <Icon className="h-7 w-7" strokeWidth={1.75} />
+      </span>
+      <h1 className="mt-5 text-lg font-bold text-text-strong">{title}</h1>
+      <p className="mt-1.5 max-w-sm text-sm text-muted">{subtitle}</p>
+      {children ? <div className="mt-6">{children}</div> : null}
+    </div>
   );
 }
 
@@ -154,36 +287,45 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
 
   if (!user && !hasServerSession) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
-        <div className="rounded-3xl border border-border bg-surface/80 px-8 py-16 shadow-[0_8px_40px_rgba(0,0,0,0.04)] backdrop-blur">
-          <h1 className="text-2xl font-semibold text-text">Order Details</h1>
-          <p className="mt-2 text-muted">Please log in to view your order.</p>
-          <Link href="/login" className="mt-6 inline-block rounded-2xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow-[0_18px_40px_rgba(255,79,134,0.28)] transition hover:bg-primary-hover">
-            Login
+      <main className="mx-auto w-full max-w-[1700px] px-4 py-16 sm:px-6 lg:px-10">
+        <CenteredState
+          icon={Lock}
+          title="Please log in"
+          subtitle="Log in to view your order, track delivery and manage returns."
+        >
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_24px_rgba(255,79,134,0.22)] transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            Login <ArrowRight className="h-4 w-4" />
           </Link>
-        </div>
+        </CenteredState>
       </main>
     );
   }
 
   if (loading) {
-    return (
-      <main className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
-        <div className="flex items-center justify-center py-20">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        </div>
-      </main>
-    );
+    return <DetailSkeleton />;
   }
 
   if (error || !currentOrder) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-20 sm:px-6">
-        <Link href="/orders" className="flex items-center gap-2 text-sm font-semibold text-muted hover:text-primary">
-          <ArrowLeft /> Back to Orders
+      <main className="mx-auto w-full max-w-[1700px] px-4 py-8 sm:px-6 lg:px-10">
+        <Link
+          href="/orders"
+          className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-muted transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to orders
         </Link>
-        <div className="mt-8 rounded-2xl border border-danger/30 bg-danger/10 px-6 py-8 text-center text-danger">
-          {error || "Order not found"}
+        <div className="mt-6">
+          <CenteredState icon={AlertCircle} tone="danger" title="Order not found" subtitle={error || "We couldn't find this order. It may have been removed."}>
+            <Link
+              href="/orders"
+              className="inline-flex items-center gap-2 rounded-xl border border-border-strong bg-surface px-5 py-2.5 text-sm font-semibold text-text-strong transition hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              View all orders
+            </Link>
+          </CenteredState>
         </div>
       </main>
     );
@@ -195,7 +337,7 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
     ["Confirmed", "Processing", "Shipped", "Delivered"].includes(status);
   const isPaymentFailed = status === "Payment Failed" || (status === "Failed" && !isPaid);
   const isCancelled = status === "Cancelled";
-  const stepIndex = getStepIndex(status, currentOrder.fulfillment_status);
+  const stepIndex = getOrderStepIndex(currentOrder);
   const canRetry = !isPaid && (isPaymentFailed || status === "Pending");
   const canCancel = status === "Pending" || status === "Confirmed" || status === "Processing";
   // Cash refund is gated behind the admin feature flag; otherwise cancellation
@@ -212,6 +354,22 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
   const expectedDelivery =
     shipmentInfo?.expected_delivery_date || tracking?.tracking_summary?.expected_delivery_date || null;
   const deliveredAt = currentOrder.delivered_at || shipmentInfo?.delivered_at || null;
+
+  const itemCount = currentOrder.items?.length || 0;
+  const hasActions = canRetry || canCancel || canRefund || isPaid;
+  const hasInlineMsg = actionState.error || actionState.success;
+
+  // City for the hero stat row.
+  const city =
+    [currentOrder.shipping_address?.city, currentOrder.shipping_address?.state].filter(Boolean).join(", ") || "";
+
+  // Build the stat row, omitting empty values BEFORE rendering.
+  const stats = [
+    { label: "Placed on", value: formatDateShort(currentOrder.created_at), icon: CalendarDays },
+    city ? { label: "Ship to", value: city, icon: MapPin } : null,
+    itemCount ? { label: "Items", value: String(itemCount), icon: Layers } : null,
+    { label: "Total", value: formatCurrency(currentOrder.total_amount), icon: Wallet },
+  ].filter(Boolean);
 
   async function onCancelOrder() {
     const token = getAuthToken();
@@ -382,315 +540,316 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Back link */}
-      <Link href="/orders" className="inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-primary">
-        <ArrowLeft /> Back to Orders
-      </Link>
-
-      {/* Header */}
-      <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-text">{currentOrder.order_number}</h1>
-            <button
-              onClick={() => handleCopy(currentOrder.order_number)}
-              className="cursor-pointer rounded-lg p-1.5 text-subtle transition hover:bg-surface-muted hover:text-muted"
-              title="Copy order number"
+    <main className="mx-auto w-full max-w-[1700px] px-4 py-8 sm:px-6 lg:px-10">
+      <div className="space-y-6">
+        {/* ── Hero header ─────────────────────────────── */}
+        <header className="relative overflow-hidden rounded-xl border border-border bg-surface p-6 shadow-[0_10px_30px_rgba(15,23,42,0.04)] sm:p-8">
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-24 h-48 bg-gradient-to-b from-primary-soft to-transparent opacity-70" />
+          <div className="relative">
+            <Link
+              href="/orders"
+              className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-muted transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              {copied ? <CheckCircle /> : <CopyIcon />}
-            </button>
-          </div>
-          <p className="mt-1 text-sm text-subtle">Placed on {formatDate(currentOrder.created_at)}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <StatusBadge status={currentOrder.status} />
-          <StatusBadge status={currentOrder.fulfillment_status || "Unfulfilled"} />
-        </div>
-      </div>
+              <ArrowLeft className="h-4 w-4" /> Back to orders
+            </Link>
 
-      {/* Progress Tracker */}
-      {!isCancelled && !isPaymentFailed && (
-        <div className="mt-8 rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur sm:p-8">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Order Progress</h2>
-          <div className="relative mt-6 flex items-center justify-between">
-            {/* Line */}
-            <div className="absolute left-0 top-1/2 h-0.5 w-full -translate-y-1/2 bg-surface-muted" />
-            <div
-              className="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 bg-linear-to-r from-primary to-primary-accent transition-all duration-700"
-              style={{ width: `${(stepIndex / (ORDER_STEPS.length - 1)) * 100}%` }}
-            />
-
-            {ORDER_STEPS.map((step, i) => {
-              const isActive = i <= stepIndex;
-              const isCurrent = i === stepIndex;
-              return (
-                <div key={step} className="relative z-10 flex flex-col items-center">
-                  <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300 ${
-                      isActive
-                        ? "border-primary bg-primary text-primary-foreground shadow-[0_0_16px_rgba(255,79,134,0.4)]"
-                        : "border-border-strong bg-surface text-subtle"
-                    } ${isCurrent ? "scale-110" : ""}`}
+            <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Order details</p>
+                <div className="mt-1.5 flex items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-accent text-primary-foreground shadow-[0_12px_24px_rgba(255,79,134,0.22)]">
+                    <ShoppingBag className="h-6 w-6" strokeWidth={1.75} />
+                  </span>
+                  <h1 className="min-w-0 truncate text-2xl font-bold text-text-strong sm:text-3xl">{currentOrder.order_number}</h1>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(currentOrder.order_number)}
+                    aria-label="Copy order number"
+                    title="Copy order number"
+                    className="rounded-lg p-1.5 text-subtle transition hover:bg-surface-muted hover:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
-                    {isActive ? <CheckCircle /> : <span className="text-xs font-bold">{i + 1}</span>}
-                  </div>
-                  <p className={`mt-2 text-xs font-semibold ${isActive ? "text-primary" : "text-subtle"}`}>
-                    {step}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Cancelled banner */}
-      {isCancelled && (
-        <div className="mt-8 rounded-2xl border border-danger/30 bg-danger/10 px-6 py-4 text-center">
-          <p className="font-semibold text-danger">This order has been cancelled.</p>
-        </div>
-      )}
-
-      {/* Payment-failed banner (Task 6) */}
-      {isPaymentFailed && (
-        <div className="mt-8 rounded-2xl border border-danger/30 bg-danger/10 px-6 py-4">
-          <p className="font-semibold text-danger">Payment for this order didn&apos;t go through.</p>
-          <p className="mt-1 text-sm text-danger/80">Retry the payment below to confirm your order.</p>
-        </div>
-      )}
-
-      {(canRetry || canCancel || canRefund || isPaid) && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          {canRetry && (
-            <button
-              onClick={onRetryPayment}
-              disabled={actionState.loading}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary-hover disabled:opacity-50"
-            >
-              <RefreshCw className="h-4 w-4" /> {actionState.loading ? "Please wait..." : "Retry payment"}
-            </button>
-          )}
-          {isPaid && (
-            <button
-              onClick={downloadInvoice}
-              disabled={invoiceLoading}
-              className="inline-flex items-center gap-2 rounded-xl border border-border-strong bg-surface px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-muted disabled:opacity-50"
-            >
-              <Download className="h-4 w-4" /> {invoiceLoading ? "Preparing…" : "Download invoice (PDF)"}
-            </button>
-          )}
-          {canCancel && (
-            <button
-              onClick={() => {
-                setCancelForm({ reason: "", details: "" });
-                setActionState({ loading: false, error: "", success: "" });
-                setCancelModal(true);
-              }}
-              disabled={actionState.loading}
-              className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger transition hover:bg-danger/15"
-            >
-              Cancel Order
-            </button>
-          )}
-          {canRefund && (
-            <button
-              onClick={onRequestRefund}
-              disabled={actionState.loading}
-              className="rounded-xl border border-border-strong bg-surface px-4 py-2 text-sm font-semibold text-text"
-            >
-              {actionState.loading ? "Please wait..." : "Request Refund"}
-            </button>
-          )}
-          {actionState.error ? <p className="text-sm text-danger">{actionState.error}</p> : null}
-          {actionState.success ? <p className="text-sm text-success">{actionState.success}</p> : null}
-        </div>
-      )}
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        {/* Items */}
-        <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur lg:col-span-2">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Items ({currentOrder.items?.length || 0})</h2>
-          <div className="mt-4 divide-y divide-border">
-            {(currentOrder.items || []).map((item, i) => (
-              <div key={i} className="flex items-center gap-4 py-4">
-                {item.image ? (
-                  <img src={item.image} alt={item.name} className="h-16 w-16 shrink-0 rounded-2xl border border-border object-cover" />
-                ) : (
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-border bg-surface-muted text-lg font-bold text-border-strong">
-                    {item.name?.charAt(0) || "?"}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-text">{item.name}</p>
-                  {item.category_label && (
-                    <p className="text-xs text-subtle">{item.category_label}</p>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="text-right">
-                    <p className="font-bold text-text">{formatCurrency(item.price)}</p>
-                    <p className="text-xs text-subtle">Qty: {item.quantity}</p>
-                  </div>
-                  {canReturn && item.item_id ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setReturnForm({ reason: "", mode: "return" });
-                        setActionState({ loading: false, error: "", success: "" });
-                        setReturnModal(item);
-                      }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-border-strong px-2.5 py-1 text-xs font-semibold text-muted transition hover:border-primary hover:text-primary"
-                    >
-                      <PackageOpen className="h-3.5 w-3.5" /> Return / Replace
-                    </button>
-                  ) : null}
+                    {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-          {/* Coupon discount line */}
-          {(Number(currentOrder.coupon_discount_paise) > 0 || currentOrder.coupon_free_shipping) && (
-            <div className="mt-2 flex items-center justify-between border-t border-border pt-4 text-sm">
-              <p className="font-medium text-muted">
-                Coupon{currentOrder.coupon_code ? ` (${currentOrder.coupon_code})` : ""}
-              </p>
-              <p className="font-semibold text-success">
-                {Number(currentOrder.coupon_discount_paise) > 0
-                  ? `− ${formatCurrency(Number(currentOrder.coupon_discount_paise) / 100)}`
-                  : "Free shipping"}
-              </p>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold capitalize ${statusTone(currentOrder.status)}`}>
+                  {statusLabel(currentOrder.status)}
+                </span>
+                <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold capitalize ${statusTone(currentOrder.fulfillment_status || "Unfulfilled")}`}>
+                  {statusLabel(currentOrder.fulfillment_status || "Unfulfilled")}
+                </span>
+              </div>
             </div>
-          )}
-          {/* Total */}
-          <div className="mt-2 flex items-center justify-between border-t border-border pt-4">
-            <p className="font-semibold text-muted">Total</p>
-            <p className="text-xl font-semibold text-text-strong">{formatCurrency(currentOrder.total_amount)}</p>
-          </div>
-        </div>
 
-        {/* Right column */}
-        <div className="space-y-6">
-          {/* Shipping Info */}
-          <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-            <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Shipping Address</h2>
-            {currentOrder.shipping_address ? (
-              <div className="mt-3 space-y-1 text-sm text-muted">
-                {currentOrder.shipping_address.line1 && <p>{currentOrder.shipping_address.line1}</p>}
-                {currentOrder.shipping_address.line2 && <p>{currentOrder.shipping_address.line2}</p>}
-                <p>
-                  {[currentOrder.shipping_address.city, currentOrder.shipping_address.state].filter(Boolean).join(", ")}
-                </p>
-                {currentOrder.shipping_address.pincode && (
-                  <p className="font-semibold">{currentOrder.shipping_address.pincode}</p>
-                )}
+            {/* STAT ROW — wraps on mobile */}
+            {stats.length ? (
+              <div className="mt-6 flex flex-wrap gap-3">
+                {stats.map((s) => (
+                  <StatTile key={s.label} icon={s.icon} label={s.label} value={s.value} />
+                ))}
               </div>
-            ) : (
-              <p className="mt-3 text-sm text-subtle">Not provided</p>
+            ) : null}
+          </div>
+        </header>
+
+        {/* ── Two-column body ─────────────────────────── */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+          {/* MAIN column */}
+          <div className="min-w-0 space-y-6">
+            {/* Status banners */}
+            {isCancelled ? (
+              <div className="flex items-center gap-3 rounded-xl border border-danger/30 bg-danger/5 px-5 py-4">
+                <XCircle className="h-5 w-5 shrink-0 text-danger" />
+                <p className="text-sm font-semibold text-danger">This order has been cancelled.</p>
+              </div>
+            ) : null}
+
+            {isPaymentFailed ? (
+              <div className="flex items-start gap-3 rounded-xl border border-danger/30 bg-danger/5 px-5 py-4">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-danger" />
+                <div>
+                  <p className="text-sm font-semibold text-danger">Payment for this order didn&apos;t go through.</p>
+                  <p className="mt-0.5 text-xs text-danger/80">Retry the payment from the sidebar to confirm your order.</p>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Progress stepper */}
+            {!isCancelled && !isPaymentFailed && (
+              <HorizontalStepper steps={ORDER_STEPS} currentIndex={stepIndex} />
             )}
-          </div>
 
-          {/* Delivery date (Task 13) */}
-          {(deliveredAt || expectedDelivery) && (
-            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Delivery</h2>
-              <div className="mt-3 text-sm">
-                {deliveredAt ? (
-                  <div className="flex justify-between">
-                    <span className="text-subtle">Delivered on</span>
-                    <span className="font-semibold text-success">{formatDateShort(deliveredAt)}</span>
-                  </div>
-                ) : (
-                  <div className="flex justify-between">
-                    <span className="text-subtle">Expected by</span>
-                    <span className="font-semibold text-text">{formatDateShort(expectedDelivery)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Shipment info */}
-          {currentOrder.shipment && (
-            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Shipment</h2>
-              <div className="mt-3 space-y-2 text-sm">
-                {currentOrder.shipment.courier_name && (
-                  <div className="flex justify-between">
-                    <span className="text-subtle">Courier</span>
-                    <span className="font-semibold text-text">{currentOrder.shipment.courier_name}</span>
-                  </div>
-                )}
-                {currentOrder.shipment.awb_code && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-subtle">AWB</span>
-                    <button
-                      onClick={() => handleCopy(currentOrder.shipment.awb_code)}
-                      className="flex cursor-pointer items-center gap-1 font-mono text-sm font-semibold text-primary transition hover:text-primary-hover"
-                    >
-                      {currentOrder.shipment.awb_code} <CopyIcon />
-                    </button>
-                  </div>
-                )}
-                {currentOrder.shipment.shipped_at && (
-                  <div className="flex justify-between">
-                    <span className="text-subtle">Shipped</span>
-                    <span className="font-semibold text-text">{formatDate(currentOrder.shipment.shipped_at)}</span>
-                  </div>
-                )}
-                {currentOrder.shipment.tracking_url && (
-                  <a
-                    href={currentOrder.shipment.tracking_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 block w-full rounded-xl bg-linear-to-r from-primary to-primary-accent px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(255,79,134,0.25)] transition hover:shadow-[0_16px_40px_rgba(255,79,134,0.35)]"
-                  >
-                    <span className="inline-flex items-center justify-center gap-2">
-                      Track on Courier Site
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Live tracking activities */}
-          {tracking?.tracking?.tracking_data?.shipment_track_activities && (
-            <div className="rounded-3xl border border-border bg-surface/80 p-6 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur">
-              <h2 className="text-sm font-semibold uppercase tracking-widest text-subtle">Tracking Updates</h2>
-              {tracking?.tracking_summary && (
-                <div className="mb-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-surface-muted px-4 py-3">
-                    <p className="text-xs text-subtle">Current Status</p>
-                    <p className="mt-0.5 text-sm font-bold text-text">{tracking.tracking_summary.current_status || "—"}</p>
-                  </div>
-                  <div className="rounded-2xl bg-surface-muted px-4 py-3">
-                    <p className="text-xs text-subtle">Expected Delivery</p>
-                    <p className="mt-0.5 text-sm font-bold text-text">{tracking.tracking_summary.expected_delivery_date || "—"}</p>
-                  </div>
-                </div>
-              )}
-              <div className="mt-4 space-y-0">
-                {tracking.tracking.tracking_data.shipment_track_activities.slice(0, 10).map((activity, i) => (
-                  <div key={i} className="relative flex gap-3 pb-4">
-                    {/* Vertical line */}
-                    {i < 9 && (
-                      <div className="absolute left-[9px] top-5 h-full w-0.5 bg-surface-muted" />
+            {/* Items */}
+            <section className={CARD}>
+              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-subtle">
+                <ShoppingBag className="h-4 w-4" aria-hidden="true" /> Items ({itemCount})
+              </h2>
+              <div className="mt-4 divide-y divide-border">
+                {(currentOrder.items || []).map((item, i) => (
+                  <div key={i} className="flex items-start gap-4 py-4 first:pt-0 last:pb-0">
+                    {item.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="h-14 w-14 shrink-0 rounded-xl border border-border object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary-soft text-primary">
+                        <Package className="h-5 w-5" strokeWidth={1.5} />
+                      </span>
                     )}
-                    <div className={`relative z-10 mt-1 h-[18px] w-[18px] shrink-0 rounded-full border-2 ${
-                      i === 0 ? "border-primary bg-primary" : "border-border-strong bg-surface"
-                    }`} />
-                    <div>
-                      <p className="text-sm font-semibold text-text">{activity["sr-status-label"] || activity.activity}</p>
-                      <p className="text-xs text-subtle">{activity.location}</p>
-                      <p className="text-xs text-subtle">{formatDate(activity.date)}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-text-strong">{item.name}</p>
+                      {joinMeta(item.category_label, item.quantity != null && `Qty ${item.quantity}`) ? (
+                        <p className="mt-0.5 truncate text-xs text-muted">
+                          {joinMeta(item.category_label, item.quantity != null && `Qty ${item.quantity}`)}
+                        </p>
+                      ) : null}
+                      {canReturn && item.item_id ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReturnForm({ reason: "", mode: "return" });
+                            setActionState({ loading: false, error: "", success: "" });
+                            setReturnModal(item);
+                          }}
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border-strong px-2.5 py-1 text-xs font-semibold text-muted transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                        >
+                          <PackageOpen className="h-3.5 w-3.5" /> Return / Replace
+                        </button>
+                      ) : null}
                     </div>
+                    <span className="shrink-0 text-sm font-bold text-text-strong">{formatCurrency(item.price)}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            </section>
+
+            {/* Live tracking activities */}
+            {tracking?.tracking?.tracking_data?.shipment_track_activities && (
+              <section className={CARD}>
+                <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-subtle">
+                  <Navigation className="h-4 w-4" aria-hidden="true" /> Tracking updates
+                </h2>
+                {(tracking?.tracking_summary?.current_status || tracking?.tracking_summary?.expected_delivery_date) && (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {tracking.tracking_summary.current_status ? (
+                      <div className="rounded-2xl border border-border bg-surface-muted/60 px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-subtle">Current status</p>
+                        <p className="mt-0.5 text-sm font-bold text-text-strong">{tracking.tracking_summary.current_status}</p>
+                      </div>
+                    ) : null}
+                    {tracking.tracking_summary.expected_delivery_date ? (
+                      <div className="rounded-2xl border border-border bg-surface-muted/60 px-4 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-subtle">Expected delivery</p>
+                        <p className="mt-0.5 text-sm font-bold text-text-strong">{tracking.tracking_summary.expected_delivery_date}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+                <ol className="mt-4 space-y-0">
+                  {tracking.tracking.tracking_data.shipment_track_activities.slice(0, 10).map((activity, i) => (
+                    <li key={i} className="relative flex gap-3 pb-4 last:pb-0">
+                      {i < Math.min(9, tracking.tracking.tracking_data.shipment_track_activities.slice(0, 10).length - 1) && (
+                        <div className="absolute left-[8px] top-5 h-full w-0.5 bg-border" />
+                      )}
+                      <div
+                        className={`relative z-10 mt-1 h-[18px] w-[18px] shrink-0 rounded-full border-2 ${
+                          i === 0 ? "border-transparent bg-primary" : "border-border-strong bg-surface"
+                        }`}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-text-strong">{activity["sr-status-label"] || activity.activity}</p>
+                        {activity.location ? <p className="text-xs text-muted">{activity.location}</p> : null}
+                        {formatDate(activity.date) ? <p className="text-xs text-subtle">{formatDate(activity.date)}</p> : null}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
+          </div>
+
+          {/* STICKY sidebar */}
+          <aside className="space-y-6 lg:sticky lg:top-24 self-start">
+            {/* Order summary + primary actions */}
+            <section className={CARD}>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-subtle">Order summary</h2>
+              <dl className="mt-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-muted">Items ({itemCount})</dt>
+                  <dd className="font-semibold text-text-strong">{formatCurrency(currentOrder.total_amount)}</dd>
+                </div>
+                {(Number(currentOrder.coupon_discount_paise) > 0 || currentOrder.coupon_free_shipping) && (
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-muted">Coupon{currentOrder.coupon_code ? ` (${currentOrder.coupon_code})` : ""}</dt>
+                    <dd className="font-semibold text-success">
+                      {Number(currentOrder.coupon_discount_paise) > 0
+                        ? `− ${formatCurrency(Number(currentOrder.coupon_discount_paise) / 100)}`
+                        : "Free shipping"}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              <div className="my-4 border-t border-dashed border-border" />
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-semibold text-text-strong">Order total</span>
+                <span className="text-xl font-bold text-text-strong">{formatCurrency(currentOrder.total_amount)}</span>
+              </div>
+
+              {/* Primary actions */}
+              {hasActions ? (
+                <div className="mt-5 space-y-2.5">
+                  {canRetry && (
+                    <button type="button" onClick={onRetryPayment} disabled={actionState.loading} className={CTA}>
+                      <RefreshCw className={`h-4 w-4 ${actionState.loading ? "animate-spin" : ""}`} />
+                      {actionState.loading ? "Please wait…" : "Retry payment"}
+                    </button>
+                  )}
+                  {isPaid && (
+                    <button type="button" onClick={downloadInvoice} disabled={invoiceLoading} className={BTN_OUTLINE}>
+                      <Download className="h-4 w-4" /> {invoiceLoading ? "Preparing…" : "Download invoice"}
+                    </button>
+                  )}
+                  {canRefund && (
+                    <button type="button" onClick={onRequestRefund} disabled={actionState.loading} className={BTN_OUTLINE}>
+                      <Receipt className="h-4 w-4" /> {actionState.loading ? "Please wait…" : "Request refund"}
+                    </button>
+                  )}
+                  {canCancel && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCancelForm({ reason: "", details: "" });
+                        setActionState({ loading: false, error: "", success: "" });
+                        setCancelModal(true);
+                      }}
+                      disabled={actionState.loading}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/5 px-5 py-3 text-sm font-semibold text-danger transition hover:bg-danger/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <XCircle className="h-4 w-4" /> Cancel order
+                    </button>
+                  )}
+                </div>
+              ) : null}
+
+              {actionState.error ? (
+                <p className={`${hasActions ? "mt-3" : "mt-5"} rounded-xl bg-danger/10 px-4 py-2.5 text-sm text-danger`}>{actionState.error}</p>
+              ) : null}
+              {actionState.success ? (
+                <p className={`${hasActions ? "mt-3" : "mt-5"} rounded-xl bg-success/10 px-4 py-2.5 text-sm text-success`}>{actionState.success}</p>
+              ) : null}
+            </section>
+
+            {/* Shipping address */}
+            <SidebarCard title="Shipping address" icon={MapPin}>
+              {currentOrder.shipping_address ? (
+                <div className="space-y-1 text-sm text-muted">
+                  {currentOrder.shipping_address.line1 && <p>{currentOrder.shipping_address.line1}</p>}
+                  {currentOrder.shipping_address.line2 && <p>{currentOrder.shipping_address.line2}</p>}
+                  {joinMeta(currentOrder.shipping_address.city, currentOrder.shipping_address.state) ? (
+                    <p>{joinMeta(currentOrder.shipping_address.city, currentOrder.shipping_address.state)}</p>
+                  ) : null}
+                  {currentOrder.shipping_address.pincode && (
+                    <p className="font-semibold text-text-strong">{currentOrder.shipping_address.pincode}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-subtle">Not provided</p>
+              )}
+            </SidebarCard>
+
+            {/* Delivery date (Task 13) */}
+            {(deliveredAt || expectedDelivery) && (
+              <SidebarCard title="Delivery" icon={Truck}>
+                {deliveredAt ? (
+                  <InfoRow label="Delivered on" value={formatDateShort(deliveredAt)} accent />
+                ) : (
+                  <InfoRow label="Expected by" value={formatDateShort(expectedDelivery)} />
+                )}
+              </SidebarCard>
+            )}
+
+            {/* Shipment info */}
+            {currentOrder.shipment && (
+              <SidebarCard title="Shipment" icon={Package}>
+                <div className="space-y-2.5">
+                  {currentOrder.shipment.courier_name && (
+                    <InfoRow label="Courier" value={currentOrder.shipment.courier_name} />
+                  )}
+                  {currentOrder.shipment.awb_code && (
+                    <div className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-muted">AWB</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(currentOrder.shipment.awb_code)}
+                        aria-label="Copy AWB number"
+                        className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold text-primary transition hover:text-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      >
+                        {currentOrder.shipment.awb_code} <Copy className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  {currentOrder.shipment.shipped_at && (
+                    <InfoRow label="Shipped" value={formatDate(currentOrder.shipment.shipped_at)} />
+                  )}
+                  {currentOrder.shipment.tracking_url && (
+                    <a
+                      href={currentOrder.shipment.tracking_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`${CTA} mt-3`}
+                    >
+                      Track on courier site
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+              </SidebarCard>
+            )}
+          </aside>
         </div>
       </div>
 
@@ -700,17 +859,25 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
           className="fixed inset-0 z-100 flex items-center justify-center bg-text-strong/45 p-4"
           role="dialog"
           aria-modal="true"
+          aria-label="Return or replace item"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setReturnModal(null);
           }}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+            className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-text-strong">Return or replace item</h3>
-            <p className="mt-1 line-clamp-1 text-sm text-muted">{returnModal.name}</p>
-            <div className="mt-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                <PackageOpen className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-text-strong">Return or replace item</h3>
+                <p className="line-clamp-1 text-xs text-muted">{returnModal.name}</p>
+              </div>
+            </div>
+            <div className="mt-5 space-y-3">
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -741,20 +908,20 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                 value={returnForm.reason}
                 onChange={(e) => setReturnForm((f) => ({ ...f, reason: e.target.value }))}
                 rows={3}
+                maxLength={1000}
                 placeholder="What's the issue? (defective, wrong item, changed mind…)"
-                className="w-full rounded-xl border border-border-strong bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+                className="w-full rounded-xl border border-border-strong bg-surface px-3.5 py-2.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
               />
-              <p className="text-xs text-subtle">
-                Defective / wrong items are free to return. Change-of-mind returns may charge reverse shipping before
-                pickup.
+              <p className="rounded-xl bg-surface-muted px-3.5 py-2.5 text-xs leading-5 text-muted">
+                Defective / wrong items are free to return. Change-of-mind returns may charge reverse shipping before pickup.
               </p>
-              {actionState.error ? <p className="text-sm text-danger">{actionState.error}</p> : null}
+              {actionState.error ? <p className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{actionState.error}</p> : null}
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setReturnModal(null)}
-                className="h-10 rounded-xl border border-border-strong px-4 text-sm font-semibold text-muted hover:bg-surface-muted"
+                className="rounded-xl border border-border-strong px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
               >
                 Cancel
               </button>
@@ -762,7 +929,7 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                 type="button"
                 onClick={submitReturn}
                 disabled={actionState.loading}
-                className="h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_12px_24px_rgba(255,79,134,0.22)] transition hover:bg-primary-hover disabled:opacity-60"
               >
                 {actionState.loading ? "Submitting…" : "Submit request"}
               </button>
@@ -777,22 +944,28 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
           className="fixed inset-0 z-100 flex items-center justify-center bg-text-strong/45 p-4"
           role="dialog"
           aria-modal="true"
+          aria-label="Cancel order"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && !actionState.loading) setCancelModal(false);
           }}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl"
+            className="w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-text-strong">Cancel this order?</h3>
-            <p className="mt-1 text-sm text-muted">
-              Order {currentOrder.order_number} — you can cancel any time before it ships. This can&apos;t be undone.
-            </p>
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-danger/10 text-danger">
+                <XCircle className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-text-strong">Cancel this order?</h3>
+                <p className="text-xs text-muted">
+                  Order {currentOrder.order_number} · can&apos;t be undone.
+                </p>
+              </div>
+            </div>
 
-            <p className="mt-4 mb-2 text-xs font-semibold uppercase tracking-wide text-subtle">
-              Why are you cancelling?
-            </p>
+            <p className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wide text-subtle">Why are you cancelling?</p>
             <div className="space-y-2">
               {CANCEL_REASONS.map((r) => {
                 const active = cancelForm.reason === r;
@@ -801,7 +974,7 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                     key={r}
                     type="button"
                     onClick={() => setCancelForm((f) => ({ ...f, reason: r }))}
-                    className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm font-medium transition ${
+                    className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition ${
                       active
                         ? "border-primary bg-primary-soft text-primary"
                         : "border-border-strong text-muted hover:border-primary/40"
@@ -824,23 +997,24 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
               value={cancelForm.details}
               onChange={(e) => setCancelForm((f) => ({ ...f, details: e.target.value }))}
               rows={2}
+              maxLength={1000}
               placeholder={cancelForm.reason === "Other" ? "Tell us more (required)" : "Add more details (optional)"}
-              className="mt-3 w-full rounded-xl border border-border-strong bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+              className="mt-3 w-full rounded-xl border border-border-strong bg-surface px-3.5 py-2.5 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
             />
 
             {isPaid ? (
-              <p className="mt-3 rounded-lg bg-info/10 px-3 py-2 text-xs text-info">
+              <p className="mt-3 rounded-xl bg-primary-soft px-3.5 py-2.5 text-xs text-primary">
                 Your paid amount will be refunded to your MyShaadiStore wallet (store credit).
               </p>
             ) : null}
-            {actionState.error ? <p className="mt-2 text-sm text-danger">{actionState.error}</p> : null}
+            {actionState.error ? <p className="mt-2 rounded-xl bg-danger/10 px-3.5 py-2.5 text-sm text-danger">{actionState.error}</p> : null}
 
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setCancelModal(false)}
                 disabled={actionState.loading}
-                className="h-10 rounded-xl border border-border-strong px-4 text-sm font-semibold text-muted hover:bg-surface-muted disabled:opacity-50"
+                className="rounded-xl border border-border-strong px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted disabled:opacity-60"
               >
                 Keep order
               </button>
@@ -852,7 +1026,7 @@ export default function OrderDetailClient({ initialOrder = null, initialTracking
                   !cancelForm.reason ||
                   (cancelForm.reason === "Other" && !cancelForm.details.trim())
                 }
-                className="h-10 rounded-xl bg-danger px-4 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-danger px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
               >
                 {actionState.loading ? "Cancelling…" : "Confirm cancellation"}
               </button>

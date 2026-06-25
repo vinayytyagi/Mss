@@ -9,11 +9,12 @@
  * max-w-400 / max-w-5xl / max-w-4xl with three different arrow styles).
  *
  * Pass the resolved prev/next hrefs. When there is no next step, point
- * `nextHref` at the quote basket and set `nextIsCart` so the arrow shows
- * the receipt icon (matching the old per-page behaviour).
+ * `nextHref` at the quote basket and set `nextIsCart` (this only changes the
+ * link target + aria/title — the arrow icon stays the consistent ChevronRight
+ * used on every step).
  */
 
-import { ChevronLeft, ChevronRight, Receipt } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 // Single source of truth for journey-step content width. Matches the
 // site-wide max-w-7xl container used by the cart/header so steps line up
@@ -45,11 +46,7 @@ export default function JourneyStepNav({ prevHref, nextHref, nextIsCart = false,
         title={nextIsCart ? "Review your quote basket" : "Next step"}
         className={`${ARROW_BTN} cursor-pointer bg-primary hover:shadow-2xl`}
       >
-        {nextIsCart ? (
-          <Receipt className="h-6 w-6 text-primary-foreground" strokeWidth={2} />
-        ) : (
-          <ChevronRight className="h-6 w-6 text-primary-foreground" />
-        )}
+        <ChevronRight className="h-6 w-6 text-primary-foreground" />
       </a>
     </div>
   );

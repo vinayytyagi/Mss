@@ -11,6 +11,8 @@ import {
   SlidersHorizontal,
   Tags,
   Users,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useAuthUser, getAuthToken, saveAuthCookies } from "@/lib/authCookies";
 import { updateMyProfile } from "@/lib/api";
@@ -29,6 +31,7 @@ import JourneyStepStrip from "@/components/journey/JourneyStepStrip";
 import JourneyStepNav from "@/components/journey/JourneyStepNav";
 import TrustStrip from "@/components/journey/TrustStrip";
 import { getListingConfig, resolveTrustItems } from "@/lib/journeyStepUi";
+import { matchesAttribute } from "@/lib/shopUi";
 import { capturesDetails } from "@/lib/journeyMode";
 
 // Customer journey page items grid pagination — 12 per page.
@@ -160,6 +163,8 @@ function buildJourneyHref(
     priceMax = null,
     guestCount,
     venueLoc,
+    // Dynamic attribute filters → one URL param per facet key (comma-joined for
+    // multi-value). The server reads these and filters in Mongo.
     attrs = null,
   } = {},
 ) {
@@ -189,11 +194,10 @@ function buildJourneyHref(
   if (venueLoc != null && venueLoc !== undefined && String(venueLoc).trim()) {
     qs.set("venueLoc", String(venueLoc).trim());
   }
-  // Schema-driven attribute filters → one param per facet: attr_<key>=v1,v2.
   if (attrs && typeof attrs === "object") {
-    for (const [key, vals] of Object.entries(attrs)) {
-      const list = (Array.isArray(vals) ? vals : [vals]).map((v) => String(v).trim()).filter(Boolean);
-      if (list.length) qs.set(`attr_${key}`, list.join(","));
+    for (const [k, val] of Object.entries(attrs)) {
+      const v = Array.isArray(val) ? val.filter(Boolean).join(",") : val == null ? "" : String(val);
+      if (k && v) qs.set(k, v);
     }
   }
   const q = qs.toString();
@@ -299,7 +303,7 @@ function FilterPopover({ open, triggerRef, onClose, children }) {
     <div
       ref={menuRef}
       style={menuStyle}
-      className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-[0_16px_40px_rgba(15,23,42,0.16)]"
+      className="flex flex-col overflow-hidden rounded-xl border border-border bg-surface"
       role="presentation"
       onWheel={(e) => e.stopPropagation()}
     >
@@ -363,7 +367,7 @@ function BudgetModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="budget-modal-title"
-        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -526,7 +530,7 @@ function PriceRangeModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="price-range-title"
-        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -689,7 +693,7 @@ function GuestFilterModal({ onClose, seedCount, onApplyUrl, onSaveToProfile, onF
         role="dialog"
         aria-modal="true"
         aria-labelledby="guest-filter-title"
-        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -808,7 +812,7 @@ function LocationFilterModal({ onClose, seedLabel, onApplyUrl, onSaveToProfile, 
         role="dialog"
         aria-modal="true"
         aria-labelledby="loc-filter-title"
-        className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_80px_rgba(15,23,42,0.2)]"
+        className="w-full max-w-lg rounded-2xl border border-border bg-surface p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -912,6 +916,8 @@ export default function JourneyStepPage({
   step,
   categories,
   items,
+  attributeFacets = [],
+  selectedAttributes = {},
   selectedCategoryId = "",
   selectedSubcategoryId = "",
   selectedSubSubcategoryId = "",
@@ -930,10 +936,6 @@ export default function JourneyStepPage({
   venueLocForUrl = undefined,
   effectiveGuestCount = 0,
   effectiveVenueLocation = "",
-  // Schema-driven customer filters (admin owns which fields + choices show in
-  // the filter bar). selectedAttributes is { key: string[] } from the URL.
-  attributeFacets = [],
-  selectedAttributes = {},
 }) {
   const router = useRouter();
   const authUser = useAuthUser();
@@ -954,6 +956,61 @@ export default function JourneyStepPage({
   const categoryTriggerRef = useRef(null);
   const subcategoryTriggerRef = useRef(null);
   const subSubcategoryTriggerRef = useRef(null);
+
+  // Horizontal scroll controls for the filter strip — left/right arrow buttons
+  // that appear only when there's more to scroll in that direction.
+  const scrollStripRef = useRef(null);
+  const [stripScroll, setStripScroll] = useState({ left: false, right: false });
+  function measureStrip() {
+    const el = scrollStripRef.current;
+    if (!el) return;
+    const left = el.scrollLeft > 4;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    // Idempotent — only update when a flag actually flips, so this is safe to
+    // call on every render / observer tick without causing a render loop.
+    setStripScroll((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+  }
+  function scrollStripBy(dir) {
+    const el = scrollStripRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.max(200, el.clientWidth * 0.7), behavior: "smooth" });
+  }
+  // Show the arrows whenever the strip OVERFLOWS its width — not only after the
+  // user scrolls. We re-measure on scroll, window resize, the container's own
+  // size, each child's size (web fonts can widen pills after first paint), and a
+  // short delayed pass for any late layout shift.
+  useEffect(() => {
+    const el = scrollStripRef.current;
+    if (!el) return undefined;
+    el.addEventListener("scroll", measureStrip, { passive: true });
+    window.addEventListener("resize", measureStrip);
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measureStrip);
+      ro.observe(el);
+      Array.from(el.children).forEach((child) => ro.observe(child));
+    }
+    const raf = requestAnimationFrame(measureStrip);
+    const timer = setTimeout(measureStrip, 300);
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      document.fonts.ready.then(measureStrip).catch(() => {});
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      el.removeEventListener("scroll", measureStrip);
+      window.removeEventListener("resize", measureStrip);
+      ro?.disconnect();
+    };
+  }, []);
+  // Re-check after every render so newly added / removed filter pills (category
+  // cascade, attribute selections) flip the arrows immediately. Idempotent
+  // measureStrip + rAF keep this from looping or firing setState synchronously.
+  useEffect(() => {
+    const raf = requestAnimationFrame(measureStrip);
+    return () => cancelAnimationFrame(raf);
+  });
+
   const stepNature = useMemo(() => resolveStepNature(step), [step]);
 
   // Per-step mockup config: step-specific attribute filters + card
@@ -993,11 +1050,17 @@ export default function JourneyStepPage({
       venueLoc: venueLocForUrl,
       matchLocOff,
       matchGuestsOff,
-      // Carry the active schema filters across category/search/etc. clicks.
-      attrs: selectedAttributes,
       ...capOrBudgetQs,
       ...overrides,
     };
+    // Preserve active attribute filters across navigation; `overrides.attrs`
+    // patches individual facets (value "" / undefined clears that one).
+    const mergedAttrs = { ...selectedAttributes, ...(overrides.attrs || {}) };
+    merged.attrs = Object.fromEntries(
+      Object.entries(mergedAttrs).filter(
+        ([, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0),
+      ),
+    );
     if (merged.subcategorySlug === null || merged.subcategorySlug === "") {
       delete merged.subcategorySlug;
     }
@@ -1074,8 +1137,22 @@ export default function JourneyStepPage({
 
   const topCategories = categories.filter((category) => !category.parent_category_id);
   const stepHasCategories = topCategories.length > 0;
+  // Gifting mockup shows top-level categories as segmented occasion tabs
+  // instead of a dropdown. Only sensible for a handful of categories.
+  const useCategoryTabs =
+    listingCfg?.categoryStyle === "tabs" &&
+    topCategories.length > 1 &&
+    topCategories.length <= 5;
+  // No category in the URL means "All categories". The server already returns
+  // every item in the step (listing steps don't force a first-category filter),
+  // so we must NOT fall back to topCategories[0] here for the dropdown style —
+  // that faked a "Cosmetics" selection in the trigger + subcategory chrome while
+  // the grid actually showed everything. Tab-style steps have no "All" tab, so
+  // they still default to the first category to keep a tab active.
   const selectedCategory =
-    topCategories.find((category) => category.category_id === selectedCategoryId) || topCategories[0] || null;
+    topCategories.find((category) => category.category_id === selectedCategoryId) ||
+    (useCategoryTabs ? topCategories[0] : null) ||
+    null;
   const selectedSubcategory = selectedSubcategoryId
     ? categories.find((c) => c.category_id === selectedSubcategoryId) || null
     : null;
@@ -1083,19 +1160,46 @@ export default function JourneyStepPage({
     ? categories.find((c) => c.category_id === selectedSubSubcategoryId) || null
     : null;
 
-  // Gifting mockup shows top-level categories as segmented occasion tabs
-  // instead of a dropdown. Only sensible for a handful of categories.
-  const useCategoryTabs =
-    listingCfg?.categoryStyle === "tabs" &&
-    topCategories.length > 1 &&
-    topCategories.length <= 5;
-
   // Apply the guest + venue-city filters client-side. The server returns
   // every item for the step + category; the URL params `guestCount` and
   // `venueLoc` get applied here so the result set actually shrinks when
   // the user picks "Match capacity" or "Match my city". The "off" toggles
   // bypass the predicate entirely so the user can clear with one click.
-  const baseItems = Array.isArray(items) ? items : [];
+  const baseItems = useMemo(() => (Array.isArray(items) ? items : []), [items]);
+
+  // Admin-schema-driven attribute filters. `attributeFacets` come from the
+  // server (every select/multiselect field defined in the Journey-Options CMS,
+  // in schema order, with its admin-managed options). We turn each into the
+  // same `{ key, label, options:[{value,label}], match }` shape the static
+  // listing filters use, merging admin options with any extra values present on
+  // the loaded items, and only surface a facet once ≥1 item actually uses it
+  // (so a brand-new field doesn't show an empty filter before any listing has
+  // it). When no facets are provided we fall back to the static listing config,
+  // so nothing changes until a step's schema is seeded/edited.
+  // Filters come purely from the admin schema (attributeFacets) so they stay
+  // STABLE — they don't vanish as the server-filtered item set narrows, and the
+  // option lists are complete. Actual filtering is SERVER-SIDE (the dropdowns
+  // navigate → URL → Mongo `attrs` query); `match` is a harmless client safety
+  // net (unused for schema attrs, whose selection lives in the URL).
+  const schemaFilters = useMemo(() => {
+    if (!Array.isArray(attributeFacets) || attributeFacets.length === 0) return null;
+    return attributeFacets.map((f) => ({
+      key: f.key,
+      label: f.label || f.key,
+      options: (Array.isArray(f.options) ? f.options : []).map((o) => ({ value: o, label: o })),
+      match: (item, v) => matchesAttribute(item, f.key, Array.isArray(v) ? v : [v]),
+    }));
+  }, [attributeFacets]);
+
+  // The filters actually rendered/applied: schema-driven attribute filters when
+  // available (keeping the static price-range filter, which isn't a schema
+  // field), else the full static listing config.
+  const effectiveFilters = useMemo(() => {
+    const cfgFilters = listingCfg?.filters || [];
+    if (!schemaFilters || schemaFilters.length === 0) return cfgFilters;
+    const priceFilters = cfgFilters.filter((f) => f.kind === "price-range");
+    return [...schemaFilters, ...priceFilters];
+  }, [schemaFilters, listingCfg]);
   const guestNeed = matchGuestsOff ? 0 : Number(effectiveGuestCount) || 0;
   const cityNeed = matchLocOff
     ? ""
@@ -1133,7 +1237,7 @@ export default function JourneyStepPage({
   // theme, packaging…) + sort. Items missing an attribute stay visible
   // — we only filter OUT explicit mismatches.
   if (listingCfg) {
-    for (const f of listingCfg.filters) {
+    for (const f of effectiveFilters) {
       const v = attrFilters[f.key];
       if (v) filteredItems = filteredItems.filter((item) => f.match(item, v));
     }
@@ -1239,9 +1343,9 @@ export default function JourneyStepPage({
     !capOffActive && appliedBudgetCap != null && Number.isFinite(Number(appliedBudgetCap));
   // Count of active attribute-filter dropdowns — drives the "Filters" badge
   // + the "Clear all" affordance on the per-step filter bar.
+  // Active filters = client-side ones (price-range modal) + URL schema filters.
   const activeAttrCount =
-    Object.values(attrFilters).filter(Boolean).length +
-    Object.keys(selectedAttributes || {}).length;
+    Object.values(attrFilters).filter(Boolean).length + Object.keys(selectedAttributes || {}).length;
 
   const categorySearchLower = categorySearch.trim().toLowerCase();
   const filteredCategories = categorySearchLower
@@ -1303,7 +1407,7 @@ export default function JourneyStepPage({
       {/* Occasion tabs (gifting mockup) — top categories as segmented
           tabs instead of the dropdown button. */}
       {useCategoryTabs ? (
-        <div className="mx-auto mt-6 flex max-w-2xl overflow-hidden rounded-2xl border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
+        <div className="mx-auto mt-6 flex max-w-2xl overflow-hidden rounded-2xl border border-border bg-surface p-1">
           {topCategories.map((category) => {
             const active = category.category_id === selectedCategory?.category_id;
             return (
@@ -1334,7 +1438,21 @@ export default function JourneyStepPage({
           shrink-0 so they slide off-screen and you scroll left/right
           instead of compressing. */}
       <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <div className="scrollbar-hide order-last flex min-w-0 flex-1 items-center gap-2.5 overflow-x-auto pb-1.5 sm:order-none">
+        <div className="relative order-last flex min-w-0 flex-1 items-center sm:order-none">
+          {stripScroll.left ? (
+            <button
+              type="button"
+              aria-label="Scroll filters left"
+              onClick={() => scrollStripBy(-1)}
+              className="absolute left-0 top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-surface text-text shadow-md transition hover:border-primary/40 hover:text-primary"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
+          <div
+            ref={scrollStripRef}
+            className="scrollbar-hide flex min-w-0 flex-1 items-center gap-2.5 overflow-x-auto pb-1.5"
+          >
           {/* Step Budget pill — the SINGLE price control for the step.
               The signup per-step budget caps which items show. */}
           <button
@@ -1411,12 +1529,12 @@ export default function JourneyStepPage({
               }}
               aria-expanded={categoryMenuOpen}
               aria-haspopup="listbox"
-              className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-left text-sm font-medium text-text shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/40"
+              className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-left text-sm font-medium text-text transition-colors hover:border-primary/40"
             >
               <div className={`text-subtle transition-colors ${categoryMenuOpen ? "text-primary" : ""}`}>
                 <LayoutGrid className="w-5 h-5" />
               </div>
-              <span className="flex-1 min-w-0 truncate">{selectedCategory ? selectedCategory.name : "Category"}</span>
+              <span className="flex-1 min-w-0 truncate">{selectedCategory ? selectedCategory.name : "All categories"}</span>
             </button>
             <FilterPopover
               open={categoryMenuOpen && topCategories.length > 0}
@@ -1437,37 +1555,56 @@ export default function JourneyStepPage({
                   </div>
                 </div>
                 <div className="scrollbar-themed min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-2" role="listbox">
-                  {filteredCategories.length === 0 ? (
-                    <p className="px-3 py-4 text-sm text-center text-muted">No categories match your search.</p>
-                  ) : (
-                    <div className="grid gap-1">
-                      {filteredCategories.map((category) => {
-                        const active = category.category_id === selectedCategory?.category_id;
-                        return (
-                          <Link
-                            key={category.category_id}
-                            href={makeJourneyHref({
-                              categorySlug: categoryUrlSegment(category),
-                              subcategorySlug: undefined,
-                              subSubcategorySlug: undefined,
-                              search: searchQuery.trim(),
-                            })}
-                            onClick={() => {
-                              setCategoryMenuOpen(false);
-                              setCategorySearch("");
-                            }}
-                            className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                              active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
-                            }`}
-                            role="option"
-                            aria-selected={active}
-                          >
-                            {category.name}
-                          </Link>
-                        );
+                  <div className="grid gap-1">
+                    {/* All categories — clears the category filter (shows every item). */}
+                    <Link
+                      href={makeJourneyHref({
+                        categorySlug: undefined,
+                        subcategorySlug: undefined,
+                        subSubcategorySlug: undefined,
+                        search: searchQuery.trim(),
                       })}
-                    </div>
-                  )}
+                      onClick={() => {
+                        setCategoryMenuOpen(false);
+                        setCategorySearch("");
+                      }}
+                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        !selectedCategory ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
+                      }`}
+                      role="option"
+                      aria-selected={!selectedCategory}
+                    >
+                      All categories
+                    </Link>
+                    {filteredCategories.map((category) => {
+                      const active = category.category_id === selectedCategory?.category_id;
+                      return (
+                        <Link
+                          key={category.category_id}
+                          href={makeJourneyHref({
+                            categorySlug: categoryUrlSegment(category),
+                            subcategorySlug: undefined,
+                            subSubcategorySlug: undefined,
+                            search: searchQuery.trim(),
+                          })}
+                          onClick={() => {
+                            setCategoryMenuOpen(false);
+                            setCategorySearch("");
+                          }}
+                          className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                            active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-muted"
+                          }`}
+                          role="option"
+                          aria-selected={active}
+                        >
+                          {category.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                  {filteredCategories.length === 0 ? (
+                    <p className="px-3 py-3 text-xs text-center text-muted">No categories match your search.</p>
+                  ) : null}
                 </div>
             </FilterPopover>
           </div>
@@ -1486,7 +1623,7 @@ export default function JourneyStepPage({
                 }}
                 aria-expanded={subcategoryMenuOpen}
                 aria-haspopup="listbox"
-                className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-left text-sm font-medium text-text shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/40"
+                className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-left text-sm font-medium text-text transition-colors hover:border-primary/40"
               >
                 <div className={`text-subtle transition-colors ${subcategoryMenuOpen ? "text-primary" : ""}`}>
                   <Tags className="w-5 h-5" />
@@ -1585,7 +1722,7 @@ export default function JourneyStepPage({
                 }}
                 aria-expanded={subSubcategoryMenuOpen}
                 aria-haspopup="listbox"
-                className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-left text-sm font-medium text-text shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-colors hover:border-primary/40"
+                className="flex h-11 w-full cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface px-3.5 text-left text-sm font-medium text-text transition-colors hover:border-primary/40"
               >
                 <div className={`text-subtle transition-colors ${subSubcategoryMenuOpen ? "text-primary" : ""}`}>
                   <Tags className="w-5 h-5" />
@@ -1677,60 +1814,58 @@ export default function JourneyStepPage({
             cuisine / theme / packaging dropdowns etc. Applied client-side
             over the loaded item set; items without the attribute stay
             visible. Rendered inline in the same scrollable strip. */}
-        {/* Price-range pill (from listing config — price isn't a schema
-            attribute, so it stays a client-side modal filter). */}
-        {priceFilterCfg ? (
+        {listingCfg ? (
           <div className="flex shrink-0 items-center gap-2.5">
-            {(() => {
-              const range = attrFilters[priceFilterCfg.key] || null;
-              const rangeActive = !!range;
-              return (
-                <button
-                  type="button"
-                  onClick={() => setPriceModalOpen(true)}
-                  aria-label={priceFilterCfg.label}
-                  className={`flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition-colors ${
-                    rangeActive
-                      ? "border-primary bg-primary-soft text-primary"
-                      : "border-border bg-surface text-text hover:border-primary/40"
-                  }`}
-                >
-                  <Tags className="h-4 w-4 shrink-0" aria-hidden />
-                  <span className="whitespace-nowrap">
-                    {describePriceRange(range, priceFilterCfg.label)}
-                  </span>
-                </button>
-              );
-            })()}
-          </div>
-        ) : null}
-
-        {/* Schema-driven attribute filters — the admin owns which fields show
-            here, their choices, and the "In filter bar" toggle (item form).
-            URL-driven (?attr_<key>=) so filtering happens SERVER-SIDE in /items;
-            any new admin filter auto-appears with no code change. */}
-        {attributeFacets.length ? (
-          <div className="flex shrink-0 items-center gap-2.5">
-            {attributeFacets.map((facet) => {
-              const current = (selectedAttributes[facet.key] || [])[0] || "";
+            {effectiveFilters.map((f) => {
+              // Price-range filter renders a pill button that opens the
+              // dual-thumb PriceRangeModal; its value is { min, max } | null.
+              if (f.kind === "price-range") {
+                const range = attrFilters[f.key] || null;
+                const rangeActive = !!range;
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setPriceModalOpen(true)}
+                    aria-label={f.label}
+                    className={`flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition-colors ${
+                      rangeActive
+                        ? "border-primary bg-primary-soft text-primary"
+                        : "border-border bg-surface text-text hover:border-primary/40"
+                    }`}
+                  >
+                    <Tags className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="whitespace-nowrap">
+                      {describePriceRange(range, f.label)}
+                    </span>
+                  </button>
+                );
+              }
+              // Schema attribute filters are SERVER-SIDE: their selection lives
+              // in the URL (selectedAttributes), and changing one navigates so
+              // the server re-queries Mongo.
+              const selVals = selectedAttributes[f.key];
+              const current = Array.isArray(selVals) ? selVals[0] || "" : selVals || "";
               const active = !!current;
+              // First option is the reset/"no filter" choice. Labelled "All"
+              // (not the attribute name) so the open menu reads e.g. "All /
+              // Floral / Royal…". The collapsed pill still shows f.label
+              // ("Theme") via the Dropdown placeholder when nothing is picked.
               const filterOptions = [
-                { value: "", label: facet.label },
-                ...facet.options.map((o) => ({ value: o, label: o })),
+                { value: "", label: "All" },
+                ...f.options.map((o) => ({ value: o.value, label: o.label })),
               ];
               return (
                 <Dropdown
-                  key={facet.key}
+                  key={f.key}
                   value={current}
-                  onChange={(next) => {
-                    const nextAttrs = { ...selectedAttributes };
-                    if (next) nextAttrs[facet.key] = [next];
-                    else delete nextAttrs[facet.key];
-                    router.push(makeJourneyHref({ attrs: nextAttrs }));
-                  }}
+                  onChange={(next) =>
+                    router.push(makeJourneyHref({ attrs: { [f.key]: next || undefined } }))
+                  }
                   options={filterOptions}
-                  placeholder={facet.label}
-                  ariaLabel={facet.label}
+                  placeholder={f.label}
+                  placeholderClassName="text-text"
+                  ariaLabel={f.label}
                   className={`shrink-0 w-auto min-w-44 max-w-56 ${
                     active
                       ? "[&>button]:border-primary [&>button]:bg-primary-soft [&>button]:text-primary"
@@ -1747,8 +1882,10 @@ export default function JourneyStepPage({
           <button
             type="button"
             onClick={() => {
+              // Clear the client price-range AND drop all URL schema filters.
               setAttrFilters({});
-              router.push(makeJourneyHref({ attrs: {} }));
+              const cleared = Object.fromEntries(Object.keys(selectedAttributes || {}).map((k) => [k, undefined]));
+              router.push(makeJourneyHref({ attrs: cleared }));
             }}
             className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-muted transition-colors hover:bg-surface-muted hover:text-primary"
           >
@@ -1756,11 +1893,22 @@ export default function JourneyStepPage({
             Clear all
           </button>
         ) : null}
+          </div>
+          {stripScroll.right ? (
+            <button
+              type="button"
+              aria-label="Scroll filters right"
+              onClick={() => scrollStripBy(1)}
+              className="absolute right-0 top-1/2 z-30 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-surface text-text shadow-md transition hover:border-primary/40 hover:text-primary"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
         </div>
 
         {/* Search — pinned (non-scrolling) on the right, fixed width. */}
         <div className="w-full sm:w-56 sm:shrink-0 lg:w-72">
-          <div className="group flex h-11 items-center gap-1.5 rounded-xl bg-surface pl-3 pr-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-border transition-all focus-within:ring-2 focus-within:ring-primary/50">
+          <div className="group flex h-11 items-center gap-1.5 rounded-xl bg-surface pl-3 pr-1.5 ring-1 ring-border transition-all focus-within:ring-2 focus-within:ring-primary/50">
             <Search
               className="h-4 w-4 shrink-0 text-subtle transition-colors group-focus-within:text-primary"
               aria-hidden
@@ -1790,7 +1938,7 @@ export default function JourneyStepPage({
               type="button"
               onClick={handleSearch}
               aria-label="Search"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_6px_16px_rgba(255,79,134,0.25)] transition-all hover:bg-primary-hover active:scale-95"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-all hover:bg-primary-hover active:scale-95"
             >
               <Search className="h-4 w-4" />
             </button>
@@ -1952,7 +2100,7 @@ export default function JourneyStepPage({
             />
             </>
           ) : (
-            <div className="px-6 text-center border rounded-[28px] border-border bg-surface py-40 shadow-[0_28px_60px_rgba(15,23,42,0.06)]">
+            <div className="px-6 text-center border rounded-[28px] border-border bg-surface py-40">
               <p className="text-base font-semibold text-text">
                 {budgetCapActive
                   ? "No items within your budget"
@@ -1973,7 +2121,7 @@ export default function JourneyStepPage({
                 <button
                   type="button"
                   onClick={() => setIsBudgetModalOpen(true)}
-                  className="mt-6 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm hover:bg-primary-hover"
+                  className="mt-6 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary-hover"
                 >
                   Adjust budget
                 </button>

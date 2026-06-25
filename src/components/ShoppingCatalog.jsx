@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, ChevronsDown, SlidersHorizontal } from "lucide-react";
+import { ChevronRight, ChevronsDown, LayoutGrid, SlidersHorizontal } from "lucide-react";
 import BasketButton from "@/components/BasketButton";
 import ShoppingItemsGrid from "@/components/ShoppingItemsGrid";
 import ShoppingSidebar from "@/components/ShoppingSidebar";
@@ -9,29 +9,19 @@ import { categoryIconPath } from "@/lib/categoryIcon";
 import ShoppingSearchBar from "@/components/ShoppingSearchBar";
 import SubcategoryStrip from "@/components/shopping/SubcategoryStrip";
 
-function itemFabric(item) {
-  const f =
-    item?.attributes?.fabric_material || item?.attributes?.fabric || item?.attributes?.material;
-  if (typeof f === "string") return f.trim();
-  if (Array.isArray(f)) return f.map((v) => String(v).trim()).filter(Boolean);
-  return null;
-}
-
-function matchesFabric(item, selectedFabrics) {
-  if (!selectedFabrics?.length) return true;
-  const f = itemFabric(item);
-  if (!f) return false;
-  if (Array.isArray(f)) {
-    return selectedFabrics.some((sf) => f.some((iv) => iv.toLowerCase() === sf.toLowerCase()));
-  }
-  return selectedFabrics.some((sf) => sf.toLowerCase() === f.toLowerCase());
-}
-
 function matchesPrice(item, minPrice, maxPrice) {
   const price = Number(item?.final_price ?? item?.price ?? 0);
   if (minPrice != null && price < minPrice) return false;
   if (maxPrice != null && price > maxPrice) return false;
   return true;
+}
+
+// "Shop for" facet — item.audience is "bride" | "groom" | "both". An unset or
+// "both" audience matches either gender so unisex items always show.
+function matchesAudience(item, selectedAudience) {
+  if (!selectedAudience) return true;
+  const a = String(item?.audience || "").toLowerCase();
+  return a === "" || a === "both" || a === selectedAudience;
 }
 
 /** Client-side multi-sub filter. When more than one subcategory is picked
@@ -79,9 +69,9 @@ export default function ShoppingCatalog({
   search = "",
   minPrice = null,
   maxPrice = null,
-  selectedFabrics = [],
-  attributeFacets = [],
   selectedAttributes = {},
+  selectedAudience = "",
+  facets = [],
 }) {
   const productItems = items.filter(isProductItem);
   const topCategories = categories.filter((category) => !category.parent_category_id);
@@ -116,13 +106,19 @@ export default function ShoppingCatalog({
   // Multi-sub narrowing always runs client-side. Even when the server
   // already filtered (one sub picked), walking the chain here is cheap
   // and keeps the rule in one place.
-  const attrEntries = Object.entries(selectedAttributes || {});
+  // Active attribute facets — AND across facets, OR within a facet. An item
+  // missing an active facet's attribute is excluded (same as the old fabric
+  // rule). `selectedAttributes` is `{ attributeKey → string[] }`.
+  const activeAttributeEntries = Object.entries(selectedAttributes).filter(
+    ([, values]) => Array.isArray(values) && values.length > 0,
+  );
   const filteredItems = productItems
     .filter((item) => itemBelongsToAny(item, selectedSubcategoryIds, parentByCategoryId))
-    .filter((item) => matchesFabric(item, selectedFabrics))
-    .filter((item) => matchesPrice(item, minPrice, maxPrice))
-    // Schema-driven admin filters (multi-select per facet, AND across facets).
-    .filter((item) => attrEntries.every(([key, vals]) => matchesAttribute(item, key, vals)));
+    .filter((item) => matchesAudience(item, selectedAudience))
+    .filter((item) =>
+      activeAttributeEntries.every(([key, values]) => matchesAttribute(item, key, values)),
+    )
+    .filter((item) => matchesPrice(item, minPrice, maxPrice));
 
   // Render every top category — the strip itself scrolls horizontally
   // once more than ~6 cards no longer fit on a typical desktop.
@@ -194,6 +190,37 @@ export default function ShoppingCatalog({
                 when there are only a few cards; shrink-0 stops the flex parent
                 from collapsing it. */}
             <div className="bg-[#FFEAF0] w-max min-w-full shrink-0 flex items-center gap-5 rounded-xl">
+            {/* "All" — clears the category filter (shows every shopping item). */}
+            {(() => {
+              const isActive = !selectedCategory;
+              return (
+                <Link
+                  key="all-categories"
+                  href={`/shopping${buildQuery({ search })}`}
+                  className={`group relative flex w-48 shrink-0 cursor-pointer flex-col items-center justify-between rounded-4xl px-3 text-center transition-all duration-200 ease-out ${
+                    isActive ? "z-20 -translate-y-2 scale-110 bg-[#780829] py-4 text-primary-foreground" : "py-3 text-text-strong"
+                  }`}
+                >
+                  <div
+                    className={`relative flex w-full shrink-0 items-center justify-center overflow-hidden rounded-lg ${
+                      isActive ? "h-28 text-primary-foreground" : "h-20 text-secondary"
+                    }`}
+                  >
+                    <LayoutGrid className={isActive ? "h-12 w-12" : "h-9 w-9"} strokeWidth={1.5} aria-hidden />
+                  </div>
+                  <div
+                    className={`mt-2 flex items-center justify-center gap-1 text-center text-sm font-medium leading-tight sm:text-base ${
+                      isActive ? "text-primary-foreground" : "text-text-strong"
+                    }`}
+                  >
+                    <span>All</span>
+                    {isActive ? (
+                      <ChevronsDown className="h-4 w-4 shrink-0 text-primary-foreground" aria-hidden strokeWidth={2.25} />
+                    ) : null}
+                  </div>
+                </Link>
+              );
+            })()}
             {showcaseCategories.map((category) => {
               const isActive = selectedCategory?.category_id === category.category_id;
               const categoryImage = category.image_url || "";
@@ -341,18 +368,18 @@ export default function ShoppingCatalog({
         ) : null}
       </section>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-[260px_1fr]">
+      <section className="mt-8 grid items-start gap-6 lg:grid-cols-[260px_1fr]">
         <ShoppingSidebar
           items={productItems}
+          facets={facets}
           filterSubcategories={filterSubcategories}
           selectedCategoryId={selectedCategory?.category_id || ""}
           selectedSubcategoryIds={selectedSubcategoryIds}
           search={search}
-          selectedFabrics={selectedFabrics}
+          selectedAttributes={selectedAttributes}
+          selectedAudience={selectedAudience}
           minPrice={minPrice}
           maxPrice={maxPrice}
-          attributeFacets={attributeFacets}
-          selectedAttributes={selectedAttributes}
         />
 
         <div>

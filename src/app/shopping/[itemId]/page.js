@@ -14,7 +14,7 @@ export async function generateMetadata({ params }) {
       item?.description ||
       item?.subcategory_label ||
       item?.category_label ||
-      "Explore details and add to your wedding shopping cart.";
+      "Explore details and add to your wedding shop cart.";
     const image =
       (Array.isArray(item?.images) ? item.images[0] : item?.image) ||
       `${SITE_URL}/Circular_logo.png`;
@@ -36,7 +36,7 @@ export async function generateMetadata({ params }) {
   } catch {
     return {
       title: "Shopping Item",
-      description: "Explore details and add to your wedding shopping cart.",
+      description: "Explore details and add to your wedding shop cart.",
       alternates: { canonical: `${SITE_URL}/shopping/${itemId}` },
     };
   }
@@ -66,7 +66,7 @@ export default async function ShoppingProductPage({ params }) {
       {schemas && <JsonLd data={schemas} />}
       {/* Unified detail experience — both /items/[id] and /shopping/[id]
           now render the same polished PDP so every item detail page is
-          consistent (variants + shopping cart + specs + policies). */}
+          consistent (variants + Shop cart + specs + policies). */}
       <ProductDetailPage itemId={itemId} />
     </>
   );

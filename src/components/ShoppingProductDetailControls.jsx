@@ -111,7 +111,7 @@ export default function ShoppingProductDetailControls({ cartItem, onVariantChang
         }
       : {};
     addToCart("shopping", { ...cartItem, ...variantPayload }, quantity);
-    toast.success("Added to cart");
+    toast.success("Added to Shop cart");
     router.push("/cart");
   }
 

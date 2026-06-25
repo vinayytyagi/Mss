@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useSyncExternalStore } from "react";
+import { trackEvent } from "./attribution";
 
 const STORAGE_KEY = "mss_carts";
 const CART_EVENT = "mss-cart-change";
@@ -171,6 +172,12 @@ export function addPackageToCart(line) {
     ...current,
     quotation: [...current.quotation, normalizePackageLine(line)],
   }));
+  trackEvent("add_to_cart", {
+    cart: "quotation",
+    line_type: "package",
+    name: line.package_title,
+    value: Number(line.indicative_total) || 0,
+  });
 }
 
 export function addToCart(cartType, item, quantity = 1) {
@@ -191,6 +198,13 @@ export function addToCart(cartType, item, quantity = 1) {
       list.push(normalizeCartItem(item, quantity));
     }
     return { ...current, [cartType]: list };
+  });
+  trackEvent("add_to_cart", {
+    cart: cartType,
+    item_id: item.item_id,
+    name: item.name || "",
+    value: Number(item.final_price) || Number(item.price) || 0,
+    quantity: Math.max(1, Number(quantity) || 1),
   });
 }
 

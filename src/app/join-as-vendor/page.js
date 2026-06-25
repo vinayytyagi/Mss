@@ -142,7 +142,7 @@ export default function JoinAsVendorPage() {
         </section>
 
         {/* How onboarding works */}
-        <section className="mt-20 rounded-3xl bg-primary/5 p-8 sm:p-12">
+        <section className="mt-20 rounded-xl bg-primary/5 p-8 sm:p-12">
           <div className="text-center">
             <h2 className="text-2xl font-black text-text sm:text-3xl">
               Onboarding in 3 steps
@@ -207,7 +207,7 @@ export default function JoinAsVendorPage() {
             </ul>
           </div>
 
-          <div className="rounded-3xl border border-border bg-surface p-6 sm:p-8 lg:self-start">
+          <div className="rounded-xl border border-border bg-surface p-6 sm:p-8 lg:self-start">
             <div className="mb-4 flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
                 <HeartHandshake className="h-5 w-5 text-primary" aria-hidden />

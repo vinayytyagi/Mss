@@ -118,7 +118,7 @@ export default function CareersApplicationForm() {
 
   if (submitted) {
     return (
-      <div className="rounded-3xl border border-primary-soft bg-surface p-8 text-center shadow-[0_18px_46px_rgba(15,23,42,0.06)] sm:p-10">
+      <div className="rounded-xl border border-primary-soft bg-surface p-8 text-center shadow-[0_18px_46px_rgba(15,23,42,0.06)] sm:p-10">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
           <Briefcase className="h-7 w-7" />
         </div>
@@ -135,7 +135,7 @@ export default function CareersApplicationForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-3xl border border-border bg-surface p-6 shadow-[0_18px_46px_rgba(15,23,42,0.06)] sm:p-8"
+      className="rounded-xl border border-border bg-surface p-6 shadow-[0_18px_46px_rgba(15,23,42,0.06)] sm:p-8"
     >
       <div className="flex items-start gap-4">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary">

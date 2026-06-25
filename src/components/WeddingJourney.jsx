@@ -37,7 +37,7 @@ export default function WeddingJourney() {
 
       {/* Mobile timeline */}
       <div className="w-full max-w-xl mx-auto mb-10 md:hidden">
-        <div className="p-4 space-y-3 shadow-sm rounded-3xl bg-surface/70">
+        <div className="p-4 space-y-3 shadow-sm rounded-xl bg-surface/70">
           {milestones.map((item, index) => (
             <div key={item} className="flex items-start gap-3">
               <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">

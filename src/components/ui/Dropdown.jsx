@@ -32,6 +32,10 @@ export default function Dropdown({
   className = "",
   disabled = false,
   ariaLabel,
+  // Text colour for the placeholder (no-selection) state. Defaults to the muted
+  // placeholder look; filter dropdowns pass "text-text" so an unapplied filter
+  // reads as a normal label rather than a faded hint.
+  placeholderClassName = "text-subtle",
 }) {
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
@@ -41,6 +45,11 @@ export default function Dropdown({
 
   const opts = useMemo(() => (options || []).filter(Boolean), [options]);
   const selected = opts.find((o) => String(o.value) === String(value)) || null;
+  // An empty value ("" / null / undefined) means "nothing selected" — show the
+  // placeholder on the trigger even when an explicit empty-value option exists
+  // (e.g. an "All" reset option in a filter). That option still renders +
+  // checks inside the open menu.
+  const showSelected = selected != null && value !== undefined && value !== null && value !== "";
 
   // Position (and reposition) the portaled menu while open.
   useEffect(() => {
@@ -136,9 +145,9 @@ export default function Dropdown({
           ${open ? "border-primary ring-2 ring-primary/15" : "border-border hover:border-primary/40"}
           ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
       >
-        <span className={`flex min-w-0 items-center gap-2 truncate ${selected ? "text-text" : "text-subtle"}`}>
-          {selected?.icon ? <span className="shrink-0 text-muted">{selected.icon}</span> : null}
-          <span className="truncate">{selected ? selected.label : placeholder}</span>
+        <span className={`flex min-w-0 items-center gap-2 truncate ${showSelected ? "text-text" : placeholderClassName}`}>
+          {showSelected && selected?.icon ? <span className="shrink-0 text-muted">{selected.icon}</span> : null}
+          <span className="truncate">{showSelected ? selected.label : placeholder}</span>
         </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180 text-primary" : "text-subtle"}`}

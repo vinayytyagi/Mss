@@ -227,7 +227,7 @@ export default function HowItWorksPageServer() {
         </Section>
 
         {/* ── CTA ─────────────────────────────────────────────────── */}
-        <section className="my-24 overflow-hidden rounded-3xl border border-border bg-surface">
+        <section className="my-24 overflow-hidden rounded-xl border border-border bg-surface">
           <div className="relative bg-primary-soft px-8 py-14 text-center sm:px-12 sm:py-20">
             <Flourish className="mx-auto h-5 w-20 text-primary" />
             <h2 className={`${serif} mt-5 text-4xl font-bold leading-tight text-text-strong sm:text-5xl`}>

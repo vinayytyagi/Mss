@@ -1,5 +1,14 @@
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+
+// Pin the workspace root to THIS app. Without it, Next 16/Turbopack infers the
+// root from the nearest lockfile and (because of a stray ~/package-lock.json)
+// picks the home directory — breaking module resolution (tailwindcss, etc.).
+const projectRoot = dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  turbopack: { root: projectRoot },
   images: {
     remotePatterns: [
       {

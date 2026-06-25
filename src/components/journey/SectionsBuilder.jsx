@@ -730,7 +730,7 @@ export default function SectionsBuilder({
       quantity: 1,
     };
     addPackageToCart(line);
-    toast.success("Added to quote basket", {
+    toast.success("Added to Quote cart", {
       description: line.package_title,
     });
     // reset selections so the next package starts clean (keep event date).
@@ -994,7 +994,7 @@ export default function SectionsBuilder({
             ) : (
               <CheckCircle2 className="h-5 w-5" />
             )}
-            {hasDate ? "Add to quote cart" : "Set event date to continue"}
+            {hasDate ? "Add to Quote cart" : "Set event date to continue"}
           </button>
         </div>
       </div>

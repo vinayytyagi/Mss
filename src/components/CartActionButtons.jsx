@@ -16,8 +16,8 @@ export default function CartActionButtons({
   item,
   showQuotation = true,
   showShopping = false,
-  quotationLabel = "Add to Basket",
-  shoppingLabel = "Add to Cart",
+  quotationLabel = "Add to Quote cart",
+  shoppingLabel = "Add to Shop cart",
   layout = "row",
   redirectOnShoppingAdd = false,
 }) {
@@ -32,7 +32,7 @@ export default function CartActionButtons({
 
   function handleAdd(type) {
     addToCart(type, item, 1);
-    flash(type === "quotation" ? "Added to basket" : "Added to shopping cart");
+    flash(type === "quotation" ? "Added to Quote cart" : "Added to Shop cart");
     if (type === "shopping" && redirectOnShoppingAdd) {
       router.push("/cart");
     }
@@ -42,13 +42,13 @@ export default function CartActionButtons({
     <div className={`flex ${layout === "column" ? "flex-col" : "flex-wrap"} gap-3`}>
       {showQuotation ? (
         <button type="button" onClick={() => handleAdd("quotation")} className={baseButtonClass("quotation")}>
-          {feedback === "Added to basket" ? "Added" : quotationLabel}
+          {feedback === "Added to Quote cart" ? "Added" : quotationLabel}
         </button>
       ) : null}
 
       {showShopping ? (
         <button type="button" onClick={() => handleAdd("shopping")} className={baseButtonClass("shopping")}>
-          {feedback === "Added to shopping cart" ? "Added" : shoppingLabel}
+          {feedback === "Added to Shop cart" ? "Added" : shoppingLabel}
         </button>
       ) : null}
     </div>

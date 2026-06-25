@@ -6,8 +6,8 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { clearAuthCookies, useAuthUser } from "@/lib/authCookies";
 import BasketButton from "@/components/BasketButton";
-import { useWishlistState } from "@/lib/wishlistStore";
-import { useCartSummary } from "@/lib/cartStore";
+import { useWishlistState, clearWishlist } from "@/lib/wishlistStore";
+import { useCartSummary, clearAllCarts, setEventDate } from "@/lib/cartStore";
 import LogoutConfirmModal from "@/components/LogoutConfirmModal";
 import { User, Package, Truck, LogOut, Menu, X, Heart, RefreshCw, Receipt, ShoppingCart, Home, ShoppingBag, HelpCircle, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -55,8 +55,8 @@ function CartHeaderButton() {
       </Link>
       <Link
         href="/cart?tab=shopping"
-        aria-label="Shopping cart"
-        title="Shopping cart"
+        aria-label="Shop cart"
+        title="Shop cart"
         className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border-strong text-primary transition hover:bg-surface-muted"
       >
         <ShoppingCart className="h-5 w-5" strokeWidth={2} />
@@ -105,11 +105,13 @@ export default function SiteHeader({ steps = [], initialUser = null }) {
     setShowLogoutModal(false);
     setLogoutModalPathname(null);
     clearAuthCookies();
-    // Intentionally NOT clearing carts or wishlist — the basket is the
-    // customer's working draft on this device. If they log back in (even
-    // as a different user) they should still see the items they were
-    // about to buy, otherwise an accidental logout means the whole
-    // session's work disappears.
+    // Clear the customer's local session data on logout so the next person on
+    // this device (or the logged-out state) doesn't see the previous user's
+    // basket and wishlist. These live in localStorage; the abandoned-cart
+    // server mirror is keyed separately and is untouched.
+    clearAllCarts();
+    clearWishlist();
+    setEventDate("");
     toast.success("Logged out successfully.");
     router.replace("/");
     router.refresh();
