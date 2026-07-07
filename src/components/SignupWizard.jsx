@@ -89,8 +89,10 @@ function computeDbResumePath(user) {
   if (!String(o.groom_or_bride || "").trim()) return "/signup/groom-bride";
   if (!(Number(o.function_days) > 0)) return "/signup/days";
   if (!(Number(o.guests_count) > 0)) return "/signup/guests";
+  // budget_allocations isn't kept in the auth cookie (size); a positive
+  // budget_total also means the budget step was completed.
   const allocs = Array.isArray(o.budget_allocations) ? o.budget_allocations : [];
-  if (allocs.length === 0) return "/signup/budget";
+  if (allocs.length === 0 && !(Number(o.budget_total) > 0)) return "/signup/budget";
   return null;
 }
 
@@ -108,6 +110,7 @@ export default function SignupWizard({ step }) {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   // Pick up a `?redirect=…` if the user landed here from a gated page
   // (e.g. /cart). On successful registration we send them there instead
   // of the default /journey/venue. We also propagate it on the back-to-
@@ -666,7 +669,7 @@ export default function SignupWizard({ step }) {
       >
         <form className="space-y-5" noValidate onSubmit={handlePasswordSubmit}>
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             placeholder="Create password"
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
@@ -675,7 +678,7 @@ export default function SignupWizard({ step }) {
             autoComplete="new-password"
           />
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             placeholder="Confirm password"
             value={form.confirmPassword}
             onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))}
@@ -683,6 +686,15 @@ export default function SignupWizard({ step }) {
             required
             autoComplete="new-password"
           />
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-muted">
+            <input
+              type="checkbox"
+              checked={showPassword}
+              onChange={(e) => setShowPassword(e.target.checked)}
+              className="h-4 w-4 cursor-pointer accent-primary"
+            />
+            Show password
+          </label>
           <p className="text-xs leading-relaxed text-muted">
             Password must be 8+ characters with upper, lower, number, and a special character.
           </p>
@@ -1081,7 +1093,7 @@ export default function SignupWizard({ step }) {
       const ok = await persistBudget("done");
       if (!ok) return;
       clearState();
-      router.push(redirectTo || "/journey/venue");
+      router.push(redirectTo || "/journey/venues");
     }
     return (
       <AuthScene

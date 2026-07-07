@@ -9,6 +9,9 @@ export default function AuthScene({
   activeStep = 0,
 }) {
   const hasStepper = Array.isArray(stepLabels) && stepLabels.length > 0;
+  const displayTitle = title || "Plan Your Dream Wedding";
+  const normalized = displayTitle.toLowerCase().trim();
+  const hasIcon = normalized === "welcome back" || normalized === "plan your dream wedding";
 
   return (
     <main className="relative flex min-h-screen w-full items-center justify-center bg-text-strong selection:bg-primary selection:text-primary-foreground">
@@ -83,8 +86,19 @@ export default function AuthScene({
 
               <div className="overflow-hidden rounded-xl border border-surface/50 bg-primary-soft p-8 shadow-[0_30px_90px_rgba(0,0,0,0.45)] ring-1 ring-text-strong/5 backdrop-blur-sm sm:p-10">
                 <div className="mb-8 text-center">
-                  <h1 className="text-3xl font-semibold leading-tight tracking-tight text-text-strong sm:text-4xl">
-                    {title || "Plan Your Dream Wedding"}
+                  <h1 className="flex items-center justify-center gap-3 text-3xl font-semibold leading-tight tracking-tight text-text-strong sm:text-4xl">
+                    {hasIcon && (
+                      <Image
+                        src="/Circular_logo.png"
+                        alt="MyShaadiStore"
+                        width={40}
+                        height={40}
+                        quality={100}
+                        priority
+                        className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12"
+                      />
+                    )}
+                    <span>{displayTitle}</span>
                   </h1>
                   {subtitle ? (
                     <p className="mt-2 text-sm font-medium text-muted sm:text-base">
@@ -99,8 +113,19 @@ export default function AuthScene({
         ) : (
           <div className="overflow-hidden rounded-xl border border-surface/50 bg-primary-soft p-8 shadow-[0_30px_90px_rgba(0,0,0,0.45)] ring-1 ring-text-strong/5 backdrop-blur-sm sm:p-10">
             <div className="mb-10 text-center">
-              <h1 className="text-3xl font-semibold leading-tight tracking-tight text-text-strong sm:text-4xl">
-                {title || "Plan Your Dream Wedding"}
+              <h1 className="flex items-center justify-center gap-3 text-3xl font-semibold leading-tight tracking-tight text-text-strong sm:text-4xl">
+                {hasIcon && (
+                  <Image
+                    src="/Circular_logo.png"
+                    alt="MyShaadiStore"
+                    width={40}
+                    height={40}
+                    quality={100}
+                    priority
+                    className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12"
+                  />
+                )}
+                <span>{displayTitle}</span>
               </h1>
               {subtitle ? (
                 <p className="mt-2 text-sm font-medium text-muted sm:text-base">

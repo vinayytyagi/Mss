@@ -180,7 +180,7 @@ export default function HeroSection({ heroSlideshow = null }) {
             </Link>
             {/* Card 4 */}
             <Link
-              href="/journey/venue"
+              href="/journey/venues"
               className="flex items-center gap-3 p-2.5 transition-all cursor-pointer group sm:gap-5 sm:p-4"
             >
               <div className="flex items-center justify-center w-14 h-14 bg-surface rounded-[18px] text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">

@@ -81,7 +81,7 @@ export default function SiteFooterMaroon({ steps = [] }) {
     },
     [steps],
   );
-  const venueHref = journeyHref("venue", "/journey/venue");
+  const venueHref = journeyHref("venues", "/journey/venues");
   const decorHref = journeyHref("decor", "/journey/decor");
   const photographyHref = journeyHref("photography", "/journey/photography");
   const shoppingHref = journeyHref("shopping", "/shopping");

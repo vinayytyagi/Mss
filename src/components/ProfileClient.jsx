@@ -274,6 +274,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
   const [editName, setEditName] = useState(initialProfile?.name || "");
   const [editEmail, setEditEmail] = useState(initialProfile?.email || "");
   const [editImage, setEditImage] = useState(initialProfile?.image_url || "");
+  const [editDob, setEditDob] = useState(initialProfile?.dob || "");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
 
@@ -305,7 +306,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
     setSaving(true);
     try {
       const token = getAuthToken();
-      const result = await updateMyProfile(token, { name: editName, email: editEmail, image_url: editImage });
+      const result = await updateMyProfile(token, { name: editName, email: editEmail, image_url: editImage, dob: editDob });
       setProfile(result.user);
       // Update cookie so header reflects changes
       saveAuthCookies({ token, user: result.user });
@@ -807,6 +808,15 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                   />
                   <p className="mt-1 text-xs text-subtle">Phone number cannot be changed</p>
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-widest text-subtle">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={editDob || ""}
+                    onChange={(e) => setEditDob(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-border-strong bg-surface px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring focus:ring-primary/20"
+                  />
+                </div>
                 <div id="profile-photo-upload" className="pt-2">
                   <ImageUpload
                     label="Profile Photo"
@@ -832,6 +842,7 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                       setEditName(profile?.name || "");
                       setEditEmail(profile?.email || "");
                       setEditImage(profile?.image_url || "");
+                      setEditDob(profile?.dob || "");
                     }}
                     className="flex cursor-pointer items-center gap-2 rounded-xl border border-border-strong px-5 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-muted"
                   >
@@ -852,6 +863,23 @@ export default function ProfileClient({ initialProfile = null, initialOrders = [
                 <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
                   <p className="text-xs text-subtle">Email</p>
                   <p className="mt-1 text-sm font-bold text-text">{profile?.email || "Not provided"}</p>
+                </div>
+                <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
+                  <p className="text-xs text-subtle">Date of Birth / Age</p>
+                  <p className="mt-1 text-sm font-bold text-text">
+                    {profile?.dob ? (
+                      <>
+                        {new Date(profile.dob).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                        {(() => {
+                          const birth = new Date(profile.dob);
+                          if (isNaN(birth.getTime())) return "";
+                          const diff = Date.now() - birth.getTime();
+                          const age = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+                          return ` (Age: ${age} years)`;
+                        })()}
+                      </>
+                    ) : "Not provided"}
+                  </p>
                 </div>
                 <div className="rounded-2xl bg-surface-muted/80 px-5 py-4">
                   <p className="text-xs text-subtle">Account Status</p>

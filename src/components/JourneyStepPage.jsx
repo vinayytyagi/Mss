@@ -56,7 +56,7 @@ function categoryUrlSegment(c) {
  * yet (mirrors `mss-admin/src/lib/constants/journeySteps.js`).
  */
 const STEP_NATURE_BY_SLUG = {
-  venue: "product",
+  venues: "product",
   shopping: "product",
   gifting: "product",
   streedhan: "product",
@@ -108,7 +108,7 @@ function highlightsForItem(step, item) {
       add("Type", a.gift_type || a.category);
       add("Pack of", a.pack_size);
       break;
-    case "venue":
+    case "venues":
       add("Capacity", a.capacity || a.max_guests);
       add("Type", a.venue_type);
       break;

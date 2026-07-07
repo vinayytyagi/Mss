@@ -22,7 +22,7 @@ export {
   progressiveSave,
   registerWithPhonePassword,
   loginUser,
-  requestResetOtp,
+  requestPasswordResetLink,
   resetPassword,
   googleAuth,
   completeGooglePhone,

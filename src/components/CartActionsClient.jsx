@@ -468,6 +468,13 @@ export default function CartActionsClient({ activeCart = "shopping" }) {
         items: carts.shopping,
       };
 
+      // Funnel analytics: customer has entered checkout (validated + paying).
+      // The gap to "purchase" is the checkout drop-off rate.
+      trackEvent("checkout_started", {
+        items: carts.shopping.length,
+        value: Math.round(shoppingTotal),
+      });
+
       const idempotencyKey = makeIdempotencyKey("orders", orderPayload);
       const response = await createShoppingOrder(orderPayload, { idempotencyKey });
 

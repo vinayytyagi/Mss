@@ -11,7 +11,7 @@
  */
 
 export const JOURNEY_MODE = Object.freeze({
-  venue: { mode: "product" },
+  venues: { mode: "product" },
   decor: { mode: "product", capture_details: true },
   shopping: { mode: "product" },
   catering: {

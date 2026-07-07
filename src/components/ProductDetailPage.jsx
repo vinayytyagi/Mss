@@ -54,6 +54,7 @@ import {
   updateCartQuantity,
   removeFromCart,
 } from "@/lib/cartStore";
+import { trackEvent } from "@/lib/attribution";
 import {
   addToWishlist,
   removeFromWishlist,
@@ -389,6 +390,20 @@ export default function ProductDetailPage({ itemId }) {
     },
     [],
   );
+
+  // Funnel analytics: fire one product_view per loaded item. Powers the
+  // conversion-rate, product-wise conversion and top-viewed-products reports.
+  const viewedItemRef = useRef(null);
+  useEffect(() => {
+    const id = item ? String(item._id || item.item_id || "") : "";
+    if (!id || viewedItemRef.current === id) return;
+    viewedItemRef.current = id;
+    trackEvent("product_view", {
+      item_id: id,
+      name: item.name || item.title || "",
+      price: Number(item.final_price ?? item.price) || 0,
+    });
+  }, [item]);
 
   useEffect(() => {
     let cancelled = false;

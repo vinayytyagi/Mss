@@ -39,9 +39,9 @@ export async function fetchMyServiceOrder(token, id) {
 }
 
 /** Approve the whole compiled multi-line quote on a service order. Locks the customer's choice. */
-export async function approveServiceQuote(token, id, { idempotencyKey } = {}) {
+export async function approveServiceQuote(token, id, { advancePct, idempotencyKey } = {}) {
   return apiPost(`/user/service-orders/${encodeURIComponent(id)}/approve`, {
-    payload: {},
+    payload: advancePct != null ? { advance_pct: advancePct } : {},
     headers: withAuthHeaders(token),
     idempotencyKey,
   });

@@ -3,19 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { User, Lock } from "lucide-react";
 import AuthScene from "@/components/AuthScene";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import { getAuthToken, getAuthUser, saveAuthCookies } from "@/lib/authCookies";
 import {
   loginUser,
-  requestResetOtp,
-  resetPassword,
-  verifyUserOtp,
+  requestPasswordResetLink,
   googleAuth,
   completeGooglePhone,
 } from "@/lib/api";
-import { isValidIndianPhone, normalizeIndianPhone, validatePasswordStrength } from "@/lib/authValidation";
-import { makeIdempotencyKey } from "@/lib/idempotencyKey";
+import { isValidEmail, isValidIndianPhone, normalizeIndianPhone } from "@/lib/authValidation";
 import { sendAttribution } from "@/lib/attribution";
 import { toast } from "sonner";
 
@@ -36,8 +34,10 @@ function computeResumePhaseFromOnboarding(onboarding = {}) {
   if (!(Number(o.function_days) > 0)) return "functionDays";
   if (!(Number(o.guests_count) > 0)) return "guests";
 
+  // `budget_allocations` is intentionally not stored in the auth cookie (size),
+  // so treat a positive budget_total as "budget done" too.
   const allocs = Array.isArray(o.budget_allocations) ? o.budget_allocations : [];
-  if (allocs.length === 0) return "budget";
+  if (allocs.length === 0 && !(Number(o.budget_total) > 0)) return "budget";
 
   return "done";
 }
@@ -69,21 +69,6 @@ function resumePathFromUser(user) {
   );
 }
 
-function PhoneIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 opacity-40">
-      <path d="M5.121 17.804A13.937 13.937 0 013.5 12c0-4.418 3.582-8 8-8s8 3.582 8 8a13.937 13.937 0 01-1.621 5.804M12 20h.01m-4.01-1h8m-8-2h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function LockIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 opacity-40">
-      <path d="M12 11v2m0 4h.01m-6.01-6h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6a2 2 0 012-2zm3-3V7a3 3 0 116 0v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 function SocialAuth() {
   const router = useRouter();
@@ -109,7 +94,11 @@ function SocialAuth() {
     saveAuthCookies(data);
     sendAttribution(getAuthToken()).catch(() => {});
     const r = searchParams.get("redirect") || searchParams.get("returnTo");
-    router.push(r || "/");
+    // Full-page navigation (not router.push) so the server re-reads the
+    // freshly-set mss_user cookie and the header renders logged-in. A
+    // client-side push left the persistent navbar showing Login/Sign up
+    // after Google sign-in (stale SSR state in the force-dynamic layout).
+    window.location.assign(r || "/");
   }
 
   async function onCredential(credential) {
@@ -194,8 +183,7 @@ export default function LoginFlow({ initialSteps = [] }) {
   const [steps] = useState(initialSteps);
   const [mode, setMode] = useState("login");
   const [loading, setLoading] = useState(false);
-  const [devOtp, setDevOtp] = useState("");
-  const [verificationToken, setVerificationToken] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   // Remember the redirect target across re-renders so the "Sign up"
   // link can pass it along (otherwise the customer signs up and lands
   // on /journey/venue instead of the page they were originally trying
@@ -205,11 +193,9 @@ export default function LoginFlow({ initialSteps = [] }) {
     ? `/signup?redirect=${encodeURIComponent(redirectTo)}`
     : "/signup";
   const [form, setForm] = useState({
-    phone: "",
+    identifier: "",
     password: "",
-    otp: "",
-    newPassword: "",
-    confirmPassword: "",
+    resetEmail: "",
   });
 
   useEffect(() => {
@@ -240,17 +226,36 @@ export default function LoginFlow({ initialSteps = [] }) {
     setLoading(true);
     resetMessages();
     try {
-      const phone = normalizeIndianPhone(form.phone);
-      if (!isValidIndianPhone(phone)) {
-        throw new Error("Enter a valid 10-digit Indian phone number.");
+      const raw = String(form.identifier || "").trim();
+      if (!raw) {
+        throw new Error("Enter your phone number or email.");
+      }
+      // Either a 10-digit Indian phone OR an email is accepted.
+      let identifier;
+      if (raw.includes("@")) {
+        const email = raw.toLowerCase();
+        if (!isValidEmail(email)) {
+          throw new Error("Enter a valid email address.");
+        }
+        identifier = email;
+      } else {
+        const phone = normalizeIndianPhone(raw);
+        if (!isValidIndianPhone(phone)) {
+          throw new Error("Enter a valid 10-digit phone number or an email.");
+        }
+        identifier = phone;
       }
       if (!form.password.trim()) {
         throw new Error("Password is required.");
       }
-      const payload = { phone, purpose: "login" };
-      const idempotencyKey = makeIdempotencyKey("auth/login", payload);
-      const data = await loginUser(phone, form.password, { idempotencyKey });
+      const data = await loginUser(identifier, form.password);
+      if (!data?.token || !data?.user) {
+        throw new Error("Login failed. Please try again.");
+      }
       saveAuthCookies(data);
+      // Re-render server components (e.g. the header) so they pick up the
+      // freshly-set auth cookie instead of replaying the logged-out render.
+      router.refresh();
       // First-touch lead attribution: flush the captured source to the profile.
       sendAttribution(getAuthToken()).catch(() => {});
       toast.success("Login successful.");
@@ -282,83 +287,24 @@ export default function LoginFlow({ initialSteps = [] }) {
     }
   }
 
-  async function handleRequestResetOtp(e) {
+  async function handleForgotPassword(e) {
     e.preventDefault();
     setLoading(true);
     resetMessages();
     try {
-      const phone = normalizeIndianPhone(form.phone);
-      if (!isValidIndianPhone(phone)) {
-        throw new Error("Enter a valid 10-digit Indian phone number.");
+      const email = String(form.resetEmail || "").trim().toLowerCase();
+      if (!isValidEmail(email)) {
+        throw new Error("Enter a valid email address.");
       }
-      const payload = { phone, purpose: "reset" };
-      const idempotencyKey = makeIdempotencyKey("auth/request-reset-otp", payload);
-      const data = await requestResetOtp(phone, { idempotencyKey });
-      setDevOtp(data.devOtp || "");
-      toast.success("OTP sent for password reset.");
-      setMode("resetOtp");
+      await requestPasswordResetLink(email);
+      toast.success("Reset link sent. Check your inbox — it expires in 30 minutes.");
+      setMode("resetSent");
     } catch (e2) {
-      toast.error(e2.message || "Failed to send reset OTP.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerifyResetOtp(e) {
-    e.preventDefault();
-    setLoading(true);
-    resetMessages();
-    try {
-      const phone = normalizeIndianPhone(form.phone);
-      if (!isValidIndianPhone(phone)) {
-        throw new Error("Enter a valid 10-digit Indian phone number.");
-      }
-      if (!/^\d{6}$/.test(form.otp)) {
-        throw new Error("Enter the 6-digit OTP sent to your phone.");
-      }
-      const payload = { phone, otp: form.otp, purpose: "reset" };
-      const idempotencyKey = makeIdempotencyKey("auth/verify-reset-otp", payload);
-      const data = await verifyUserOtp(phone, form.otp, "reset", { idempotencyKey });
-      setVerificationToken(data.verificationToken);
-      toast.success("OTP verified.");
-      setMode("resetPassword");
-    } catch (e2) {
-      toast.error(e2.message || "Invalid OTP.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleResetPassword(e) {
-    e.preventDefault();
-    setLoading(true);
-    resetMessages();
-    try {
-      const passwordError = validatePasswordStrength(form.newPassword);
-      if (passwordError) {
-        throw new Error(passwordError);
-      }
-      if (form.newPassword !== form.confirmPassword) {
-        throw new Error("Passwords do not match.");
-      }
-      const payload = {
-        verification_token: verificationToken,
-        password: form.newPassword,
-      };
-      const keyPayload = { verification_token: verificationToken, purpose: "reset-password" };
-      const idempotencyKey = makeIdempotencyKey("auth/reset-password", keyPayload);
-      await resetPassword(payload, { idempotencyKey });
-      toast.success("Password reset successful. Please login.");
-      setMode("login");
-      setForm((f) => ({
-        ...f,
-        password: "",
-        otp: "",
-        newPassword: "",
-        confirmPassword: "",
-      }));
-    } catch (e2) {
-      toast.error(e2.message || "Failed to reset password.");
+      // The backend tells us when an email isn't registered (UX over enumeration).
+      const msg = e2?.code === "EMAIL_NOT_FOUND" || /not registered/i.test(e2?.message || "")
+        ? "This email is not registered."
+        : e2?.message || "Failed to send reset link.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -369,50 +315,40 @@ export default function LoginFlow({ initialSteps = [] }) {
       title={
         mode === "login"
           ? "Welcome Back"
-          : mode === "resetRequest"
-            ? "Forgot Password?"
-            : mode === "resetOtp"
-              ? "Verify OTP"
-              : "Set Password"
+          : mode === "resetSent"
+            ? "Check your email"
+            : "Forgot Password?"
       }
       subtitle={
         mode === "login"
           ? "Login to your account to continue your journey."
-          : mode === "resetRequest"
-            ? "We'll send an OTP to your registered number."
-            : mode === "resetOtp"
-              ? "Enter the 6-digit code sent to your phone."
-              : "Create a new secure password for your account."
+          : mode === "resetSent"
+            ? "We've emailed you a secure link to reset your password."
+            : "Enter your registered email — we'll send you a reset link."
       }
       variant={mode === "login" ? 0 : 2}
     >
       <div className="space-y-6">
-        {mode === "resetOtp" && devOtp ? (
-          <p className="rounded-2xl bg-surface-muted px-4 py-3 text-center text-sm font-semibold text-text">
-            Dev OTP: <span className="font-bold text-text-strong">{devOtp}</span>
-          </p>
-        ) : null}
-
         {mode === "login" ? (
           <form className="space-y-5" onSubmit={handleLogin}>
             <div className="relative flex items-center">
-              <span className="absolute left-6 text-md font-semibold text-subtle">+91</span>
+              <span className="pointer-events-none absolute left-4 text-subtle"><User className="h-5 w-5" strokeWidth={2} /></span>
               <input
-                type="tel"
-                inputMode="numeric"
-                maxLength={10}
-                placeholder="Enter your phone number"
-                value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: normalizeIndianPhone(e.target.value) }))}
-                className={`${INPUT_CLASS} pl-14 placeholder:text-border-strong`}
+                type="text"
+                inputMode="email"
+                autoComplete="username"
+                placeholder="Phone number or email"
+                value={form.identifier}
+                onChange={(e) => setForm((f) => ({ ...f, identifier: e.target.value }))}
+                className={`${INPUT_CLASS} pl-12 placeholder:text-border-strong`}
                 required
               />
             </div>
-            
+
             <div className="relative flex items-center">
-              <span className="absolute left-6"><LockIcon strokeWidth={4} /></span>
+              <span className="pointer-events-none absolute left-4 text-subtle"><Lock className="h-5 w-5" strokeWidth={2} /></span>
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
@@ -421,6 +357,16 @@ export default function LoginFlow({ initialSteps = [] }) {
               />
             </div>
 
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-muted">
+              <input
+                type="checkbox"
+                checked={showPassword}
+                onChange={(e) => setShowPassword(e.target.checked)}
+                className="h-4 w-4 cursor-pointer accent-primary"
+              />
+              Show password
+            </label>
+
             <button
               type="submit"
               disabled={loading}
@@ -428,19 +374,19 @@ export default function LoginFlow({ initialSteps = [] }) {
             >
               {loading ? "Verifying..." : "Continue"}
             </button>
-            
+
             <button
               type="button"
               onClick={() => {
                 resetMessages();
-                setDevOtp("");
+                setForm((f) => ({ ...f, resetEmail: f.identifier.includes("@") ? f.identifier : "" }));
                 setMode("resetRequest");
               }}
               className="mx-auto block cursor-pointer text-sm font-bold text-primary hover:underline"
             >
               Forgot password?
             </button>
-            
+
             <SocialAuth />
 
             <div className="pt-2 text-center text-sm font-medium text-muted">
@@ -453,20 +399,17 @@ export default function LoginFlow({ initialSteps = [] }) {
         ) : null}
 
         {mode === "resetRequest" ? (
-          <form className="space-y-5" onSubmit={handleRequestResetOtp}>
-             <div className="relative flex items-center">
-              <span className="absolute left-6 text-md font-semibold text-subtle">+91</span>
-              <input
-                type="tel"
-                inputMode="numeric"
-                maxLength={10}
-                placeholder="9876543210"
-                value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: normalizeIndianPhone(e.target.value) }))}
-                className={`${INPUT_CLASS} pl-14`}
-                required
-              />
-            </div>
+          <form className="space-y-5" onSubmit={handleForgotPassword}>
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="Enter your registered email"
+              value={form.resetEmail}
+              onChange={(e) => setForm((f) => ({ ...f, resetEmail: e.target.value }))}
+              className={INPUT_CLASS}
+              required
+            />
             <div className="flex gap-4">
               <button
                 type="button"
@@ -480,78 +423,27 @@ export default function LoginFlow({ initialSteps = [] }) {
                 disabled={loading}
                 className={`flex-1 cursor-pointer ${PRIMARY_BTN_CLASS}`}
               >
-                {loading ? "Sending..." : "Send OTP"}
+                {loading ? "Sending..." : "Send reset link"}
               </button>
             </div>
           </form>
         ) : null}
 
-        {mode === "resetOtp" ? (
-          <form className="space-y-5" onSubmit={handleVerifyResetOtp}>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="Enter OTP"
-              value={form.otp}
-              onChange={(e) => setForm((f) => ({ ...f, otp: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
-              className={`${INPUT_CLASS} tracking-[0.2em]`}
-              required
-            />
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setMode("resetRequest")}
-                className={`flex-1 cursor-pointer ${SECONDARY_BTN_CLASS}`}
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className={`flex-1 cursor-pointer ${PRIMARY_BTN_CLASS}`}
-              >
-                {loading ? "Verifying..." : "Verify OTP"}
-              </button>
-            </div>
-          </form>
-        ) : null}
-
-        {mode === "resetPassword" ? (
-          <form className="space-y-5" onSubmit={handleResetPassword}>
-            <input
-              type="password"
-              placeholder="New password"
-              value={form.newPassword}
-              onChange={(e) => setForm((f) => ({ ...f, newPassword: e.target.value }))}
-              className={INPUT_CLASS}
-              required
-            />
-            <input
-              type="password"
-              placeholder="Confirm password"
-              value={form.confirmPassword}
-              onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))}
-              className={INPUT_CLASS}
-              required
-            />
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setMode("resetOtp")}
-                className={`flex-1 cursor-pointer ${SECONDARY_BTN_CLASS}`}
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className={`flex-1 cursor-pointer ${PRIMARY_BTN_CLASS}`}
-              >
-                {loading ? "Saving..." : "Reset Password"}
-              </button>
-            </div>
-          </form>
+        {mode === "resetSent" ? (
+          <div className="space-y-5">
+            <p className="rounded-2xl bg-surface-muted px-4 py-3 text-center text-sm font-medium text-text">
+              A password reset link has been sent to{" "}
+              <span className="font-bold text-text-strong">{form.resetEmail}</span>.
+              It expires in 30 minutes.
+            </p>
+            <button
+              type="button"
+              onClick={() => setMode("login")}
+              className={`w-full cursor-pointer ${PRIMARY_BTN_CLASS}`}
+            >
+              Back to login
+            </button>
+          </div>
         ) : null}
       </div>
     </AuthScene>

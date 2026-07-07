@@ -248,7 +248,7 @@ export default function HowItWorksPageServer() {
                 Chat with us on WhatsApp
               </a>
               <Link
-                href="/journey/venue"
+                href="/journey/venues"
                 className="inline-flex h-12 min-w-56 items-center justify-center gap-2 rounded-full border border-secondary bg-surface px-7 text-sm font-semibold text-secondary transition hover:bg-primary-soft"
               >
                 Browse our services

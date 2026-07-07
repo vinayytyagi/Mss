@@ -31,7 +31,7 @@ const TABS = [
     label: "Journey items",
     // ItemCardV2 wishlist-kind mapping uses cartKind "quotation" → "journey".
     cartKind: "quotation",
-    emptyCtaHref: "/journey/venue",
+    emptyCtaHref: "/journey/venues",
     emptyCtaLabel: "Browse journey items",
   },
   {

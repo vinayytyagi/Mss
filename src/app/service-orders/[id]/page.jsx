@@ -315,6 +315,7 @@ export default function CustomerServiceOrderDetailPage() {
   const [error, setError] = useState("");
   const [loggedOut, setLoggedOut] = useState(false);
   const [actionId, setActionId] = useState("");
+  const [payChoice, setPayChoice] = useState("advance"); // "advance" | "full"
   const [actionError, setActionError] = useState("");
 
   async function load(token, signal) {
@@ -362,7 +363,9 @@ export default function CustomerServiceOrderDetailPage() {
     setActionError("");
     setActionId("approve");
     try {
-      await approveServiceQuote(token, id);
+      // payChoice: "advance" → pay the configured advance %; "full" → 100% upfront.
+      const advancePct = payChoice === "full" ? 100 : undefined;
+      await approveServiceQuote(token, id, { advancePct });
       await refetch();
     } catch (e) {
       setActionError(e?.message || "Couldn't approve this quote.");
@@ -564,6 +567,54 @@ export default function CustomerServiceOrderDetailPage() {
 
                 {isQuoteReady ? (
                   <div className="mt-5">
+                    {/* Payment choice — pay the configured advance %, or 100% upfront. */}
+                    {(() => {
+                      const total = Number(data.quote_total) || 0;
+                      const advPct = Number(data.advance?.pct) || 0;
+                      const advAmt = Number(data.advance?.amount) || Math.round((total * advPct) / 100);
+                      const opts = [];
+                      if (advPct > 0 && advPct < 100 && advAmt > 0) {
+                        opts.push({
+                          key: "advance",
+                          title: `Pay ${advPct}% advance now`,
+                          sub: `${formatCurrency(advAmt)} now · ${formatCurrency(Math.max(0, total - advAmt))} before the event`,
+                        });
+                      }
+                      opts.push({
+                        key: "full",
+                        title: "Pay full amount now",
+                        sub: `${formatCurrency(total)} · nothing left to pay later`,
+                      });
+                      if (opts.length < 2) return null; // only one way to pay → no choice needed
+                      return (
+                        <div className="mb-4 space-y-2">
+                          {opts.map((o) => (
+                            <button
+                              key={o.key}
+                              type="button"
+                              onClick={() => setPayChoice(o.key)}
+                              className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                                payChoice === o.key
+                                  ? "border-primary bg-primary-soft/60"
+                                  : "border-border-strong bg-surface hover:border-primary/40"
+                              }`}
+                            >
+                              <span
+                                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                                  payChoice === o.key ? "border-primary" : "border-border-strong"
+                                }`}
+                              >
+                                {payChoice === o.key ? <span className="h-2 w-2 rounded-full bg-primary" /> : null}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block text-sm font-semibold text-text-strong">{o.title}</span>
+                                <span className="block text-xs text-muted">{o.sub}</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     <button
                       type="button"
                       onClick={handleApprove}
