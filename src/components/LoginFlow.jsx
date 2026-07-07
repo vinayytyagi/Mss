@@ -93,12 +93,19 @@ function SocialAuth() {
   function finish(data) {
     saveAuthCookies(data);
     sendAttribution(getAuthToken()).catch(() => {});
+    router.refresh();
+
     const r = searchParams.get("redirect") || searchParams.get("returnTo");
-    // Full-page navigation (not router.push) so the server re-reads the
-    // freshly-set mss_user cookie and the header renders logged-in. A
-    // client-side push left the persistent navbar showing Login/Sign up
-    // after Google sign-in (stale SSR state in the force-dynamic layout).
-    window.location.assign(r || "/");
+    if (r) {
+      router.push(r);
+      return;
+    }
+    const resumePath = resumePathFromUser(data.user);
+    if (resumePath) {
+      router.push(resumePath);
+    } else {
+      router.push("/");
+    }
   }
 
   async function onCredential(credential) {
