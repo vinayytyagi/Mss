@@ -160,9 +160,14 @@ function SocialAuth() {
             type="tel"
             inputMode="numeric"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+              setPhone(val);
+            }}
             placeholder="10-digit mobile number"
             className={INPUT_CLASS}
+            maxLength={10}
+            required
           />
           <button type="submit" disabled={busy} className={`${PRIMARY_BTN_CLASS} w-full`}>
             {busy ? "Please wait…" : "Continue"}

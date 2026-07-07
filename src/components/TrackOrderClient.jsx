@@ -387,9 +387,9 @@ export default function TrackOrderClient({ initialOrders = [], initialPhone = ""
                   id="track-phone"
                   type="tel"
                   inputMode="numeric"
-                  value={phone}
                   onChange={(e) => {
-                    setPhone(e.target.value);
+                    const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    setPhone(val);
                     if (error) setError("");
                     if (notFound) setNotFound(false);
                   }}
