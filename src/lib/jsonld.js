@@ -95,6 +95,22 @@ export function breadcrumbSchema(items) {
   };
 }
 
+export function articleSchema({ title, description, url, image, datePublished, dateModified, author } = {}) {
+  const b = base();
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: title,
+    description,
+    mainEntityOfPage: { "@type": "WebPage", "@id": url },
+    ...(image ? { image: [image] } : {}),
+    ...(datePublished ? { datePublished } : {}),
+    ...(dateModified ? { dateModified } : {}),
+    author: { "@type": author ? "Person" : "Organization", name: author || "MyShaadiStore" },
+    publisher: { "@type": "Organization", name: "MyShaadiStore", url: b },
+  };
+}
+
 export function productSchema(item) {
   const b = base();
   const images =

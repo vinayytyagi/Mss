@@ -161,6 +161,9 @@ export default function SiteFooterMaroon({ steps = [] }) {
                   <MaroonNavLink href="/careers">Careers</MaroonNavLink>
                 </li>
                 <li>
+                  <MaroonNavLink href="/blog">Blog</MaroonNavLink>
+                </li>
+                <li>
                   <a
                     href={buildWhatsAppUrl(WA_DEFAULT_MESSAGE)}
                     target="_blank"
