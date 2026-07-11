@@ -12,7 +12,7 @@
 const WA_NUMBER = process.env.NEXT_PUBLIC_WA_NUMBER || "919568559915";
 
 /** Human-readable variant for display in footers / contact strips. */
-export const WA_DISPLAY_NUMBER = "+91 95685 59915";
+export const WA_DISPLAY_NUMBER = "+91 91521 80808";
 
 /**
  * Default opener — warm, contextual, ends with a clear ask.
