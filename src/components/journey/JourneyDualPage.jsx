@@ -81,7 +81,12 @@ export default function JourneyDualPage({ steps, step, items }) {
   const cardCfg = useMemo(() => getListingConfig(step.slug)?.card || null, [step.slug]);
   const trustItems = resolveTrustItems(step);
 
-  const [tab, setTab] = useState("product"); // "product" | "package"
+  // Admin can hide the product ("Hire a chef") tab for a dual step. When hidden,
+  // the whole tab switcher disappears and only the package builder is shown.
+  const hideProduct = step?.hide_dual_product === true;
+
+  const [tab, setTab] = useState(hideProduct ? "package" : "product"); // "product" | "package"
+  const activeTab = hideProduct ? "package" : tab;
 
   const activeIndex = Math.max(0, steps.findIndex((s) => s.step_id === step.step_id));
   const prevStep = activeIndex > 0 ? steps[activeIndex - 1] : null;
@@ -95,42 +100,52 @@ export default function JourneyDualPage({ steps, step, items }) {
       <JourneyStepStrip steps={steps} step={step} />
       <TrustStrip items={trustItems} />
 
-      {/* Tab switcher: product listing vs package builder */}
-      <div className="mx-auto mt-6 flex max-w-2xl overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
-        <button
-          type="button"
-          onClick={() => setTab("product")}
-          aria-pressed={tab === "product"}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
-            tab === "product"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted hover:bg-surface-muted"
-          }`}
-        >
-          <LayoutGrid className="h-4 w-4" />
-          {productLabel}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("package")}
-          aria-pressed={tab === "package"}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
-            tab === "package"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted hover:bg-surface-muted"
-          }`}
-        >
-          <PackagePlus className="h-4 w-4" />
+      {/* Tab switcher: product listing vs package builder.
+          Hidden when the admin has disabled the product tab for this step. */}
+      {!hideProduct ? (
+        <div className="mx-auto mt-6 flex max-w-2xl overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
+          <button
+            type="button"
+            onClick={() => setTab("product")}
+            aria-pressed={activeTab === "product"}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+              activeTab === "product"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted hover:bg-surface-muted"
+            }`}
+          >
+            <LayoutGrid className="h-4 w-4" />
+            {productLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("package")}
+            aria-pressed={activeTab === "package"}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+              activeTab === "package"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted hover:bg-surface-muted"
+            }`}
+          >
+            <PackagePlus className="h-4 w-4" />
+            {packageLabel}
+          </button>
+        </div>
+      ) : (
+        /* Product tab hidden: no switcher — show a simple heading so the
+           package builder still has context. */
+        <div className="mx-auto mt-6 flex max-w-2xl items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-bold text-text-strong shadow-[0_12px_30px_rgba(0,0,0,0.03)]">
+          <PackagePlus className="h-4 w-4 text-primary" />
           {packageLabel}
-        </button>
-      </div>
+        </div>
+      )}
 
       <JourneyStepNav
         prevHref={prevStep ? `/journey/${prevStep.slug}` : null}
         nextHref={nextStep ? `/journey/${nextStep.slug}` : "/cart?tab=quotation"}
         nextIsCart={!nextStep}
       >
-        {tab === "product" ? (
+        {activeTab === "product" ? (
           <ProductGrid step={step} items={items} cardCfg={cardCfg} />
         ) : (
           <SectionsBuilder

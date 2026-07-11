@@ -11,7 +11,7 @@ export {
   fetchPackageDefinition,
 } from "./api/catalogApi";
 
-export { fetchHeroSlideshow, fetchSiteConfig } from "./api/siteSettingsApi";
+export { fetchHeroSlideshow, fetchSiteConfig, fetchHomepageFaqs } from "./api/siteSettingsApi";
 
 export { fetchBlogs, fetchBlog, fetchHomepageBlogs } from "./api/blogsApi";
 

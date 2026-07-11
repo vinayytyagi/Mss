@@ -452,7 +452,9 @@ export default async function JourneySlugPageServer({ params, searchParams }) {
   if (pageMode === "dual") {
     return (
       <main>
-        <JourneyDualPage steps={steps} step={step} items={items} />
+        {/* key per step so client tab/pagination state re-inits when navigating
+            between dual steps (e.g. catering ⇄ gifting). */}
+        <JourneyDualPage key={step.step_id} steps={steps} step={step} items={items} />
       </main>
     );
   }

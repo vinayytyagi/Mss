@@ -14,6 +14,15 @@ export async function fetchSizeChart() {
 }
 
 /**
+ * Admin-managed homepage FAQ section (shown above the footer).
+ * No-store so admin edits show up promptly.
+ * Returns { enabled, eyebrow, heading, items: [{ q, a }] }.
+ */
+export async function fetchHomepageFaqs() {
+  return apiFetch("/homepage-faqs", { cacheMode: "no-store" });
+}
+
+/**
  * Public global feature toggles (reviews submit, refund visibility, replacement).
  * Falls back to safe defaults if the endpoint is unreachable so the storefront
  * never breaks on a config fetch.
